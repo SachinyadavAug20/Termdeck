@@ -11,6 +11,9 @@ A terminal-native presentation format
 - plain **text** files, git-friendly
 - AI agents can *write* decks directly
 - present from any ssh session
+- `deck demo.deck.md` and go
+
+::image logo.png
 
 ---
 
@@ -18,7 +21,53 @@ A terminal-native presentation format
 
 - no font or video codec hell
 - the canvas is just a character grid
-- `deck demo.deck.md` and go
+- works over **SSH**, in **tmux**, anywhere
+
+::code lang=bash
+  curl -sSL https://example.com/deck.sh | bash
+  deck slides.deck.md
+
+---
+
+# Styling
+
+**bold text** and *italic text* and `inline code`
+
+mix them: **bold *with italic*** inside
+
+- **git-friendly** — plain text diffs
+- **AI-native** — agents write `.deck.md` directly
+- *zero dependencies* — just a binary
+
+---
+
+# Code blocks
+
+::code lang=go
+  package main
+
+  import "fmt"
+
+  func main() {
+      fmt.Println("Hello, termdeck!")
+  }
+
+::code lang=python
+  print("Hello, termdeck!")
+
+---
+
+# Headings
+
+## this is h2
+
+### this is h3
+
+#### this is h4
+
+##### this is h5
+
+###### this is h6
 
 ---
 
@@ -28,3 +77,26 @@ A terminal-native presentation format
 - `G` — last slide
 - `g` — first slide
 - `q` or `Ctrl+C` — quit
+
+---
+
+# Image placeholders
+
+::image architecture.png
+
+::code lang=text
+  +-----------+     +----------+
+  | .deck.md  | --> |  deck    |
+  +-----------+     +----------+
+                         |
+                    +----v-----+
+                    | terminal  |
+                    +----------+
+
+---
+
+# Notes (hidden in presentation)
+
+::notes
+  These notes are not shown to the audience.
+  Use them for speaker prep.

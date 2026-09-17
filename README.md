@@ -14,6 +14,12 @@ go build -o deck .
 deck demo.deck.md
 ```
 
+## Project status
+
+#### 17 september 2026
+- [x] Basic start with core logic in main.go
+- ![image](Documentation/Development_Documentation/Images/screenshots/1.png)
+
 ## Format
 
 Slides are separated by `---` (three dashes on a line).
