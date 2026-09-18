@@ -70,11 +70,12 @@ tpp/
 |-----|--------|
 | `→` `l` `Space` `Enter` `↓` `j` `PageDown` | Next slide |
 | `←` `h` `↑` `k` `PageUp` `Backspace` | Previous slide |
-| `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) |
+| `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
 | `G` | Last slide |
 | `g` | First slide |
-| `q` `Esc` `Ctrl+C` | Quit |
+| `q` `Ctrl+C` | Quit (auto-saves any unsaved changes) |
+| `Esc` | Clear message status |
 
 ## Keys — Editor
 
@@ -85,13 +86,13 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 | `↑` `k` | Move cursor up |
 | `↓` `j` | Move cursor down |
 | `i` | Enter edit mode |
-| `Esc` | Exit edit mode / cancel |
-| `Enter` | Confirm edit |
+| `Esc` `Ctrl+C` | Exit edit mode / cancel |
+| `Enter` | Confirm edit & auto-save to file |
 | `Ctrl+N` | Add new block |
 | `Ctrl+D` | Delete block |
 | `Ctrl+K` | Move block up |
 | `Ctrl+J` | Move block down |
-| `Ctrl+S` | Save file |
+| `Ctrl+S` | Save file manually |
 | `u` | Undo |
 | `Ctrl+R` | Redo |
 
@@ -100,6 +101,8 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - Full-screen (alternate screen buffer)
 - Auto-resizes on terminal resize
 - Configurable alignment: `left`, `center`, `right` (via `Tab`, `::align`, or frontmatter)
+- **Automatic saving**: Saves immediately on alignment toggle (`Tab`/`Ctrl+A`), on edit confirm (`Enter`), and on exit (`q`/`Ctrl+C`)
+- Manual save anytime with `Ctrl+S`
 - Inline styling: **bold**, *italic*, `code`
 - Heading levels (h1–h6) with clean visual hierarchy
 - `::code lang=X` blocks with syntax highlighting

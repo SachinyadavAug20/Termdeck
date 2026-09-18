@@ -75,8 +75,13 @@ func main() {
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())
-	if _, err := p.Run(); err != nil {
+	finalModel, err := p.Run()
+	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+
+	if fm, ok := finalModel.(model); ok && fm.editor.Dirty && fm.editor.FilePath != "" {
+		fm.editor.Save(fm.deck)
 	}
 }

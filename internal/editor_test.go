@@ -598,3 +598,58 @@ func TestEditorEdgeCases(t *testing.T) {
 	emptyEd.MoveBlockDown(&d)
 	emptyEd.ToggleAlign(&d)
 }
+
+func TestAutoSaveFeatures(t *testing.T) {
+	tmpDir := t.TempDir()
+	deckPath := filepath.Join(tmpDir, "presentation.deck.md")
+	initialContent := "---\ntitle: AutoSave Test\n---\n# Slide 1\nHello World\n"
+	if err := os.WriteFile(deckPath, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("failed to write test file: %v", err)
+	}
+
+	d := ParseDeck(initialContent)
+	ed := NewEditor(deckPath)
+
+	// 1. ToggleAlign should auto-save immediately to disk when file exists
+	ed.ToggleAlign(&d)
+	if ed.Dirty {
+		t.Errorf("expected dirty flag to be false after auto-save on ToggleAlign")
+	}
+	if !strings.Contains(ed.Message, "(saved)") {
+		t.Errorf("expected message to indicate '(saved)', got %q", ed.Message)
+	}
+	diskContent, err := os.ReadFile(deckPath)
+	if err != nil {
+		t.Fatalf("failed to read disk file: %v", err)
+	}
+	if !strings.Contains(string(diskContent), "::align right") {
+		t.Errorf("expected disk file to contain '::align right' after ToggleAlign, got:\n%s", string(diskContent))
+	}
+
+	// 2. handleEdit 'enter' should auto-save committed text to disk
+	ed.BlockIdx = 1 // "Hello World"
+	ed.EnterEdit(&d)
+	ed.Draft = "Updated via Live Edit"
+	sendTestKey(&ed, &d, "enter")
+	diskContentAfterEdit, _ := os.ReadFile(deckPath)
+	if !strings.Contains(string(diskContentAfterEdit), "Updated via Live Edit") {
+		t.Errorf("expected disk file to contain 'Updated via Live Edit' after enter, got:\n%s", string(diskContentAfterEdit))
+	}
+
+	// 3. handleNav 'q' should auto-save if dirty
+	ed.AddBlock(&d) // marks dirty
+	if !ed.Dirty {
+		t.Fatalf("expected dirty flag true after AddBlock")
+	}
+	cmd := sendTestKey(&ed, &d, "q")
+	if cmd == nil {
+		t.Errorf("expected tea.Quit command on 'q'")
+	}
+	if ed.Dirty {
+		t.Errorf("expected dirty flag to be false after auto-save on quit")
+	}
+	diskContentAfterQuit, _ := os.ReadFile(deckPath)
+	if !strings.Contains(string(diskContentAfterQuit), "new block") {
+		t.Errorf("expected disk file to contain 'new block' after auto-save on quit, got:\n%s", string(diskContentAfterQuit))
+	}
+}

@@ -266,6 +266,12 @@ func (e *Editor) ToggleAlign(d *Deck) {
 	d.Slides[e.SlideIdx].Align = next
 	e.Dirty = true
 	e.Message = "align: " + string(next)
+	if e.FilePath != "" {
+		if _, err := os.Stat(e.FilePath); err == nil {
+			e.Save(*d)
+			e.Message = "align: " + string(next) + " (saved)"
+		}
+	}
 }
 
 // --- Input handling ---
@@ -285,6 +291,9 @@ func (e *Editor) HandleKey(msg tea.KeyMsg, d *Deck) tea.Cmd {
 func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 	switch key {
 	case "q", "ctrl+c":
+		if e.Dirty && e.FilePath != "" {
+			e.Save(*d)
+		}
 		return tea.Quit
 
 	case "right", "l", " ", "enter", "pgdown":
@@ -411,6 +420,11 @@ func (e *Editor) handleEdit(key string, d *Deck) tea.Cmd {
 
 	case "enter":
 		e.ExitEdit(d)
+		if e.FilePath != "" {
+			if _, err := os.Stat(e.FilePath); err == nil {
+				e.Save(*d)
+			}
+		}
 		return nil
 
 	case "backspace":

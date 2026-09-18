@@ -52,6 +52,7 @@ Tests the navigation and editing state machine:
 - `TestEditorHandleKeyEdit`: In-place typing, cursor navigation (`home`, `end`, `left`, `right`), deletions (`backspace`, `delete`), canceling (`esc`), and saving (`enter`).
 - `TestEditorSaveAndError`: Disk serialization and unwritable directory error handling.
 - `TestEditorEdgeCases`: Boundaries (preventing deleting last block or last slide, empty undo/redo stacks, out-of-range indices).
+- `TestAutoSaveFeatures`: Verifies immediate disk persistence when toggling alignment (`Tab`/`Ctrl+A`), auto-saving edited text on confirm (`Enter`), and auto-saving dirty buffers on exit (`q`/`Ctrl+C`).
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
 Tests visual layout and terminal text styling:

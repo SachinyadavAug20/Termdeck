@@ -11,6 +11,7 @@
 - Refined heading visual hierarchy: H1 pink with underline, H2–H6 stepped white opacity fade.
 - Formatted presentation image cards with dimensions, format tag, and `'p'` shortcut to open in system viewer.
 - Fallback ANSI half-block image renderer in `internal/image.go`.
+- Auto-save engine: Automatically persists changes to disk when toggling slide alignment (`Tab` / `Ctrl+A`), confirming live edits (`Enter`), and exiting the presentation (`q` / `Ctrl+C`). Graceful exit saving in `main.go`.
 
 ## v0.1 — 17 September 2026
 
