@@ -21,8 +21,11 @@ deck demo.deck.md
 - [x] High-contrast laser pointer indicator (`▶ `)
 - [x] Stepped opacity heading hierarchy (pink underline for H1)
 - [x] Image presentation cards with system viewer integration (`p`)
+- [x] Auto-save on alignment toggle, edit confirm, and quit
 - [x] Complete automated test suite (91.7% statement coverage)
 - [x] Makefile developer automation (`make test`, `make coverage`, `make bench`, `make lint`)
+
+![Termdeck v0.2: Left alignment, laser pointer, and image card](TTP_Documentation/development/images/2.png)
 
 #### 17 September 2026
 - [x] Basic start with core logic in main.go
@@ -31,7 +34,7 @@ deck demo.deck.md
 - [x] Block-based editor with undo/redo
 - [x] Save to `.deck.md`
 
-![Termdeck Screenshot](TTP_Documentation/development/images/1.png)
+![Termdeck Initial Screenshot](TTP_Documentation/development/images/1.png)
 
 ## Project Structure
 
@@ -60,7 +63,7 @@ tpp/
     │   └── format.md    # Format v0.1 specification
     ├── development/
     │   ├── testing.md   # Complete QA & testing guide
-    │   └── images/      # Screenshots, diagrams
+    │   └── images/      # Screenshots (1.png, 2.png)
     └── api/             # API docs (future)
 ```
 
