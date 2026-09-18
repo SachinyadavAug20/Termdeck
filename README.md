@@ -62,17 +62,21 @@ tpp/
     ├── specs/
     │   └── format.md    # Format v0.1 specification
     ├── development/
-    │   ├── testing.md   # Complete QA & testing guide
-    │   └── images/      # Screenshots (1.png, 2.png)
-    └── api/             # API docs (future)
+    │   ├── architecture.md # Technical architecture & deep-dive
+    │   ├── testing.md      # Complete QA & testing guide
+    │   └── images/         # Screenshots (1.png, 2.png)
+    └── api/                # API docs (future)
 ```
 
 ## Keys — Viewer
 
 | Key | Action |
 |-----|--------|
-| `→` `l` `Space` `Enter` `↓` `j` `PageDown` | Next slide |
-| `←` `h` `↑` `k` `PageUp` `Backspace` | Previous slide |
+| `→` `l` `Space` `Enter` `PageDown` | Next slide |
+| `←` `h` `PageUp` `Backspace` | Previous slide |
+| `↓` `j` | Move block cursor / laser pointer down |
+| `↑` `k` | Move block cursor / laser pointer up |
+| `n` | Toggle speaker notes overlay (hidden from audience by default) |
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
 | `G` | Last slide |
@@ -110,14 +114,14 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - Heading levels (h1–h6) with clean visual hierarchy
 - `::code lang=X` blocks with syntax highlighting
 - `::image` presentation cards with system viewer integration
-- `::notes` (hidden in presentation)
+- `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **91.7% statement coverage** with 32 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **91.6% statement coverage** with 35 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary
@@ -136,7 +140,9 @@ make bench
 make lint
 ```
 
-For full details, see the [Developer Testing Guide](TTP_Documentation/development/testing.md).
+For full details, see:
+- [Technical Architecture Deep-Dive](TTP_Documentation/development/architecture.md)
+- [Developer Testing & QA Guide](TTP_Documentation/development/testing.md)
 
 ## Format
 

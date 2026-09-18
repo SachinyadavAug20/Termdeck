@@ -24,6 +24,9 @@ lint: ## Check formatting and run go vet
 	@test -z "$$(gofmt -l .)" || (echo "Unformatted files found:" && gofmt -l . && exit 1)
 	go vet ./...
 
+fmt: ## Format all Go source files
+	gofmt -w .
+
 clean: ## Remove build artifacts and coverage reports
 	rm -f deck coverage.out coverage.html
 

@@ -653,3 +653,52 @@ func TestAutoSaveFeatures(t *testing.T) {
 		t.Errorf("expected disk file to contain 'new block' after auto-save on quit, got:\n%s", string(diskContentAfterQuit))
 	}
 }
+
+func TestSpeakerNotesEditor(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Slide with Notes"},
+					{Kind: BlockParagraph, Text: "Visible body"},
+					{Kind: BlockDirective, Directive: "::notes", Lines: []string{"Secret speaker note"}},
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	if ed.ShowNotes {
+		t.Errorf("expected ShowNotes to be false initially")
+	}
+
+	// Move down to visible body (BlockIdx: 1)
+	ed.MoveDown(&d)
+	if ed.BlockIdx != 1 {
+		t.Fatalf("expected blockIdx 1, got %d", ed.BlockIdx)
+	}
+
+	// Move down again - should NOT navigate to ::notes (BlockIdx: 2)
+	ed.MoveDown(&d)
+	if ed.BlockIdx != 1 {
+		t.Fatalf("expected blockIdx to stay at last visible block 1, got %d", ed.BlockIdx)
+	}
+
+	// Toggle notes open with 'n'
+	sendTestKey(&ed, &d, "n")
+	if !ed.ShowNotes {
+		t.Errorf("expected ShowNotes to be true after pressing 'n'")
+	}
+	if !strings.Contains(ed.Message, "notes open") {
+		t.Errorf("expected notes open message, got %q", ed.Message)
+	}
+
+	// Toggle notes closed with 'n'
+	sendTestKey(&ed, &d, "n")
+	if ed.ShowNotes {
+		t.Errorf("expected ShowNotes to be false after pressing 'n' second time")
+	}
+	if !strings.Contains(ed.Message, "notes closed") {
+		t.Errorf("expected notes closed message, got %q", ed.Message)
+	}
+}

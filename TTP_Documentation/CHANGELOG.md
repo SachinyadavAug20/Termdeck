@@ -12,6 +12,7 @@
 - Formatted presentation image cards with dimensions, format tag, and `'p'` shortcut to open in system viewer.
 - Fallback ANSI half-block image renderer in `internal/image.go`.
 - Auto-save engine: Automatically persists changes to disk when toggling slide alignment (`Tab` / `Ctrl+A`), confirming live edits (`Enter`), and exiting the presentation (`q` / `Ctrl+C`). Graceful exit saving in `main.go`.
+- Speaker notes privacy & overlay toggle: Multi-line notes under `::notes` directive are strictly grouped and hidden from the audience canvas, the laser pointer cursor skips notes blocks, status bar indicates note presence (`[n: notes]`), and presenters can toggle viewing notes on demand via `'n'` in a floating bottom panel.
 
 ## v0.1 — 17 September 2026
 

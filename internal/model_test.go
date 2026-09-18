@@ -336,6 +336,46 @@ func TestSerializeDeckEdgeCases(t *testing.T) {
 	}
 }
 
+func TestSpeakerNotesModel(t *testing.T) {
+	src := `# Title
+
+Visible paragraph
+
+- Bullet 1
+
+::notes
+This is line 1 of notes.
+This is line 2 of notes.
+`
+	deck := ParseDeck(src)
+	if len(deck.Slides) != 1 {
+		t.Fatalf("expected 1 slide, got %d", len(deck.Slides))
+	}
+	slide := deck.Slides[0]
+	// Slide has 3 visible blocks + 1 notes directive block
+	if len(slide.Blocks) != 4 {
+		t.Fatalf("expected 4 blocks total, got %d", len(slide.Blocks))
+	}
+	vis := slide.VisibleBlockIndices()
+	if len(vis) != 3 {
+		t.Fatalf("expected 3 visible blocks, got %d", len(vis))
+	}
+	if vis[0] != 0 || vis[1] != 1 || vis[2] != 2 {
+		t.Errorf("unexpected visible block indices: %v", vis)
+	}
+
+	notes := slide.Notes()
+	if !strings.Contains(notes, "This is line 1 of notes.") || !strings.Contains(notes, "This is line 2 of notes.") {
+		t.Errorf("expected notes to contain both lines, got %q", notes)
+	}
+
+	// Test serialization round trip of notes
+	serialized := SerializeDeck(deck)
+	if !strings.Contains(serialized, "::notes\nThis is line 1 of notes.\nThis is line 2 of notes.") {
+		t.Errorf("expected serialized notes, got %s", serialized)
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

@@ -12,16 +12,18 @@ import (
 // --- Styles ---
 
 var (
-	boldStyle      = lipgloss.NewStyle().Bold(true)
-	italicStyle    = lipgloss.NewStyle().Italic(true)
-	codeSpanStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Background(lipgloss.Color("236")).Padding(0, 1)
-	codeBlockStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1)
-	imageStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
-	dimStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	dimBoldStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Bold(true)
-	cursorStyle    = lipgloss.NewStyle().Background(lipgloss.Color("240")).Foreground(lipgloss.Color("0"))
-	editStyle      = lipgloss.NewStyle().Background(lipgloss.Color("22")).Foreground(lipgloss.Color("252")).Padding(0, 1)
-	messageStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
+	boldStyle       = lipgloss.NewStyle().Bold(true)
+	italicStyle     = lipgloss.NewStyle().Italic(true)
+	codeSpanStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Background(lipgloss.Color("236")).Padding(0, 1)
+	codeBlockStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1)
+	imageStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
+	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	dimBoldStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Bold(true)
+	cursorStyle     = lipgloss.NewStyle().Background(lipgloss.Color("240")).Foreground(lipgloss.Color("0"))
+	editStyle       = lipgloss.NewStyle().Background(lipgloss.Color("22")).Foreground(lipgloss.Color("252")).Padding(0, 1)
+	messageStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
+	notesBoxStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Foreground(lipgloss.Color("252")).Padding(0, 1)
+	notesTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 
 	h1Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).Underline(true)
 	h2Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
@@ -47,21 +49,29 @@ var (
 // --- Inline styling ---
 
 func inlineStyle(text string) string {
-	type span struct {
-		start, end int
-		styled     string
+	matches := reCodeSpan.FindAllStringIndex(text, -1)
+	if len(matches) == 0 {
+		result := reBold.ReplaceAllStringFunc(text, func(m string) string {
+			return boldStyle.Render(m[2 : len(m)-2])
+		})
+		return reItalic.ReplaceAllStringFunc(result, func(m string) string {
+			return italicStyle.Render(m[1 : len(m)-1])
+		})
 	}
 
-	var spans []span
-	for _, m := range reCodeSpan.FindAllStringIndex(text, -1) {
+	var b strings.Builder
+	lastIdx := 0
+	styledSpans := make([]string, len(matches))
+
+	for i, m := range matches {
+		b.WriteString(text[lastIdx:m[0]])
 		inner := text[m[0]+1 : m[1]-1]
-		spans = append(spans, span{m[0], m[1], codeSpanStyle.Render(inner)})
+		styledSpans[i] = codeSpanStyle.Render(inner)
+		fmt.Fprintf(&b, "\x00CODE%d\x00", i)
+		lastIdx = m[1]
 	}
-	result := text
-	for i, s := range spans {
-		ph := fmt.Sprintf("\x00CODE%d\x00", i)
-		result = result[:s.start] + ph + result[s.end:]
-	}
+	b.WriteString(text[lastIdx:])
+	result := b.String()
 
 	result = reBold.ReplaceAllStringFunc(result, func(m string) string {
 		return boldStyle.Render(m[2 : len(m)-2])
@@ -71,9 +81,9 @@ func inlineStyle(text string) string {
 		return italicStyle.Render(m[1 : len(m)-1])
 	})
 
-	for i, s := range spans {
+	for i, styled := range styledSpans {
 		ph := fmt.Sprintf("\x00CODE%d\x00", i)
-		result = strings.Replace(result, ph, s.styled, 1)
+		result = strings.Replace(result, ph, styled, 1)
 	}
 
 	return result
@@ -396,6 +406,9 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 		}
 
 	case BlockDirective:
+		if strings.HasPrefix(blk.Directive, "::notes") {
+			return ""
+		}
 		if isCursor {
 			b.WriteString(cursorMark + dimStyle.Render(blk.Directive))
 		} else {
@@ -414,17 +427,38 @@ func renderSlide(slide Slide, w, h int, baseDir string, e Editor) string {
 	if maxBlockH < 8 {
 		maxBlockH = 8
 	}
-	for i, blk := range slide.Blocks {
-		isCursor := i == e.BlockIdx
+	visibleIndices := slide.VisibleBlockIndices()
+	for _, idx := range visibleIndices {
+		blk := slide.Blocks[idx]
+		isCursor := idx == e.BlockIdx
 		isEditing := isCursor && e.Mode == ModeEdit
 		editDraft := ""
 		if isEditing {
 			editDraft = e.Draft
 		}
 		rendered := renderBlock(blk, w, maxBlockH, baseDir, isCursor, isEditing, editDraft, e.CursorCol)
-		lines = append(lines, rendered)
+		if rendered != "" {
+			lines = append(lines, rendered)
+		}
 	}
 	return strings.Join(lines, "\n\n")
+}
+
+func renderNotesOverlay(notes string, width, maxHeight int) string {
+	if maxHeight < 3 {
+		maxHeight = 3
+	}
+	content := notes
+	if strings.TrimSpace(content) == "" {
+		content = dimStyle.Render("(no speaker notes for this slide)")
+	}
+	title := notesTitleStyle.Render("📝 Speaker Notes") + dimStyle.Render(" (press 'n' to hide)")
+	boxW := width - 4
+	if boxW < 20 {
+		boxW = width
+	}
+	inner := title + "\n" + content
+	return notesBoxStyle.Width(boxW).MaxHeight(maxHeight).Render(inner)
 }
 
 // --- Full view ---
@@ -437,7 +471,28 @@ func View(d Deck, e Editor, width, height int) string {
 		height = 24
 	}
 
+	notesOverlay := ""
+	notesHeight := 0
+	if e.ShowNotes {
+		notes := ""
+		if e.SlideIdx < len(d.Slides) {
+			notes = d.Slides[e.SlideIdx].Notes()
+		}
+		maxNotesH := height / 3
+		if maxNotesH < 4 {
+			maxNotesH = 4
+		}
+		if maxNotesH > 8 {
+			maxNotesH = 8
+		}
+		notesOverlay = renderNotesOverlay(notes, width, maxNotesH)
+		notesHeight = lipgloss.Height(notesOverlay)
+	}
+
 	bodyHeight := height - 2
+	if notesHeight > 0 {
+		bodyHeight = height - 2 - notesHeight
+	}
 	if bodyHeight < 1 {
 		bodyHeight = 1
 	}
@@ -490,6 +545,9 @@ func View(d Deck, e Editor, width, height int) string {
 		status = navStatus(d, e, width)
 	}
 
+	if notesOverlay != "" {
+		return body + "\n" + notesOverlay + "\n" + status
+	}
 	return body + "\n" + status
 }
 
@@ -502,14 +560,28 @@ func navStatus(d Deck, e Editor, w int) string {
 		align = d.Slides[e.SlideIdx].Align
 	}
 
-	left := fmt.Sprintf("slide %d/%d (%s)  ·  blocks %d", e.SlideIdx+1, len(d.Slides), align, len(d.Slides[e.SlideIdx].Blocks))
+	visibleCount := 0
+	hasNotes := false
+	if e.SlideIdx < len(d.Slides) {
+		visibleCount = len(d.Slides[e.SlideIdx].VisibleBlockIndices())
+		hasNotes = d.Slides[e.SlideIdx].Notes() != ""
+	}
+
+	left := fmt.Sprintf("slide %d/%d (%s)  ·  blocks %d", e.SlideIdx+1, len(d.Slides), align, visibleCount)
+	if hasNotes {
+		if e.ShowNotes {
+			left += "  ·  [n: notes open]"
+		} else {
+			left += "  ·  [n: notes]"
+		}
+	}
 	if e.Dirty {
 		left += "  ·  [modified]"
 	}
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "tab align · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "tab align · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

@@ -44,6 +44,29 @@ type Slide struct {
 	Align  AlignKind
 }
 
+func (s *Slide) VisibleBlockIndices() []int {
+	var indices []int
+	for i, b := range s.Blocks {
+		if b.Kind == BlockDirective && strings.HasPrefix(b.Directive, "::notes") {
+			continue
+		}
+		indices = append(indices, i)
+	}
+	return indices
+}
+
+func (s *Slide) Notes() string {
+	for _, b := range s.Blocks {
+		if b.Kind == BlockDirective && strings.HasPrefix(b.Directive, "::notes") {
+			if len(b.Lines) > 0 {
+				return strings.Join(b.Lines, "\n")
+			}
+			return b.Text
+		}
+	}
+	return ""
+}
+
 type Deck struct {
 	Meta    map[string]string
 	Slides  []Slide
@@ -116,6 +139,9 @@ func parseSlide(lines []string) Slide {
 	codeLang := ""
 	var codeLines []string
 
+	inNotes := false
+	var noteLines []string
+
 	flushCode := func() {
 		blocks = append(blocks, Block{
 			Kind:  BlockCode,
@@ -124,6 +150,16 @@ func parseSlide(lines []string) Slide {
 		})
 		codeLines = nil
 		codeLang = ""
+	}
+
+	flushNotes := func() {
+		blocks = append(blocks, Block{
+			Kind:      BlockDirective,
+			Directive: "::notes",
+			Lines:     noteLines,
+			Text:      strings.Join(noteLines, "\n"),
+		})
+		noteLines = nil
 	}
 
 	for _, line := range lines {
@@ -137,11 +173,23 @@ func parseSlide(lines []string) Slide {
 					continue
 				}
 			}
+			if inNotes {
+				flushNotes()
+				inNotes = false
+				if strings.HasPrefix(trimmed, "::notes") && trimmed == "::notes" {
+					continue
+				}
+			}
 
 			if strings.HasPrefix(trimmed, "::code") {
 				inCode = true
 				_, val := ParseDirective(trimmed)
 				codeLang = val
+				continue
+			}
+
+			if strings.HasPrefix(trimmed, "::notes") {
+				inNotes = true
 				continue
 			}
 
@@ -167,6 +215,11 @@ func parseSlide(lines []string) Slide {
 
 		if inCode {
 			codeLines = append(codeLines, line)
+			continue
+		}
+
+		if inNotes {
+			noteLines = append(noteLines, line)
 			continue
 		}
 
@@ -202,6 +255,9 @@ func parseSlide(lines []string) Slide {
 
 	if inCode {
 		flushCode()
+	}
+	if inNotes {
+		flushNotes()
 	}
 
 	return Slide{Blocks: blocks, Align: slideAlign}
@@ -285,6 +341,20 @@ func SerializeBlock(blk Block) string {
 	case BlockImage:
 		return fmt.Sprintf("::image %s", blk.Src)
 	case BlockDirective:
+		if strings.HasPrefix(blk.Directive, "::notes") {
+			var b strings.Builder
+			b.WriteString("::notes\n")
+			if len(blk.Lines) > 0 {
+				for _, l := range blk.Lines {
+					b.WriteString(l)
+					b.WriteString("\n")
+				}
+			} else if blk.Text != "" {
+				b.WriteString(blk.Text)
+				b.WriteString("\n")
+			}
+			return strings.TrimRight(b.String(), "\n")
+		}
 		return blk.Directive
 	case BlockList:
 		return blk.Text

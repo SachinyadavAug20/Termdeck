@@ -115,28 +115,32 @@ If the file is not found, a styled placeholder `[ image not found: <filename> ]`
 ```
 ::notes
   These are speaker notes.
-  Not visible to the audience.
+  Not visible to the audience canvas.
 ```
 
-Skipped by the viewer. Reserved for future presenter-mode use.
+Speaker notes are completely omitted from the audience canvas by default. The block cursor and laser pointer (`▶ `) skip notes blocks entirely. Presenters can press `n` at any time to toggle a styled speaker notes overlay box at the bottom of the terminal. When notes exist on the current slide, the status bar displays an `[n: notes]` indicator.
 
 ## Slide rendering
 
 - Slides are vertically centered in the terminal with configurable horizontal alignment (`left`, `center`, `right`).
-- Footer shows: `slide N/M (align) · tab align · i edit · ^s save · q quit`
-- Content fills the available height minus footer.
+- Footer shows: `slide N/M (align) · blocks B · [n: notes] · tab align · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit`
+- Content fills the available height minus footer (and notes overlay when active).
 
 ## Keyboard shortcuts (viewer)
 
 | Key | Action |
 |-----|--------|
-| `→`, `l`, `Space`, `Enter`, `↓`, `j`, `PageDown` | Next slide |
-| `←`, `h`, `↑`, `k`, `PageUp`, `Backspace` | Previous slide |
-| `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) |
+| `→`, `l`, `Space`, `Enter`, `PageDown` | Next slide |
+| `←`, `h`, `PageUp`, `Backspace` | Previous slide |
+| `↓`, `j` | Move block cursor / laser pointer down |
+| `↑`, `k` | Move block cursor / laser pointer up |
+| `n` | Toggle speaker notes overlay box |
+| `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
 | `g`, `Home` | First slide |
 | `G`, `End` | Last slide |
-| `q`, `Ctrl+C`, `Esc` | Quit |
+| `q`, `Ctrl+C` | Quit (auto-saves any unsaved changes) |
+| `Esc` | Clear message status |
 
 ## Example
 

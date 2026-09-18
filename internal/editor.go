@@ -34,6 +34,7 @@ type Editor struct {
 	FilePath  string
 	Dirty     bool
 	Message   string
+	ShowNotes bool
 }
 
 func NewEditor(filePath string) Editor {
@@ -67,18 +68,64 @@ func (e *Editor) currentBlock(d *Deck) *Block {
 	return &slide.Blocks[e.BlockIdx]
 }
 
-func (e *Editor) MoveUp(d *Deck) {
-	if e.BlockIdx > 0 {
-		e.BlockIdx--
-		e.CursorCol = 0
+func (e *Editor) ClampBlockIdx(d *Deck) {
+	if e.SlideIdx >= len(d.Slides) {
+		e.BlockIdx = 0
+		return
 	}
+	vis := d.Slides[e.SlideIdx].VisibleBlockIndices()
+	if len(vis) == 0 {
+		e.BlockIdx = 0
+		return
+	}
+	for _, idx := range vis {
+		if idx == e.BlockIdx {
+			return
+		}
+	}
+	e.BlockIdx = vis[0]
+}
+
+func (e *Editor) MoveUp(d *Deck) {
+	if e.SlideIdx >= len(d.Slides) {
+		return
+	}
+	vis := d.Slides[e.SlideIdx].VisibleBlockIndices()
+	if len(vis) == 0 {
+		return
+	}
+	for i, idx := range vis {
+		if idx == e.BlockIdx {
+			if i > 0 {
+				e.BlockIdx = vis[i-1]
+				e.CursorCol = 0
+			}
+			return
+		}
+	}
+	e.BlockIdx = vis[0]
+	e.CursorCol = 0
 }
 
 func (e *Editor) MoveDown(d *Deck) {
-	if e.SlideIdx < len(d.Slides) && e.BlockIdx < len(d.Slides[e.SlideIdx].Blocks)-1 {
-		e.BlockIdx++
-		e.CursorCol = 0
+	if e.SlideIdx >= len(d.Slides) {
+		return
 	}
+	vis := d.Slides[e.SlideIdx].VisibleBlockIndices()
+	if len(vis) == 0 {
+		return
+	}
+	for i, idx := range vis {
+		if idx == e.BlockIdx {
+			if i < len(vis)-1 {
+				e.BlockIdx = vis[i+1]
+				e.CursorCol = 0
+			}
+			return
+		}
+	}
+	e.BlockIdx = vis[0]
+	e.CursorCol = 0
 }
 
 func (e *Editor) EnterEdit(d *Deck) {
@@ -160,8 +207,12 @@ func (e *Editor) DeleteBlock(d *Deck) {
 		return
 	}
 	slide := &d.Slides[e.SlideIdx]
-	if len(slide.Blocks) <= 1 {
+	vis := slide.VisibleBlockIndices()
+	if len(vis) <= 1 {
 		e.Message = "can't delete last block"
+		return
+	}
+	if e.BlockIdx >= len(slide.Blocks) {
 		return
 	}
 	e.SaveUndo(*d)
@@ -169,18 +220,31 @@ func (e *Editor) DeleteBlock(d *Deck) {
 	if e.BlockIdx >= len(slide.Blocks) {
 		e.BlockIdx = len(slide.Blocks) - 1
 	}
+	e.ClampBlockIdx(d)
 	e.Dirty = true
 	e.Message = "block deleted"
 }
 
 func (e *Editor) MoveBlockUp(d *Deck) {
-	if e.SlideIdx >= len(d.Slides) || e.BlockIdx <= 0 {
+	if e.SlideIdx >= len(d.Slides) {
 		return
 	}
-	e.SaveUndo(*d)
 	slide := &d.Slides[e.SlideIdx]
-	slide.Blocks[e.BlockIdx], slide.Blocks[e.BlockIdx-1] = slide.Blocks[e.BlockIdx-1], slide.Blocks[e.BlockIdx]
-	e.BlockIdx--
+	vis := slide.VisibleBlockIndices()
+	currPos := -1
+	for i, idx := range vis {
+		if idx == e.BlockIdx {
+			currPos = i
+			break
+		}
+	}
+	if currPos <= 0 {
+		return
+	}
+	prevIdx := vis[currPos-1]
+	e.SaveUndo(*d)
+	slide.Blocks[e.BlockIdx], slide.Blocks[prevIdx] = slide.Blocks[prevIdx], slide.Blocks[e.BlockIdx]
+	e.BlockIdx = prevIdx
 	e.Dirty = true
 }
 
@@ -189,12 +253,21 @@ func (e *Editor) MoveBlockDown(d *Deck) {
 		return
 	}
 	slide := &d.Slides[e.SlideIdx]
-	if e.BlockIdx >= len(slide.Blocks)-1 {
+	vis := slide.VisibleBlockIndices()
+	currPos := -1
+	for i, idx := range vis {
+		if idx == e.BlockIdx {
+			currPos = i
+			break
+		}
+	}
+	if currPos == -1 || currPos >= len(vis)-1 {
 		return
 	}
+	nextIdx := vis[currPos+1]
 	e.SaveUndo(*d)
-	slide.Blocks[e.BlockIdx], slide.Blocks[e.BlockIdx+1] = slide.Blocks[e.BlockIdx+1], slide.Blocks[e.BlockIdx]
-	e.BlockIdx++
+	slide.Blocks[e.BlockIdx], slide.Blocks[nextIdx] = slide.Blocks[nextIdx], slide.Blocks[e.BlockIdx]
+	e.BlockIdx = nextIdx
 	e.Dirty = true
 }
 
@@ -300,11 +373,13 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		if e.SlideIdx < len(d.Slides)-1 {
 			e.SlideIdx++
 			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
 		}
 	case "left", "h", "pgup", "backspace":
 		if e.SlideIdx > 0 {
 			e.SlideIdx--
 			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
 		}
 
 	case "down", "j":
@@ -315,11 +390,21 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 	case "g":
 		e.SlideIdx = 0
 		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
 	case "G":
 		e.SlideIdx = len(d.Slides) - 1
 		e.BlockIdx = 0
 		if e.SlideIdx < 0 {
 			e.SlideIdx = 0
+		}
+		e.ClampBlockIdx(d)
+
+	case "n":
+		e.ShowNotes = !e.ShowNotes
+		if e.ShowNotes {
+			e.Message = "notes open (press 'n' to hide)"
+		} else {
+			e.Message = "notes closed"
 		}
 
 	case "i", "a", "o", "I", "A", "O":

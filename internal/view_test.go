@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"os"
 	"regexp"
 	"strings"
 	"testing"
@@ -198,6 +199,22 @@ func TestInlineStyle(t *testing.T) {
 	if !strings.Contains(combined, "code") || !strings.Contains(combined, "bold") || !strings.Contains(combined, "italic") {
 		t.Errorf("expected all elements rendered in combined: %q", combined)
 	}
+
+	// Multiple code spans on one line (prevents slice bounds out of range panics)
+	multiCode := inlineStyle("`cat .git/HEAD` -> `ref: refs/heads/main`")
+	if !strings.Contains(multiCode, "cat .git/HEAD") || !strings.Contains(multiCode, "ref: refs/heads/main") {
+		t.Errorf("expected multiple code spans rendered: %q", multiCode)
+	}
+
+	threeCode := inlineStyle("Bad: `fixed bug`, `asdf`, `wip`")
+	if !strings.Contains(threeCode, "fixed bug") || !strings.Contains(threeCode, "asdf") || !strings.Contains(threeCode, "wip") {
+		t.Errorf("expected three code spans rendered: %q", threeCode)
+	}
+
+	codeWithAsterisk := inlineStyle("Artifacts: `node_modules/`, `*.exe`, `.env`")
+	if !strings.Contains(codeWithAsterisk, "*.exe") {
+		t.Errorf("expected code span with asterisk preserved: %q", codeWithAsterisk)
+	}
 }
 
 func TestRenderBlockVariants(t *testing.T) {
@@ -257,14 +274,21 @@ func TestRenderBlockVariants(t *testing.T) {
 	}
 
 	// 6. Directive block
-	dBlk := Block{Kind: BlockDirective, Directive: "::notes private note"}
+	dBlk := Block{Kind: BlockDirective, Directive: "::plugin param"}
 	outD := stripANSI(renderBlock(dBlk, w, maxH, baseDir, true, false, "", 0))
-	if !strings.Contains(outD, "::notes") || !strings.Contains(outD, "▶") {
+	if !strings.Contains(outD, "::plugin") || !strings.Contains(outD, "▶") {
 		t.Errorf("expected laser pointer and directive: %q", outD)
 	}
 	outDNoCursor := stripANSI(renderBlock(dBlk, w, maxH, baseDir, false, false, "", 0))
-	if !strings.Contains(outDNoCursor, "::notes") {
+	if !strings.Contains(outDNoCursor, "::plugin") {
 		t.Errorf("expected directive: %q", outDNoCursor)
+	}
+
+	// 7. Speaker notes directive is hidden from canvas
+	notesBlk := Block{Kind: BlockDirective, Directive: "::notes"}
+	outNotes := renderBlock(notesBlk, w, maxH, baseDir, false, false, "", 0)
+	if outNotes != "" {
+		t.Errorf("expected notes directive to be hidden from canvas, got: %q", outNotes)
 	}
 }
 
@@ -345,6 +369,110 @@ func TestViewDimensionsAndModes(t *testing.T) {
 	outCenter := stripANSI(View(dCenter, edCenter, 80, 24))
 	if !strings.Contains(outCenter, "(center)") {
 		t.Errorf("expected center status in View: %q", outCenter)
+	}
+}
+
+func TestSpeakerNotesView(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Public Heading"},
+					{Kind: BlockParagraph, Text: "Public Content"},
+					{Kind: BlockDirective, Directive: "::notes", Lines: []string{"Confidential Speaker Note Line"}},
+				},
+			},
+			{
+				Blocks: []Block{
+					{Kind: BlockParagraph, Text: "Slide without notes"},
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	// 1. Audience view (default ShowNotes: false)
+	outDefault := stripANSI(View(d, ed, 80, 24))
+	if strings.Contains(outDefault, "Confidential Speaker Note Line") {
+		t.Errorf("critical error: speaker note text leaked onto audience canvas: %q", outDefault)
+	}
+	if strings.Contains(outDefault, "::notes") {
+		t.Errorf("critical error: ::notes directive rendered onto audience canvas: %q", outDefault)
+	}
+	// Blocks count must only count visible blocks (2), not the hidden notes block (3)
+	if !strings.Contains(outDefault, "blocks 2") {
+		t.Errorf("expected status bar to report 'blocks 2', got: %q", outDefault)
+	}
+	// Status bar should indicate notes are available
+	if !strings.Contains(outDefault, "[n: notes]") {
+		t.Errorf("expected status bar to indicate '[n: notes]', got: %q", outDefault)
+	}
+
+	// 2. Presenter notes overlay open (ShowNotes: true)
+	ed.ShowNotes = true
+	outWithNotes := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(outWithNotes, "📝 Speaker Notes") {
+		t.Errorf("expected notes title box in view: %q", outWithNotes)
+	}
+	if !strings.Contains(outWithNotes, "Confidential Speaker Note Line") {
+		t.Errorf("expected notes text in speaker overlay: %q", outWithNotes)
+	}
+	if !strings.Contains(outWithNotes, "[n: notes open]") {
+		t.Errorf("expected status bar to show '[n: notes open]', got: %q", outWithNotes)
+	}
+
+	// 3. Presenter navigates to slide without notes while ShowNotes is still true
+	ed.SlideIdx = 1
+	outSlide2 := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(outSlide2, "no speaker notes for this slide") {
+		t.Errorf("expected empty notes message for slide without notes: %q", outSlide2)
+	}
+	if strings.Contains(outSlide2, "[n: notes]") {
+		t.Errorf("expected no notes badge on slide without notes: %q", outSlide2)
+	}
+
+	// 4. Verification on the real sample deck file (git_under_the_hood.deck.md)
+	realDeckData, err := os.ReadFile("../git_under_the_hood.deck.md")
+	if err == nil {
+		realDeck := ParseDeck(string(realDeckData))
+		realEd := NewEditor("../git_under_the_hood.deck.md")
+		realEd.SlideIdx = 1 // Slide 2: "Mental Model: Git is a Content-Addressable Filesystem"
+		realOut := stripANSI(View(realDeck, realEd, 100, 30))
+		if strings.Contains(realOut, "Hook the audience immediately.") {
+			t.Errorf("critical error: speaker note leaked into canvas on slide 2 of git_under_the_hood.deck.md")
+		}
+		if strings.Contains(realOut, "::notes") {
+			t.Errorf("critical error: ::notes directive visible on canvas on slide 2 of git_under_the_hood.deck.md")
+		}
+		if !strings.Contains(realOut, "[n: notes]") {
+			t.Errorf("expected [n: notes] badge in status bar on slide 2")
+		}
+
+		// When 'n' is toggled, notes appear in overlay box
+		realEd.ShowNotes = true
+		realOutWithNotes := stripANSI(View(realDeck, realEd, 100, 30))
+		if !strings.Contains(realOutWithNotes, "📝 Speaker Notes") {
+			t.Errorf("expected notes overlay box title on slide 2")
+		}
+		if !strings.Contains(realOutWithNotes, "Hook the audience immediately.") {
+			t.Errorf("expected notes text in overlay box on slide 2, got: %q", realOutWithNotes)
+		}
+
+		// Verify every slide in git_under_the_hood.deck.md renders with 0 panics
+		for sIdx := range realDeck.Slides {
+			realEd.SlideIdx = sIdx
+			realEd.BlockIdx = 0
+			realEd.ShowNotes = false
+			out := View(realDeck, realEd, 100, 30)
+			if len(out) == 0 {
+				t.Errorf("slide %d produced empty output", sIdx)
+			}
+			realEd.ShowNotes = true
+			outNotes := View(realDeck, realEd, 100, 30)
+			if len(outNotes) == 0 {
+				t.Errorf("slide %d with notes produced empty output", sIdx)
+			}
+		}
 	}
 }
 
