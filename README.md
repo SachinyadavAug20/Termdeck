@@ -1,6 +1,6 @@
 # Termdeck
 
-Terminal presentation tool. Write slides in markdown, present full-screen in your terminal.
+Terminal presentation tool. Write slides in markdown, present and edit full-screen in your terminal.
 
 ## Install
 
@@ -14,50 +14,82 @@ go build -o deck .
 deck demo.deck.md
 ```
 
-## Project status
+## Project Status
 
-#### 17 september 2026
+#### 17 September 2026
 - [x] Basic start with core logic in main.go
-- ![image](Documentation/Development_Documentation/Images/screenshots/1.png)
+- [x] Full-screen viewer with keyboard navigation
+- [x] Inline styling, heading levels, code blocks
+- [x] Block-based editor with undo/redo
+- [x] Save to `.deck.md`
 
-## Format
+![Termdeck Screenshot](TTP_Documentation/development/images/1.png)
 
-Slides are separated by `---` (three dashes on a line).
+## Project Structure
 
-```markdown
----
-format: 0.1
-title: My Presentation
-author: Name
----
-
-# Slide Title
-
-- bullet points
-- **bold** text
-- `inline code`
-
----
-
-# Another Slide
-
-Content here...
+```
+tpp/
+├── main.go              # Entry point, tea.Model
+├── internal/
+│   ├── model.go         # Block types, Deck/Slide parsing, serialization
+│   ├── view.go          # Rendering, styles, syntax highlighting
+│   └── editor.go        # Edit mode, block operations, undo/redo
+├── demo.deck.md         # Sample deck
+├── go.mod
+├── go.sum
+├── .gitignore
+├── README.md
+└── TTP_Documentation/
+    ├── CHANGELOG.md
+    ├── specs/
+    │   └── format.md    # Format v0.1 specification
+    ├── development/
+    │   └── images/      # Screenshots, diagrams
+    └── api/             # API docs (future)
 ```
 
-## Keys
+## Keys — Viewer
 
 | Key | Action |
 |-----|--------|
-| `→` `j` `Space` `Enter` | Next slide |
-| `←` `k` `Backspace` | Previous slide |
+| `→` `l` `Space` `Enter` `↓` `j` `PageDown` | Next slide |
+| `←` `h` `↑` `k` `PageUp` `Backspace` | Previous slide |
 | `G` | Last slide |
 | `g` | First slide |
 | `q` `Esc` `Ctrl+C` | Quit |
+
+## Keys — Editor
+
+Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mode.
+
+| Key | Action |
+|-----|--------|
+| `↑` `k` | Move cursor up |
+| `↓` `j` | Move cursor down |
+| `i` | Enter edit mode |
+| `Esc` | Exit edit mode / cancel |
+| `Enter` | Confirm edit |
+| `Ctrl+N` | Add new block |
+| `Ctrl+D` | Delete block |
+| `Ctrl+K` | Move block up |
+| `Ctrl+J` | Move block down |
+| `Ctrl+S` | Save file |
+| `u` | Undo |
+| `Ctrl+R` | Redo |
 
 ## Features
 
 - Full-screen (alternate screen buffer)
 - Auto-resizes on terminal resize
-- Markdown-like syntax
-- Git-friendly plain text files
-# Termdeck
+- Inline styling: **bold**, *italic*, `code`
+- Heading levels (h1–h6)
+- `::code lang=X` blocks with syntax highlighting
+- `::image` placeholders
+- `::notes` (hidden in presentation)
+- Block-based editor with live editing
+- Undo/redo
+- Save to `.deck.md`
+
+## Format
+
+See `TTP_Documentation/specs/format.md` for the full format specification.

@@ -41,6 +41,22 @@ mix them: **bold *with italic*** inside
 
 ---
 
+# Code highlighting
+
+Syntax highlighting works in `::code` blocks:
+
+::code lang=go
+  // keyword, string, comment highlighting
+  func hello(name string) string {
+      return "Hello, " + name  // strings are green
+  }
+
+::code lang=bash
+  # comments are dimmed
+  echo "keywords are highlighted"
+
+---
+
 # Code blocks
 
 ::code lang=go
@@ -77,6 +93,21 @@ mix them: **bold *with italic*** inside
 - `G` — last slide
 - `g` — first slide
 - `q` or `Ctrl+C` — quit
+
+---
+
+# Editor
+
+Press `i` to enter edit mode on any block.
+
+- `↑/↓` or `k/j` — move between blocks
+- `Esc` — exit edit mode
+- `Enter` — confirm edit
+- `Ctrl+N` — add new block
+- `Ctrl+D` — delete block
+- `Ctrl+K/J` — reorder blocks
+- `Ctrl+S` — save file
+- `u` / `Ctrl+R` — undo / redo
 
 ---
 
