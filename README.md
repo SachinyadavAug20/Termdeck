@@ -33,7 +33,8 @@ tpp/
 ├── internal/
 │   ├── model.go         # Block types, Deck/Slide parsing, serialization
 │   ├── view.go          # Rendering, styles, syntax highlighting
-│   └── editor.go        # Edit mode, block operations, undo/redo
+│   ├── editor.go        # Edit mode, block operations, undo/redo
+│   └── image.go         # Terminal image renderer (ANSI half-blocks)
 ├── demo.deck.md         # Sample deck
 ├── go.mod
 ├── go.sum
@@ -54,6 +55,8 @@ tpp/
 |-----|--------|
 | `→` `l` `Space` `Enter` `↓` `j` `PageDown` | Next slide |
 | `←` `h` `↑` `k` `PageUp` `Backspace` | Previous slide |
+| `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) |
+| `p` | Open focused image in system viewer |
 | `G` | Last slide |
 | `g` | First slide |
 | `q` `Esc` `Ctrl+C` | Quit |
@@ -81,10 +84,11 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 
 - Full-screen (alternate screen buffer)
 - Auto-resizes on terminal resize
+- Configurable alignment: `left`, `center`, `right` (via `Tab`, `::align`, or frontmatter)
 - Inline styling: **bold**, *italic*, `code`
-- Heading levels (h1–h6)
+- Heading levels (h1–h6) with clean visual hierarchy
 - `::code lang=X` blocks with syntax highlighting
-- `::image` placeholders
+- `::image` presentation cards with system viewer integration
 - `::notes` (hidden in presentation)
 - Block-based editor with live editing
 - Undo/redo

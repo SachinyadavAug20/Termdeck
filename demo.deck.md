@@ -13,7 +13,7 @@ A terminal-native presentation format
 - present from any ssh session
 - `deck demo.deck.md` and go
 
-::image logo.png
+::image demo.png
 
 ---
 
@@ -30,6 +30,8 @@ A terminal-native presentation format
 ---
 
 # Styling
+
+::align left
 
 **bold text** and *italic text* and `inline code`
 
@@ -90,6 +92,7 @@ Syntax highlighting works in `::code` blocks:
 # Navigation
 
 - `←/→` or `j/k` — next/prev slide
+- `Tab` / `Ctrl+A` — cycle alignment (left / center / right)
 - `G` — last slide
 - `g` — first slide
 - `q` or `Ctrl+C` — quit
@@ -108,12 +111,13 @@ Press `i` to enter edit mode on any block.
 - `Ctrl+K/J` — reorder blocks
 - `Ctrl+S` — save file
 - `u` / `Ctrl+R` — undo / redo
+- `p` — open image in system viewer
 
 ---
 
-# Image placeholders
+# Terminal Images
 
-::image architecture.png
+::image 1.png
 
 ::code lang=text
   +-----------+     +----------+

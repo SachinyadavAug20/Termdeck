@@ -3,6 +3,7 @@ package main
 import (
 	"fmt"
 	"os"
+	"path/filepath"
 
 	"deck/internal"
 	tea "github.com/charmbracelet/bubbletea"
@@ -56,6 +57,7 @@ func main() {
 	}
 
 	deck := internal.ParseDeck(string(src))
+	deck.BaseDir = filepath.Dir(filePath)
 	if len(deck.Slides) == 0 {
 		fmt.Fprintln(os.Stderr, "no slides found")
 		os.Exit(1)

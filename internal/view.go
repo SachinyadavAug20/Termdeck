@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"path/filepath"
 	"regexp"
 	"strings"
 
@@ -22,12 +23,14 @@ var (
 	editStyle      = lipgloss.NewStyle().Background(lipgloss.Color("22")).Foreground(lipgloss.Color("252")).Padding(0, 1)
 	messageStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
 
-	titleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	h2Style    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("252"))
-	h3Style    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("250"))
-	h4Style    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("248"))
-	h5Style    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("246"))
-	h6Style    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("244"))
+	h1Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).Underline(true)
+	h2Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
+	h3Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#D8D8D8"))
+	h4Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#B0B0B0"))
+	h5Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
+	h6Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#606060"))
+
+	laserPointerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF2A55"))
 
 	syntaxKeyword = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
 	syntaxString  = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
@@ -78,32 +81,19 @@ func inlineStyle(text string) string {
 
 // --- Heading rendering ---
 
-var (
-	h1BorderStyle = lipgloss.NewStyle().
-			Bold(true).
-			Foreground(lipgloss.Color("212")).
-			Underline(true)
-)
-
-func renderHeading(text string, level int, w int) string {
+func renderHeading(text string, level int) string {
 	switch level {
 	case 1:
-		// h1: underline with spacing
-		return "\n" + h1BorderStyle.Render(text) + "\n"
+		return h1Style.Render(text)
 	case 2:
-		// h2: bold with extra spacing
-		return "\n" + h2Style.Render(text) + "\n"
+		return h2Style.Render(text)
 	case 3:
-		// h3: bold with single spacing
-		return "\n" + h3Style.Render(text)
+		return h3Style.Render(text)
 	case 4:
-		// h4: dimmer
 		return h4Style.Render(text)
 	case 5:
-		// h5: dimmer
 		return h5Style.Render(text)
 	default:
-		// h6: dimmest
 		return h6Style.Render(text)
 	}
 }
@@ -203,14 +193,65 @@ func highlightCode(lines []string, lang string) string {
 	return result.String()
 }
 
+// --- Image card rendering ---
+
+func renderImageCard(src string, baseDir string, maxW int) string {
+	info := GetImageInfo(src, baseDir)
+
+	cardW := maxW
+	if cardW > 46 {
+		cardW = 46
+	}
+	if cardW < 28 {
+		cardW = 28
+	}
+
+	cardBorder := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color("240")).
+		Padding(0, 1).
+		Width(cardW)
+
+	if !info.Exists {
+		msg := fmt.Sprintf("⚠  image not found: %s", src)
+		return cardBorder.BorderForeground(lipgloss.Color("196")).Render(
+			lipgloss.NewStyle().Foreground(lipgloss.Color("203")).Render(msg),
+		)
+	}
+
+	name := filepath.Base(src)
+	titleLine := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("255")).Render("🖼  " + name)
+
+	detail := ""
+	if info.Width > 0 && info.Height > 0 {
+		detail = fmt.Sprintf("%d × %d px", info.Width, info.Height)
+		if info.Format != "" {
+			detail += "  ·  " + info.Format
+		}
+	} else if info.Format != "" {
+		detail = info.Format
+	}
+
+	detailLine := lipgloss.NewStyle().Foreground(lipgloss.Color("242")).Italic(true).Render(detail)
+	hintLine := lipgloss.NewStyle().Foreground(lipgloss.Color("239")).Render("press 'p' to open")
+
+	content := titleLine
+	if detail != "" {
+		content += "\n   " + detailLine
+	}
+	content += "\n   " + hintLine
+
+	return cardBorder.Render(content)
+}
+
 // --- Block rendering ---
 
-func renderBlock(blk Block, w int, isCursor bool, isEditing bool, editDraft string, cursorCol int) string {
+func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool, isEditing bool, editDraft string, cursorCol int) string {
 	var b strings.Builder
 
 	cursorMark := "  "
 	if isCursor && !isEditing {
-		cursorMark = dimBoldStyle.Render("▸ ")
+		cursorMark = laserPointerStyle.Render("▶ ")
 	}
 
 	switch blk.Kind {
@@ -219,13 +260,21 @@ func renderBlock(blk Block, w int, isCursor bool, isEditing bool, editDraft stri
 		if isEditing {
 			text = editDraft
 		}
-		rendered := renderHeading(text, blk.Level, w)
-		if isCursor && !isEditing {
-			b.WriteString(cursorMark + rendered)
-		} else if isEditing {
+		rendered := renderHeading(text, blk.Level)
+		if isEditing {
 			b.WriteString(editStyle.Width(w - 4).Render(text))
 		} else {
-			b.WriteString("  " + rendered)
+			lines := strings.Split(rendered, "\n")
+			for idx, l := range lines {
+				if idx > 0 {
+					b.WriteString("\n")
+				}
+				if idx == 0 && isCursor {
+					b.WriteString(cursorMark + l)
+				} else {
+					b.WriteString("  " + l)
+				}
+			}
 		}
 
 	case BlockParagraph:
@@ -234,50 +283,94 @@ func renderBlock(blk Block, w int, isCursor bool, isEditing bool, editDraft stri
 			text = editDraft
 		}
 		rendered := inlineStyle(text)
-		if isCursor && !isEditing {
-			b.WriteString(cursorMark + rendered)
-		} else if isEditing {
+		if isEditing {
 			b.WriteString(editStyle.Width(w - 4).Render(text))
 		} else {
-			b.WriteString("  " + rendered)
+			lines := strings.Split(rendered, "\n")
+			for idx, l := range lines {
+				if idx > 0 {
+					b.WriteString("\n")
+				}
+				if idx == 0 && isCursor {
+					b.WriteString(cursorMark + l)
+				} else {
+					b.WriteString("  " + l)
+				}
+			}
 		}
 
 	case BlockCode:
 		content := strings.Join(blk.Lines, "\n")
 		if isEditing {
 			content = editDraft
+			b.WriteString(editStyle.Width(w - 4).Render(content))
+			break
+		}
+
+		maxCodeLineLen := 0
+		for _, l := range blk.Lines {
+			if len(l) > maxCodeLineLen {
+				maxCodeLineLen = len(l)
+			}
+		}
+		if blk.Lang != "" && len(blk.Lang)+6 > maxCodeLineLen {
+			maxCodeLineLen = len(blk.Lang) + 6
+		}
+		boxW := maxCodeLineLen + 6
+		if boxW > w-8 {
+			boxW = w - 8
+		}
+		if boxW < 32 {
+			boxW = 32
 		}
 
 		header := ""
 		if blk.Lang != "" {
 			langLabel := dimBoldStyle.Render(" " + blk.Lang + " ")
-			gap := w - 4 - lipgloss.Width(langLabel)
+			gap := boxW - lipgloss.Width(langLabel)
 			if gap < 0 {
 				gap = 0
 			}
 			header = strings.Repeat(" ", gap) + langLabel + "\n"
 		}
 
-		var codeContent string
-		if isEditing {
-			codeContent = editStyle.Width(w - 6).Render(content)
-		} else {
-			codeContent = highlightCode(blk.Lines, blk.Lang)
-		}
+		codeContent := highlightCode(blk.Lines, blk.Lang)
+		rendered := codeBlockStyle.Width(boxW).Render(codeContent)
 
-		rendered := codeBlockStyle.Width(w - 4).Render(codeContent)
-		if isCursor && !isEditing {
-			b.WriteString(cursorMark + header + rendered)
-		} else {
-			b.WriteString("  " + header + rendered)
+		fullCode := header + rendered
+		lines := strings.Split(fullCode, "\n")
+		targetLine := 0
+		if header != "" {
+			targetLine = 1
+		}
+		for idx, l := range lines {
+			if idx > 0 {
+				b.WriteString("\n")
+			}
+			if idx == targetLine && isCursor {
+				b.WriteString(cursorMark + l)
+			} else {
+				b.WriteString("  " + l)
+			}
 		}
 
 	case BlockImage:
-		placeholder := fmt.Sprintf("[ image: %s ]", blk.Src)
-		if isCursor {
-			b.WriteString(cursorMark + imageStyle.Render(placeholder))
-		} else {
-			b.WriteString("  " + imageStyle.Render(placeholder))
+		if isEditing {
+			b.WriteString(editStyle.Width(w - 4).Render(editDraft))
+			break
+		}
+
+		card := renderImageCard(blk.Src, baseDir, w-6)
+		lines := strings.Split(card, "\n")
+		for idx, l := range lines {
+			if idx > 0 {
+				b.WriteString("\n")
+			}
+			if idx == 0 && isCursor {
+				b.WriteString(cursorMark + l)
+			} else {
+				b.WriteString("  " + l)
+			}
 		}
 
 	case BlockList:
@@ -286,12 +379,20 @@ func renderBlock(blk Block, w int, isCursor bool, isEditing bool, editDraft stri
 			text = editDraft
 		}
 		rendered := inlineStyle(text)
-		if isCursor && !isEditing {
-			b.WriteString(cursorMark + rendered)
-		} else if isEditing {
+		if isEditing {
 			b.WriteString(editStyle.Width(w - 4).Render(text))
 		} else {
-			b.WriteString("  " + rendered)
+			lines := strings.Split(rendered, "\n")
+			for idx, l := range lines {
+				if idx > 0 {
+					b.WriteString("\n")
+				}
+				if idx == 0 && isCursor {
+					b.WriteString(cursorMark + l)
+				} else {
+					b.WriteString("  " + l)
+				}
+			}
 		}
 
 	case BlockDirective:
@@ -307,8 +408,12 @@ func renderBlock(blk Block, w int, isCursor bool, isEditing bool, editDraft stri
 
 // --- Slide rendering ---
 
-func renderSlide(slide Slide, w int, e Editor) string {
+func renderSlide(slide Slide, w, h int, baseDir string, e Editor) string {
 	var lines []string
+	maxBlockH := h - 4
+	if maxBlockH < 8 {
+		maxBlockH = 8
+	}
 	for i, blk := range slide.Blocks {
 		isCursor := i == e.BlockIdx
 		isEditing := isCursor && e.Mode == ModeEdit
@@ -316,7 +421,7 @@ func renderSlide(slide Slide, w int, e Editor) string {
 		if isEditing {
 			editDraft = e.Draft
 		}
-		rendered := renderBlock(blk, w, isCursor, isEditing, editDraft, e.CursorCol)
+		rendered := renderBlock(blk, w, maxBlockH, baseDir, isCursor, isEditing, editDraft, e.CursorCol)
 		lines = append(lines, rendered)
 	}
 	return strings.Join(lines, "\n\n")
@@ -337,15 +442,45 @@ func View(d Deck, e Editor, width, height int) string {
 		bodyHeight = 1
 	}
 
+	baseDir := d.BaseDir
+	if baseDir == "" && e.FilePath != "" {
+		baseDir = filepath.Dir(e.FilePath)
+	}
+
+	align := d.Align
+	if align == "" {
+		align = AlignCenter
+	}
+	if e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Align != "" {
+		align = d.Slides[e.SlideIdx].Align
+	}
+
 	content := ""
 	if e.SlideIdx < len(d.Slides) {
-		content = renderSlide(d.Slides[e.SlideIdx], width, e)
+		content = renderSlide(d.Slides[e.SlideIdx], width, bodyHeight, baseDir, e)
+	}
+
+	var hAlign lipgloss.Position
+	padLeft := 0
+	padRight := 0
+
+	switch align {
+	case AlignLeft:
+		hAlign = lipgloss.Left
+		padLeft = 8
+	case AlignRight:
+		hAlign = lipgloss.Right
+		padRight = 8
+	default:
+		hAlign = lipgloss.Center
 	}
 
 	body := lipgloss.NewStyle().
 		Width(width).
 		Height(bodyHeight).
-		Align(lipgloss.Center, lipgloss.Center).
+		Align(hAlign, lipgloss.Center).
+		PaddingLeft(padLeft).
+		PaddingRight(padRight).
 		Render(content)
 
 	status := ""
@@ -359,11 +494,22 @@ func View(d Deck, e Editor, width, height int) string {
 }
 
 func navStatus(d Deck, e Editor, w int) string {
-	left := fmt.Sprintf("slide %d/%d  ·  blocks %d", e.SlideIdx+1, len(d.Slides), len(d.Slides[e.SlideIdx].Blocks))
+	align := d.Align
+	if align == "" {
+		align = AlignCenter
+	}
+	if e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Align != "" {
+		align = d.Slides[e.SlideIdx].Align
+	}
+
+	left := fmt.Sprintf("slide %d/%d (%s)  ·  blocks %d", e.SlideIdx+1, len(d.Slides), align, len(d.Slides[e.SlideIdx].Blocks))
 	if e.Dirty {
 		left += "  ·  [modified]"
 	}
-	right := "i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	if e.Message != "" {
+		left += "  ·  " + e.Message
+	}
+	right := "tab align · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

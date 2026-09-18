@@ -31,13 +31,24 @@ type Block struct {
 
 // --- Slide & Deck ---
 
+type AlignKind string
+
+const (
+	AlignLeft   AlignKind = "left"
+	AlignCenter AlignKind = "center"
+	AlignRight  AlignKind = "right"
+)
+
 type Slide struct {
 	Blocks []Block
+	Align  AlignKind
 }
 
 type Deck struct {
-	Meta   map[string]string
-	Slides []Slide
+	Meta    map[string]string
+	Slides  []Slide
+	BaseDir string
+	Align   AlignKind
 }
 
 // --- Parsing ---
@@ -80,11 +91,24 @@ func ParseDeck(src string) Deck {
 		slides = append(slides, parseSlide(group))
 	}
 
-	return Deck{Meta: meta, Slides: slides}
+	deckAlign := AlignCenter
+	if a, ok := meta["align"]; ok {
+		switch strings.ToLower(strings.TrimSpace(a)) {
+		case "left":
+			deckAlign = AlignLeft
+		case "right":
+			deckAlign = AlignRight
+		case "center":
+			deckAlign = AlignCenter
+		}
+	}
+
+	return Deck{Meta: meta, Slides: slides, Align: deckAlign}
 }
 
 func parseSlide(lines []string) Slide {
 	var blocks []Block
+	var slideAlign AlignKind
 	inCode := false
 	codeLang := ""
 	var codeLines []string
@@ -102,30 +126,44 @@ func parseSlide(lines []string) Slide {
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
-		if strings.HasPrefix(trimmed, "::code") {
+		if strings.HasPrefix(trimmed, "::") {
 			if inCode {
 				flushCode()
 				inCode = false
+				if strings.HasPrefix(trimmed, "::code") && trimmed == "::code" {
+					continue
+				}
+			}
+
+			if strings.HasPrefix(trimmed, "::code") {
+				inCode = true
+				_, val := ParseDirective(trimmed)
+				codeLang = val
 				continue
 			}
-			inCode = true
-			_, val := ParseDirective(trimmed)
-			codeLang = val
-			continue
-		}
 
-		if inCode {
-			codeLines = append(codeLines, line)
-			continue
-		}
-
-		if strings.HasPrefix(trimmed, "::") {
 			key, val := ParseDirective(trimmed)
+			if key == "align" {
+				val = strings.ToLower(strings.TrimSpace(val))
+				if val == "left" || val == "center" || val == "right" {
+					slideAlign = AlignKind(val)
+				}
+				continue
+			} else if key == "left" || key == "center" || key == "right" {
+				slideAlign = AlignKind(key)
+				continue
+			}
+
 			if key == "image" {
 				blocks = append(blocks, Block{Kind: BlockImage, Src: val})
 			} else {
 				blocks = append(blocks, Block{Kind: BlockDirective, Directive: trimmed, Raw: line})
 			}
+			continue
+		}
+
+		if inCode {
+			codeLines = append(codeLines, line)
 			continue
 		}
 
@@ -163,7 +201,7 @@ func parseSlide(lines []string) Slide {
 		flushCode()
 	}
 
-	return Slide{Blocks: blocks}
+	return Slide{Blocks: blocks, Align: slideAlign}
 }
 
 func ParseDirective(line string) (key, value string) {
@@ -177,6 +215,8 @@ func ParseDirective(line string) (key, value string) {
 		rest := strings.TrimSpace(content[idx:])
 		if eq := strings.Index(rest, "="); eq != -1 {
 			value = strings.TrimSpace(rest[eq+1:])
+		} else {
+			value = rest
 		}
 	} else {
 		key = content
@@ -189,9 +229,17 @@ func ParseDirective(line string) (key, value string) {
 func SerializeDeck(d Deck) string {
 	var b strings.Builder
 
-	if len(d.Meta) > 0 {
+	meta := make(map[string]string)
+	for k, v := range d.Meta {
+		meta[k] = v
+	}
+	if d.Align != "" && d.Align != AlignCenter {
+		meta["align"] = string(d.Align)
+	}
+
+	if len(meta) > 0 {
 		b.WriteString("---\n")
-		for k, v := range d.Meta {
+		for k, v := range meta {
 			fmt.Fprintf(&b, "%s: %s\n", k, v)
 		}
 		b.WriteString("---\n\n")
@@ -200,6 +248,9 @@ func SerializeDeck(d Deck) string {
 	for i, slide := range d.Slides {
 		if i > 0 {
 			b.WriteString("\n---\n\n")
+		}
+		if slide.Align != "" && slide.Align != d.Align {
+			fmt.Fprintf(&b, "::align %s\n", slide.Align)
 		}
 		for j, block := range slide.Blocks {
 			if j > 0 {

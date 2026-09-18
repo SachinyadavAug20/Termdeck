@@ -33,6 +33,7 @@ Optional YAML block between `---` delimiters. Keys:
 | `format` | yes | Version string, e.g. `0.1` |
 | `title` | no | Deck title |
 | `author` | no | Author name |
+| `align` | no | Default alignment: `left`, `center`, `right` |
 
 ### Slides
 
@@ -70,9 +71,18 @@ Lines starting with `::` — special instructions for the viewer.
 
 | Directive | Syntax | Description |
 |-----------|--------|-------------|
+| `::align` | `::align left/center/right` | Slide alignment (also `::left`, `::center`, `::right`) |
 | `::code` | `::code lang=X` | Code block (until next `::` or `---`) |
-| `::image` | `::image src=X` | Image placeholder |
+| `::image` | `::image src=X` | Image card (or `::image filename.png`) |
 | `::notes` | `::notes` | Speaker notes (hidden in presentation) |
+
+#### `::align`
+
+```
+::align left
+```
+
+Sets the text alignment for the slide. Supported values: `left`, `center`, `right`. Shorthand directives `::left`, `::center`, and `::right` are also supported.
 
 #### `::code`
 
@@ -90,7 +100,15 @@ Rendered as a bordered block with the language label. Content between `::code` a
 ::image screenshot.png
 ```
 
-Rendered as a placeholder: `[ image: screenshot.png ]`. Native image rendering (Sixel, Kitty) is planned for a future version.
+Rendered as a clean presentation card with file information, dimensions, and format. Press `p` in navigation mode to open the high-resolution image directly in your system viewer (`xdg-open` / `open`).
+
+**Path Resolution Order**:
+1. Absolute path (if path begins with `/`)
+2. Relative to the `.deck.md` file directory
+3. Relative to `images/` or `assets/` subdirectories next to the `.deck.md` file
+4. Relative to current working directory
+
+If the file is not found, a styled placeholder `[ image not found: <filename> ]` is displayed.
 
 #### `::notes`
 
@@ -104,8 +122,8 @@ Skipped by the viewer. Reserved for future presenter-mode use.
 
 ## Slide rendering
 
-- Slides are vertically and horizontally centered in the terminal.
-- Footer shows: `slide N/M · ←/→ navigate · q quit`
+- Slides are vertically centered in the terminal with configurable horizontal alignment (`left`, `center`, `right`).
+- Footer shows: `slide N/M (align) · tab align · i edit · ^s save · q quit`
 - Content fills the available height minus footer.
 
 ## Keyboard shortcuts (viewer)
@@ -114,6 +132,8 @@ Skipped by the viewer. Reserved for future presenter-mode use.
 |-----|--------|
 | `→`, `l`, `Space`, `Enter`, `↓`, `j`, `PageDown` | Next slide |
 | `←`, `h`, `↑`, `k`, `PageUp`, `Backspace` | Previous slide |
+| `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) |
+| `p` | Open focused image in system viewer |
 | `g`, `Home` | First slide |
 | `G`, `End` | Last slide |
 | `q`, `Ctrl+C`, `Esc` | Quit |

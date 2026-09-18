@@ -3,6 +3,9 @@ package internal
 import (
 	"fmt"
 	"os"
+	"os/exec"
+	"path/filepath"
+	"runtime"
 	"strings"
 
 	tea "github.com/charmbracelet/bubbletea"
@@ -97,6 +100,9 @@ func (e *Editor) EnterEdit(d *Deck) {
 	case BlockList:
 		e.Draft = blk.Text
 		e.CursorCol = len(blk.Text)
+	case BlockImage:
+		e.Draft = blk.Src
+		e.CursorCol = len(blk.Src)
 	default:
 		e.Draft = blk.Text
 		e.CursorCol = len(e.Draft)
@@ -119,6 +125,8 @@ func (e *Editor) ExitEdit(d *Deck) {
 		blk.Lines = strings.Split(e.Draft, "\n")
 	case BlockList:
 		blk.Text = e.Draft
+	case BlockImage:
+		blk.Src = strings.TrimSpace(e.Draft)
 	}
 	e.Mode = ModeNav
 	e.Dirty = true
@@ -230,6 +238,36 @@ func (e *Editor) Save(d Deck) {
 	e.Message = "saved"
 }
 
+// --- Slide alignment ---
+
+func (e *Editor) ToggleAlign(d *Deck) {
+	if e.SlideIdx >= len(d.Slides) {
+		return
+	}
+	e.SaveUndo(*d)
+	cur := d.Slides[e.SlideIdx].Align
+	if cur == "" {
+		cur = d.Align
+		if cur == "" {
+			cur = AlignCenter
+		}
+	}
+	var next AlignKind
+	switch cur {
+	case AlignLeft:
+		next = AlignCenter
+	case AlignCenter:
+		next = AlignRight
+	case AlignRight:
+		next = AlignLeft
+	default:
+		next = AlignCenter
+	}
+	d.Slides[e.SlideIdx].Align = next
+	e.Dirty = true
+	e.Message = "align: " + string(next)
+}
+
 // --- Input handling ---
 
 func (e *Editor) HandleKey(msg tea.KeyMsg, d *Deck) tea.Cmd {
@@ -299,7 +337,13 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.RedoStack = append(e.RedoStack, currentState)
 			state := e.UndoStack[len(e.UndoStack)-1]
 			e.UndoStack = e.UndoStack[:len(e.UndoStack)-1]
+			baseDir := d.BaseDir
+			deckAlign := d.Align
 			*d = ParseDeck(state)
+			d.BaseDir = baseDir
+			if d.Align == "" {
+				d.Align = deckAlign
+			}
 			e.Message = "undo"
 		}
 	case "ctrl+r":
@@ -308,18 +352,55 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.UndoStack = append(e.UndoStack, currentState)
 			state := e.RedoStack[len(e.RedoStack)-1]
 			e.RedoStack = e.RedoStack[:len(e.RedoStack)-1]
+			baseDir := d.BaseDir
+			deckAlign := d.Align
 			*d = ParseDeck(state)
+			d.BaseDir = baseDir
+			if d.Align == "" {
+				d.Align = deckAlign
+			}
 			e.Message = "redo"
 		}
 
 	case "ctrl+s":
 		e.Save(*d)
 
+	case "tab", "ctrl+a":
+		e.ToggleAlign(d)
+
+	case "p":
+		blk := e.currentBlock(d)
+		if blk != nil && blk.Kind == BlockImage {
+			fullPath, found := ResolveImagePath(blk.Src, d.BaseDir)
+			if found {
+				if err := openFile(fullPath); err == nil {
+					e.Message = "opened " + filepath.Base(fullPath)
+				} else {
+					e.Message = fmt.Sprintf("open error: %v", err)
+				}
+			} else {
+				e.Message = "image not found: " + blk.Src
+			}
+		}
+
 	case "esc":
 		e.Message = ""
 	}
 
 	return nil
+}
+
+func openFile(path string) error {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("open", path)
+	case "windows":
+		cmd = exec.Command("cmd", "/c", "start", path)
+	default:
+		cmd = exec.Command("xdg-open", path)
+	}
+	return cmd.Start()
 }
 
 func (e *Editor) handleEdit(key string, d *Deck) tea.Cmd {
