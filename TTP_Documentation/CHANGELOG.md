@@ -1,5 +1,17 @@
 # Changelog
 
+## v0.2 — 18 September 2026
+
+### Added
+- Automated test suite reaching **91.7% statement coverage** across all packages with 32 unit tests and 2 performance benchmarks.
+- Developer tooling [`Makefile`](file:///home/sachin/Projects/tpp/Makefile) with targets for `test`, `coverage`, `coverage-summary`, `bench`, `lint`, `build`, and `clean`.
+- Developer testing guide (`TTP_Documentation/development/testing.md`).
+- Slide text alignment options: `left`, `center`, `right` (via `Tab`, `Ctrl+A`, `::align`, or frontmatter default).
+- Prominent laser pointer marker (`▶ ` in `#FF2A55`) aligned directly with the focused slide element.
+- Refined heading visual hierarchy: H1 pink with underline, H2–H6 stepped white opacity fade.
+- Formatted presentation image cards with dimensions, format tag, and `'p'` shortcut to open in system viewer.
+- Fallback ANSI half-block image renderer in `internal/image.go`.
+
 ## v0.1 — 17 September 2026
 
 ### Added

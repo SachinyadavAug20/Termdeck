@@ -16,6 +16,14 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 18 September 2026
+- [x] Text body alignment (`left`, `center`, `right`) with `Tab`/`Ctrl+A`
+- [x] High-contrast laser pointer indicator (`▶ `)
+- [x] Stepped opacity heading hierarchy (pink underline for H1)
+- [x] Image presentation cards with system viewer integration (`p`)
+- [x] Complete automated test suite (91.7% statement coverage)
+- [x] Makefile developer automation (`make test`, `make coverage`, `make bench`, `make lint`)
+
 #### 17 September 2026
 - [x] Basic start with core logic in main.go
 - [x] Full-screen viewer with keyboard navigation
@@ -30,12 +38,18 @@ deck demo.deck.md
 ```
 tpp/
 ├── main.go              # Entry point, tea.Model
+├── main_test.go         # Model lifecycle & CLI bootstrap unit tests
 ├── internal/
 │   ├── model.go         # Block types, Deck/Slide parsing, serialization
+│   ├── model_test.go    # Parser & serializer tests, edge cases, benchmarks
 │   ├── view.go          # Rendering, styles, syntax highlighting
+│   ├── view_test.go     # Highlighting lexer, styling, view benchmarks
 │   ├── editor.go        # Edit mode, block operations, undo/redo
-│   └── image.go         # Terminal image renderer (ANSI half-blocks)
+│   ├── editor_test.go   # Navigation, keyboard dispatch, edit mode tests
+│   ├── image.go         # Terminal image renderer (ANSI half-blocks)
+│   └── image_test.go    # Path resolution, format probing, card tests
 ├── demo.deck.md         # Sample deck
+├── Makefile             # Developer automation (test, coverage, lint, bench, build)
 ├── go.mod
 ├── go.sum
 ├── .gitignore
@@ -45,6 +59,7 @@ tpp/
     ├── specs/
     │   └── format.md    # Format v0.1 specification
     ├── development/
+    │   ├── testing.md   # Complete QA & testing guide
     │   └── images/      # Screenshots, diagrams
     └── api/             # API docs (future)
 ```
@@ -94,6 +109,30 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - Undo/redo
 - Save to `.deck.md`
 
+## Testing & Development
+
+Termdeck features an automated test suite achieving **91.7% statement coverage** with 32 unit tests and 2 performance benchmarks.
+
+```bash
+# Run all unit tests with coverage summary
+make test
+
+# Generate an interactive HTML coverage report
+make coverage
+
+# Display per-function statement coverage
+make coverage-summary
+
+# Run performance benchmarks
+make bench
+
+# Verify formatting and static analysis
+make lint
+```
+
+For full details, see the [Developer Testing Guide](TTP_Documentation/development/testing.md).
+
 ## Format
 
 See `TTP_Documentation/specs/format.md` for the full format specification.
+

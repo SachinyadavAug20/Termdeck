@@ -54,6 +54,9 @@ type Deck struct {
 // --- Parsing ---
 
 func ParseDeck(src string) Deck {
+	if strings.TrimSpace(src) == "" {
+		return Deck{Meta: map[string]string{}, Align: AlignCenter}
+	}
 	lines := strings.Split(src, "\n")
 	meta := map[string]string{}
 

@@ -43,33 +43,38 @@ func (m model) View() string {
 	return internal.View(m.deck, m.editor, m.width, m.height)
 }
 
+func buildModel(filePath string) (model, error) {
+	src, err := os.ReadFile(filePath)
+	if err != nil {
+		return model{}, err
+	}
+
+	deck := internal.ParseDeck(string(src))
+	deck.BaseDir = filepath.Dir(filePath)
+	if len(deck.Slides) == 0 {
+		return model{}, fmt.Errorf("no slides found")
+	}
+
+	editor := internal.NewEditor(filePath)
+	return model{
+		deck:   deck,
+		editor: editor,
+	}, nil
+}
+
 func main() {
 	if len(os.Args) < 2 {
 		fmt.Fprintln(os.Stderr, "usage: deck <file.deck.md>")
 		os.Exit(1)
 	}
 
-	filePath := os.Args[1]
-	src, err := os.ReadFile(filePath)
+	m, err := buildModel(os.Args[1])
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
 	}
 
-	deck := internal.ParseDeck(string(src))
-	deck.BaseDir = filepath.Dir(filePath)
-	if len(deck.Slides) == 0 {
-		fmt.Fprintln(os.Stderr, "no slides found")
-		os.Exit(1)
-	}
-
-	editor := internal.NewEditor(filePath)
-
-	p := tea.NewProgram(model{
-		deck:   deck,
-		editor: editor,
-	}, tea.WithAltScreen())
-
+	p := tea.NewProgram(m, tea.WithAltScreen())
 	if _, err := p.Run(); err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

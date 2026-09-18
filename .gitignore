@@ -5,6 +5,8 @@ deck
 # Go
 *.test
 *.out
+coverage.html
+*.html
 
 # IDE
 .vscode/

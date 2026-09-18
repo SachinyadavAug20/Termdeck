@@ -177,3 +177,190 @@ align: left
 		t.Errorf("expected reparsed slide 1 align right, got %q", reparsed.Slides[1].Align)
 	}
 }
+
+func TestParseDeckEdgeCases(t *testing.T) {
+	// 1. Empty and whitespace-only strings
+	dEmpty := ParseDeck("")
+	if len(dEmpty.Slides) != 0 {
+		t.Errorf("expected 0 slides for empty string, got %d", len(dEmpty.Slides))
+	}
+	dSpaces := ParseDeck("   \n\n\t  \n")
+	if len(dSpaces.Slides) != 0 {
+		t.Errorf("expected 0 slides for whitespace string, got %d", len(dSpaces.Slides))
+	}
+
+	// 2. Deck with NO frontmatter
+	srcNoFront := "# Slide One\n\nSome text.\n---\n# Slide Two\n"
+	dNoFront := ParseDeck(srcNoFront)
+	if len(dNoFront.Slides) != 2 {
+		t.Fatalf("expected 2 slides without frontmatter, got %d", len(dNoFront.Slides))
+	}
+	if dNoFront.Slides[0].Blocks[0].Text != "Slide One" {
+		t.Errorf("expected Slide One, got %q", dNoFront.Slides[0].Blocks[0].Text)
+	}
+
+	// 3. Numbered lists and asterisk lists
+	srcLists := `---
+title: Lists
+---
+1. First item
+2. Second item
+* Asterisk item
+`
+	dLists := ParseDeck(srcLists)
+	if len(dLists.Slides) != 1 {
+		t.Fatalf("expected 1 slide for lists, got %d", len(dLists.Slides))
+	}
+	s := dLists.Slides[0]
+	if len(s.Blocks) != 3 {
+		t.Fatalf("expected 3 list blocks, got %d", len(s.Blocks))
+	}
+	if s.Blocks[0].Kind != BlockList || s.Blocks[0].Text != "1. First item" {
+		t.Errorf("expected numbered list 1, got %+v", s.Blocks[0])
+	}
+	if s.Blocks[1].Kind != BlockList || s.Blocks[1].Text != "2. Second item" {
+		t.Errorf("expected numbered list 2, got %+v", s.Blocks[1])
+	}
+	if s.Blocks[2].Kind != BlockList || s.Blocks[2].Text != "* Asterisk item" {
+		t.Errorf("expected asterisk list, got %+v", s.Blocks[2])
+	}
+
+	// 4. Code block closed with ::code
+	srcCode := `---
+title: Code
+---
+::code lang=python
+print("hello")
+::code
+
+Normal text
+`
+	dCode := ParseDeck(srcCode)
+	if len(dCode.Slides) != 1 {
+		t.Fatalf("expected 1 slide, got %d", len(dCode.Slides))
+	}
+	codeSlide := dCode.Slides[0]
+	var foundCode, foundText bool
+	for _, b := range codeSlide.Blocks {
+		if b.Kind == BlockCode && b.Lang == "python" {
+			foundCode = true
+			if len(b.Lines) != 1 || b.Lines[0] != `print("hello")` {
+				t.Errorf("expected code lines print(hello), got %v", b.Lines)
+			}
+		}
+		if b.Kind == BlockParagraph && b.Text == "Normal text" {
+			foundText = true
+		}
+	}
+	if !foundCode {
+		t.Errorf("expected code block")
+	}
+	if !foundText {
+		t.Errorf("expected paragraph after closed code block")
+	}
+
+	// 5. Directives: shorthand align and custom directives
+	srcDir := `---
+title: Directives
+---
+::left
+# Left Slide
+::custom directive content
+`
+	dDir := ParseDeck(srcDir)
+	if len(dDir.Slides) != 1 {
+		t.Fatalf("expected 1 slide, got %d", len(dDir.Slides))
+	}
+	if dDir.Slides[0].Align != AlignLeft {
+		t.Errorf("expected slide align left from ::left, got %q", dDir.Slides[0].Align)
+	}
+	foundCustom := false
+	for _, b := range dDir.Slides[0].Blocks {
+		if b.Kind == BlockDirective && strings.Contains(b.Directive, "::custom") {
+			foundCustom = true
+		}
+	}
+	if !foundCustom {
+		t.Errorf("expected custom directive block")
+	}
+}
+
+func TestSerializeDeckEdgeCases(t *testing.T) {
+	d := Deck{
+		Meta: map[string]string{
+			"title": "Edge Case Deck",
+		},
+		Align: AlignRight,
+		Slides: []Slide{
+			{
+				Align: AlignCenter,
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 3, Text: "H3 Title"},
+					{Kind: BlockParagraph, Text: "Body text"},
+					{Kind: BlockCode, Lang: "sh", Lines: []string{"echo hello", "exit 0"}},
+					{Kind: BlockList, Text: "- bullet"},
+					{Kind: BlockImage, Src: "img.png"},
+					{Kind: BlockDirective, Directive: "::custom directive", Raw: "::custom directive"},
+				},
+			},
+		},
+	}
+
+	serialized := SerializeDeck(d)
+	if !strings.Contains(serialized, "align: right") {
+		t.Errorf("expected serialized deck to contain 'align: right', got %s", serialized)
+	}
+	if !strings.Contains(serialized, "::align center") {
+		t.Errorf("expected serialized slide to contain '::align center', got %s", serialized)
+	}
+	if !strings.Contains(serialized, "### H3 Title") {
+		t.Errorf("expected serialized heading '### H3 Title', got %s", serialized)
+	}
+	if !strings.Contains(serialized, "::code lang=sh") {
+		t.Errorf("expected serialized code directive, got %s", serialized)
+	}
+	if !strings.Contains(serialized, "::image img.png") {
+		t.Errorf("expected serialized image directive, got %s", serialized)
+	}
+	if !strings.Contains(serialized, "::custom directive") {
+		t.Errorf("expected serialized custom directive, got %s", serialized)
+	}
+
+	// Verify roundtrip preservation
+	reparsed := ParseDeck(serialized)
+	if reparsed.Align != AlignRight {
+		t.Errorf("expected reparsed deck align right, got %s", reparsed.Align)
+	}
+	if reparsed.Slides[0].Align != AlignCenter {
+		t.Errorf("expected reparsed slide align center, got %s", reparsed.Slides[0].Align)
+	}
+}
+
+func BenchmarkParseDeck(b *testing.B) {
+	src := `---
+format: 0.1
+title: Benchmarking Deck
+align: center
+---
+
+# Benchmark Slide 1
+This is a paragraph with **bold** and *italic* and ` + "`code`" + `.
+
+- Item 1
+- Item 2
+- Item 3
+
+---
+
+# Benchmark Slide 2
+::code lang=go
+package main
+func main() { println("Hello") }
+
+::image test.png
+`
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_ = ParseDeck(src)
+	}
+}
