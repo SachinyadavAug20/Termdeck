@@ -507,17 +507,49 @@ func TestTableAndHelpAndTimerView(t *testing.T) {
 		t.Errorf("expected help modal in View: %q", helpView)
 	}
 
-	// 3. Status bar with progress track and timer
+	// 3. Status bar with clean slide info, timer and bottom progress line
 	ed.ShowHelp = false
 	ed.TimerRunning = true
 	ed.TimerElapsed = 65 * time.Second
 	ed.TimerStart = time.Now()
 	statusView := stripANSI(View(d, ed, 80, 24))
-	if !strings.Contains(statusView, "%") || !strings.Contains(statusView, "[") {
-		t.Errorf("expected progress bar in status view: %q", statusView)
+	if !strings.Contains(statusView, "slide 1/2") {
+		t.Errorf("expected slide status in view: %q", statusView)
+	}
+	if !strings.Contains(statusView, "─") {
+		t.Errorf("expected bottom progress line in status view: %q", statusView)
 	}
 	if !strings.Contains(statusView, "⏱") && !strings.Contains(statusView, ":") {
 		t.Errorf("expected timer icon in status view: %q", statusView)
+	}
+}
+
+func TestRenderProgressLine(t *testing.T) {
+	// Zero width
+	if res := renderProgressLine(1, 5, 0); res != "" {
+		t.Errorf("expected empty progress line for 0 width, got %q", res)
+	}
+
+	// Zero total slides
+	if res := stripANSI(renderProgressLine(1, 0, 40)); len([]rune(res)) != 40 {
+		t.Errorf("expected 40 chars dim line for 0 total slides, got %d chars", len([]rune(res)))
+	}
+
+	// 1 of 4 slides at width 40 -> 10 chars filled, 30 dim
+	res := renderProgressLine(1, 4, 40)
+	clean := stripANSI(res)
+	if len([]rune(clean)) != 40 {
+		t.Errorf("expected exactly 40 chars, got %d", len([]rune(clean)))
+	}
+	// Verify raw ANSI has styling
+	if !strings.Contains(res, "─") {
+		t.Errorf("expected progress line to contain horizontal line characters: %q", res)
+	}
+
+	// Clamping
+	resClamped := stripANSI(renderProgressLine(10, 4, 20))
+	if len([]rune(resClamped)) != 20 {
+		t.Errorf("expected clamped progress line to be 20 chars, got %d", len([]rune(resClamped)))
 	}
 }
 

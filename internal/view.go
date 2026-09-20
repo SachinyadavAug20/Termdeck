@@ -35,9 +35,10 @@ var (
 	helpKeyStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("114"))
 	helpDescStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 
-	progressStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	timerRunningStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("114"))
-	timerPausedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+	progressLineFilledStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	progressLineDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("236"))
+	timerRunningStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("114"))
+	timerPausedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
 
 	h1Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).Underline(true)
 	h2Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
@@ -646,6 +647,39 @@ func renderHelpModal(w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
 }
 
+func renderProgressLine(curSlide, totalSlides, width int) string {
+	if width <= 0 {
+		return ""
+	}
+	if totalSlides <= 0 {
+		return progressLineDimStyle.Render(strings.Repeat("─", width))
+	}
+	if curSlide < 1 {
+		curSlide = 1
+	}
+	if curSlide > totalSlides {
+		curSlide = totalSlides
+	}
+
+	filled := int(float64(curSlide) / float64(totalSlides) * float64(width))
+	if filled > width {
+		filled = width
+	}
+	if filled < 0 {
+		filled = 0
+	}
+	unfilled := width - filled
+
+	var b strings.Builder
+	if filled > 0 {
+		b.WriteString(progressLineFilledStyle.Render(strings.Repeat("─", filled)))
+	}
+	if unfilled > 0 {
+		b.WriteString(progressLineDimStyle.Render(strings.Repeat("─", unfilled)))
+	}
+	return b.String()
+}
+
 // --- Full view ---
 
 func View(d Deck, e Editor, width, height int) string {
@@ -678,9 +712,9 @@ func View(d Deck, e Editor, width, height int) string {
 		notesHeight = lipgloss.Height(notesOverlay)
 	}
 
-	bodyHeight := height - 2
+	bodyHeight := height - 3
 	if notesHeight > 0 {
-		bodyHeight = height - 2 - notesHeight
+		bodyHeight = height - 3 - notesHeight
 	}
 	if bodyHeight < 1 {
 		bodyHeight = 1
@@ -734,10 +768,22 @@ func View(d Deck, e Editor, width, height int) string {
 		status = navStatus(d, e, width)
 	}
 
+	curSlide := e.SlideIdx + 1
+	totalSlides := len(d.Slides)
+	progressLine := renderProgressLine(curSlide, totalSlides, width)
+
+	var sb strings.Builder
+	sb.WriteString(body)
 	if notesOverlay != "" {
-		return body + "\n" + notesOverlay + "\n" + status
+		sb.WriteString("\n")
+		sb.WriteString(notesOverlay)
 	}
-	return body + "\n" + status
+	sb.WriteString("\n")
+	sb.WriteString(status)
+	sb.WriteString("\n")
+	sb.WriteString(progressLine)
+
+	return sb.String()
 }
 
 func navStatus(d Deck, e Editor, w int) string {
@@ -758,21 +804,6 @@ func navStatus(d Deck, e Editor, w int) string {
 
 	totalSlides := len(d.Slides)
 	curSlide := e.SlideIdx + 1
-	pct := 0
-	if totalSlides > 0 {
-		pct = int(float64(curSlide) / float64(totalSlides) * 100)
-	}
-
-	// Visual progress bar track
-	barLen := 8
-	filled := 0
-	if totalSlides > 0 {
-		filled = (curSlide * barLen) / totalSlides
-	}
-	if filled > barLen {
-		filled = barLen
-	}
-	progressTrack := fmt.Sprintf("[%s%s] %d%%", strings.Repeat("█", filled), strings.Repeat("░", barLen-filled), pct)
 
 	timerStr := ""
 	if e.TimerRunning || e.ElapsedTime() > 0 {
@@ -785,7 +816,7 @@ func navStatus(d Deck, e Editor, w int) string {
 		timerStr = "  ·  " + style.Render(fmt.Sprintf("[%s %s]", timerIcon, e.FormatTimer()))
 	}
 
-	left := fmt.Sprintf("slide %d/%d %s (%s)  ·  blocks %d", curSlide, totalSlides, progressStyle.Render(progressTrack), align, visibleCount)
+	left := fmt.Sprintf("slide %d/%d (%s)  ·  blocks %d", curSlide, totalSlides, align, visibleCount)
 	left += timerStr
 
 	if hasNotes {
