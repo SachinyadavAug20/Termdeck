@@ -76,13 +76,14 @@ type Deck struct {
 	Slides  []Slide
 	BaseDir string
 	Align   AlignKind
+	Theme   string
 }
 
 // --- Parsing ---
 
 func ParseDeck(src string) Deck {
 	if strings.TrimSpace(src) == "" {
-		return Deck{Meta: map[string]string{}, Align: AlignCenter}
+		return Deck{Meta: map[string]string{}, Align: AlignCenter, Theme: "termdeck"}
 	}
 	lines := strings.Split(src, "\n")
 	meta := map[string]string{}
@@ -133,7 +134,12 @@ func ParseDeck(src string) Deck {
 		}
 	}
 
-	return Deck{Meta: meta, Slides: slides, Align: deckAlign}
+	deckTheme := "termdeck"
+	if th, ok := meta["theme"]; ok {
+		deckTheme = strings.ToLower(strings.TrimSpace(th))
+	}
+
+	return Deck{Meta: meta, Slides: slides, Align: deckAlign, Theme: deckTheme}
 }
 
 func parseSlide(lines []string) Slide {
@@ -361,6 +367,9 @@ func SerializeDeck(d Deck) string {
 	}
 	if d.Align != "" && d.Align != AlignCenter {
 		meta["align"] = string(d.Align)
+	}
+	if d.Theme != "" && d.Theme != "termdeck" {
+		meta["theme"] = d.Theme
 	}
 
 	if len(meta) > 0 {

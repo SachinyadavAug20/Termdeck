@@ -12,47 +12,22 @@ import (
 // --- Styles ---
 
 var (
-	boldStyle       = lipgloss.NewStyle().Bold(true)
-	italicStyle     = lipgloss.NewStyle().Italic(true)
-	codeSpanStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Background(lipgloss.Color("236")).Padding(0, 1)
-	codeBlockStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1)
-	imageStyle      = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
-	dimStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-	dimBoldStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Bold(true)
-	cursorStyle     = lipgloss.NewStyle().Background(lipgloss.Color("240")).Foreground(lipgloss.Color("0"))
-	editStyle       = lipgloss.NewStyle().Background(lipgloss.Color("22")).Foreground(lipgloss.Color("252")).Padding(0, 1)
-	messageStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
-	notesBoxStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Foreground(lipgloss.Color("252")).Padding(0, 1)
-	notesTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	boldStyle      = lipgloss.NewStyle().Bold(true)
+	italicStyle    = lipgloss.NewStyle().Italic(true)
+	codeBlockStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Padding(0, 1)
+	imageStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
+	dimStyle       = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+	dimBoldStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Bold(true)
+	cursorStyle    = lipgloss.NewStyle().Background(lipgloss.Color("240")).Foreground(lipgloss.Color("0"))
+	editStyle      = lipgloss.NewStyle().Background(lipgloss.Color("22")).Foreground(lipgloss.Color("252")).Padding(0, 1)
+	messageStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
+	notesBoxStyle  = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Foreground(lipgloss.Color("252")).Padding(0, 1)
 
-	tableHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).Padding(0, 1)
-	tableCellStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Padding(0, 1)
-	tableBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
-
-	helpBoxStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("212")).Foreground(lipgloss.Color("252")).Padding(1, 2)
-	helpTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
-	helpHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("75"))
-	helpKeyStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("114"))
-	helpDescStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
-
-	progressLineFilledStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
-	progressLineDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("236"))
-
-	h1Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).Underline(true)
 	h2Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
 	h3Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#D8D8D8"))
 	h4Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#B0B0B0"))
 	h5Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#888888"))
 	h6Style = lipgloss.NewStyle().Foreground(lipgloss.Color("#606060"))
-
-	laserPointerStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FF2A55"))
-
-	syntaxKeyword = lipgloss.NewStyle().Foreground(lipgloss.Color("212")).Bold(true)
-	syntaxString  = lipgloss.NewStyle().Foreground(lipgloss.Color("114"))
-	syntaxComment = lipgloss.NewStyle().Foreground(lipgloss.Color("240")).Italic(true)
-	syntaxNumber  = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
-	syntaxType    = lipgloss.NewStyle().Foreground(lipgloss.Color("75"))
-	syntaxPlain   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
 
 	reCodeSpan = regexp.MustCompile("`" + `([^` + "`" + `]+)` + "`")
 	reBold     = regexp.MustCompile(`\*\*([^*]+)\*\*`)
@@ -79,7 +54,7 @@ func inlineStyle(text string) string {
 	for i, m := range matches {
 		b.WriteString(text[lastIdx:m[0]])
 		inner := text[m[0]+1 : m[1]-1]
-		styledSpans[i] = codeSpanStyle.Render(inner)
+		styledSpans[i] = currentTheme.CodeSpanStyle.Render(inner)
 		fmt.Fprintf(&b, "\x00CODE%d\x00", i)
 		lastIdx = m[1]
 	}
@@ -107,7 +82,7 @@ func inlineStyle(text string) string {
 func renderHeading(text string, level int) string {
 	switch level {
 	case 1:
-		return h1Style.Render(text)
+		return currentTheme.H1Style.Render(text)
 	case 2:
 		return h2Style.Render(text)
 	case 3:
@@ -146,11 +121,11 @@ func highlightLine(line string) string {
 		ch := line[i]
 
 		if ch == '#' || (ch == '/' && i+1 < len(line) && line[i+1] == '/') {
-			result.WriteString(syntaxComment.Render(line[i:]))
+			result.WriteString(currentTheme.SyntaxComment.Render(line[i:]))
 			return result.String()
 		}
 		if ch == '-' && i+1 < len(line) && line[i+1] == '-' {
-			result.WriteString(syntaxComment.Render(line[i:]))
+			result.WriteString(currentTheme.SyntaxComment.Render(line[i:]))
 			return result.String()
 		}
 
@@ -166,7 +141,7 @@ func highlightLine(line string) string {
 			if j < len(line) {
 				j++
 			}
-			result.WriteString(syntaxString.Render(line[i:j]))
+			result.WriteString(currentTheme.SyntaxString.Render(line[i:j]))
 			i = j
 			continue
 		}
@@ -176,7 +151,7 @@ func highlightLine(line string) string {
 			for j < len(line) && ((line[j] >= '0' && line[j] <= '9') || line[j] == '.') {
 				j++
 			}
-			result.WriteString(syntaxNumber.Render(line[i:j]))
+			result.WriteString(currentTheme.SyntaxNumber.Render(line[i:j]))
 			i = j
 			continue
 		}
@@ -188,17 +163,17 @@ func highlightLine(line string) string {
 			}
 			word := line[i:j]
 			if simpleKeywords[word] {
-				result.WriteString(syntaxKeyword.Render(word))
+				result.WriteString(currentTheme.SyntaxKeyword.Render(word))
 			} else if len(word) > 0 && word[0] >= 'A' && word[0] <= 'Z' {
-				result.WriteString(syntaxType.Render(word))
+				result.WriteString(currentTheme.SyntaxType.Render(word))
 			} else {
-				result.WriteString(syntaxPlain.Render(word))
+				result.WriteString(currentTheme.SyntaxPlain.Render(word))
 			}
 			i = j
 			continue
 		}
 
-		result.WriteString(syntaxPlain.Render(string(ch)))
+		result.WriteString(currentTheme.SyntaxPlain.Render(string(ch)))
 		i++
 	}
 
@@ -274,7 +249,7 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 
 	cursorMark := "  "
 	if isCursor && !isEditing {
-		cursorMark = laserPointerStyle.Render("▶ ")
+		cursorMark = currentTheme.LaserPointerStyle.Render("▶ ")
 	}
 
 	switch blk.Kind {
@@ -525,8 +500,8 @@ func renderTable(blk Block, w int) string {
 			val = header[i]
 		}
 		padded := fmt.Sprintf(" %-*s ", colWidths[i], val)
-		sb.WriteString(tableHeaderStyle.Render(padded))
-		sb.WriteString(tableBorderStyle.Render("│"))
+		sb.WriteString(currentTheme.TableHeaderStyle.Render(padded))
+		sb.WriteString(currentTheme.TableBorderStyle.Render("│"))
 	}
 	sb.WriteString("\n")
 
@@ -550,8 +525,8 @@ func renderTable(blk Block, w int) string {
 				val = r[i]
 			}
 			padded := fmt.Sprintf(" %-*s ", colWidths[i], val)
-			sb.WriteString(tableCellStyle.Render(padded))
-			sb.WriteString(tableBorderStyle.Render("│"))
+			sb.WriteString(currentTheme.TableCellStyle.Render(padded))
+			sb.WriteString(currentTheme.TableBorderStyle.Render("│"))
 		}
 		if rIdx < len(rows)-1 {
 			sb.WriteString("\n")
@@ -594,7 +569,7 @@ func renderNotesOverlay(notes string, width, maxHeight int) string {
 	if strings.TrimSpace(content) == "" {
 		content = dimStyle.Render("(no speaker notes for this slide)")
 	}
-	title := notesTitleStyle.Render("📝 Speaker Notes") + dimStyle.Render(" (press 'n' to hide)")
+	title := currentTheme.NotesTitleStyle.Render("📝 Speaker Notes") + dimStyle.Render(" (press 'n' to hide)")
 	boxW := width - 4
 	if boxW < 20 {
 		boxW = width
@@ -613,33 +588,34 @@ func renderHelpModal(w, h int) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(helpTitleStyle.Render("Termdeck Keyboard Controls"))
+	sb.WriteString(currentTheme.HelpTitleStyle.Render("Termdeck Keyboard Controls"))
 	sb.WriteString("\n" + dimStyle.Render("Press '?' or 'Esc' to close") + "\n\n")
 
-	sb.WriteString(helpHeaderStyle.Render("  NAVIGATION") + "\n")
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("→, l, Space, Enter"), helpDescStyle.Render("Next slide")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("←, h, Backspace"), helpDescStyle.Render("Previous slide")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("↓, j"), helpDescStyle.Render("Move laser pointer down")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("↑, k"), helpDescStyle.Render("Move laser pointer up")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("g / G"), helpDescStyle.Render("First / Last slide")))
+	sb.WriteString(currentTheme.HelpHeaderStyle.Render("  NAVIGATION") + "\n")
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Next slide")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h, Backspace"), currentTheme.HelpDescStyle.Render("Previous slide")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j"), currentTheme.HelpDescStyle.Render("Move laser pointer down")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↑, k"), currentTheme.HelpDescStyle.Render("Move laser pointer up")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("g / G"), currentTheme.HelpDescStyle.Render("First / Last slide")))
 
-	sb.WriteString("\n" + helpHeaderStyle.Render("  PRESENTATION") + "\n")
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("n"), helpDescStyle.Render("Toggle speaker notes overlay")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("Tab / ctrl+a"), helpDescStyle.Render("Cycle alignment (left/center/right)")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("p"), helpDescStyle.Render("Open image in system viewer")))
+	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  PRESENTATION") + "\n")
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t / T / f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
 
-	sb.WriteString("\n" + helpHeaderStyle.Render("  LIVE EDITOR") + "\n")
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("i"), helpDescStyle.Render("Edit focused block")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("Enter"), helpDescStyle.Render("Confirm edit & auto-save")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("Esc"), helpDescStyle.Render("Cancel edit / Close help")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("ctrl+n / ctrl+d"), helpDescStyle.Render("Add / Delete block")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("ctrl+k / ctrl+j"), helpDescStyle.Render("Move block up / down")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("u / ctrl+r"), helpDescStyle.Render("Undo / Redo")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("ctrl+s"), helpDescStyle.Render("Save file manually")))
+	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  LIVE EDITOR") + "\n")
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("i"), currentTheme.HelpDescStyle.Render("Edit focused block")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Enter"), currentTheme.HelpDescStyle.Render("Confirm edit & auto-save")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Esc"), currentTheme.HelpDescStyle.Render("Cancel edit / Close help")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+n / ctrl+d"), currentTheme.HelpDescStyle.Render("Add / Delete block")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+k / ctrl+j"), currentTheme.HelpDescStyle.Render("Move block up / down")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("u / ctrl+r"), currentTheme.HelpDescStyle.Render("Undo / Redo")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+s"), currentTheme.HelpDescStyle.Render("Save file manually")))
 
-	sb.WriteString("\n" + fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("q / ctrl+c"), helpDescStyle.Render("Quit (auto-saves changes)")))
+	sb.WriteString("\n" + fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("q / ctrl+c"), currentTheme.HelpDescStyle.Render("Quit (auto-saves changes)")))
 
-	box := helpBoxStyle.Width(boxW).Render(sb.String())
+	box := currentTheme.HelpBoxStyle.Width(boxW).Render(sb.String())
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
 }
 
@@ -648,7 +624,7 @@ func renderProgressLine(curSlide, totalSlides, width int) string {
 		return ""
 	}
 	if totalSlides <= 0 {
-		return progressLineDimStyle.Render(strings.Repeat("─", width))
+		return currentTheme.ProgressLineDimStyle.Render(strings.Repeat("─", width))
 	}
 	if curSlide < 1 {
 		curSlide = 1
@@ -668,10 +644,10 @@ func renderProgressLine(curSlide, totalSlides, width int) string {
 
 	var b strings.Builder
 	if filled > 0 {
-		b.WriteString(progressLineFilledStyle.Render(strings.Repeat("─", filled)))
+		b.WriteString(currentTheme.ProgressLineFilledStyle.Render(strings.Repeat("─", filled)))
 	}
 	if unfilled > 0 {
-		b.WriteString(progressLineDimStyle.Render(strings.Repeat("─", unfilled)))
+		b.WriteString(currentTheme.ProgressLineDimStyle.Render(strings.Repeat("─", unfilled)))
 	}
 	return b.String()
 }
@@ -685,6 +661,12 @@ func View(d Deck, e Editor, width, height int) string {
 	if height == 0 {
 		height = 24
 	}
+
+	themeName := e.Theme
+	if themeName == "" {
+		themeName = d.Theme
+	}
+	SetCurrentTheme(themeName)
 
 	if e.ShowHelp {
 		return renderHelpModal(width, height)
@@ -816,7 +798,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · tab align · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

@@ -171,3 +171,23 @@ func TestPrintHelp(t *testing.T) {
 	// Verify printHelp runs without panic
 	printHelp()
 }
+
+func TestThemeFlagAndListThemes(t *testing.T) {
+	// Verify that buildModel preserves frontmatter theme
+	tmpDeck := t.TempDir() + "/frontmatter_theme.deck.md"
+	src := "---\ntheme: tokyo-night\n---\n# Title\nHello\n"
+	if err := os.WriteFile(tmpDeck, []byte(src), 0644); err != nil {
+		t.Fatalf("failed to write deck: %v", err)
+	}
+
+	m, err := buildModel(tmpDeck)
+	if err != nil {
+		t.Fatalf("unexpected error: %v", err)
+	}
+	if m.deck.Theme != "tokyo-night" {
+		t.Errorf("expected deck.Theme 'tokyo-night', got %q", m.deck.Theme)
+	}
+	if m.editor.Theme != "tokyo-night" {
+		t.Errorf("expected editor.Theme 'tokyo-night', got %q", m.editor.Theme)
+	}
+}

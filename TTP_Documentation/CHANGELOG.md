@@ -5,10 +5,10 @@
 ### Added
 - Standard Markdown compatibility: native support for triple-backtick code fences (```` ```lang ````) and standard image tags (`![alt](path)`).
 - Markdown Tables (`| Col 1 | Col 2 |`): native parsing and formatted rendering with Lipgloss box borders and highlighted headers.
-- In-App Help Modal (`?` / `F1`): centered overlay dialog detailing all viewer, presenter, and editor keybindings.
+- Dynamic Theme Engine: 9 curated developer color themes (Tokyo Night, Dracula, Catppuccin Mocha, Nord, Gruvbox, Monokai, Solarized, Cyberpunk, Termdeck Pink) with live cycling (`t` / `T` / `f2`), frontmatter `theme: <name>`, custom hex colors, and `--theme` / `--list-themes` CLI options.
 - Subtle Bottom Progress Line: replaced bulky status text track with an elegant, non-intrusive full-width progress line at the bottom of the screen that advances smoothly with slide progression.
-- Standard CLI Flags: `--help` / `-h`, `--version` / `-v`, and `--start-at <N>` / `-s <N>` in `main.go`.
-- Test suite expanded to 38 automated unit tests achieving **92.3% statement coverage** in `deck/internal`.
+- Standard CLI Flags: `--help` / `-h`, `--version` / `-v`, `--start-at <N>` / `-s <N>`, `--theme <name>` / `-t <name>`, and `--list-themes` in `main.go`.
+- Test suite expanded to 45 automated unit tests achieving **92.2% statement coverage** in `deck/internal`.
 
 ## v0.2 — 18 September 2026
 

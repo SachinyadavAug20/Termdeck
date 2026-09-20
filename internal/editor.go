@@ -36,6 +36,7 @@ type Editor struct {
 	Message   string
 	ShowNotes bool
 	ShowHelp  bool
+	Theme     string
 }
 
 func NewEditor(filePath string) Editor {
@@ -43,6 +44,24 @@ func NewEditor(filePath string) Editor {
 		Mode:     ModeNav,
 		FilePath: filePath,
 	}
+}
+
+func (e *Editor) CycleTheme(d *Deck) {
+	currentID := e.Theme
+	if currentID == "" && d != nil {
+		currentID = d.Theme
+	}
+	next := NextTheme(currentID)
+	e.Theme = next.ID
+	if d != nil {
+		d.Theme = next.ID
+		if d.Meta == nil {
+			d.Meta = make(map[string]string)
+		}
+		d.Meta["theme"] = next.ID
+		e.Save(*d)
+	}
+	e.Message = fmt.Sprintf("theme: %s", next.Name)
 }
 
 // --- Undo / Redo ---
@@ -434,11 +453,16 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.UndoStack = e.UndoStack[:len(e.UndoStack)-1]
 			baseDir := d.BaseDir
 			deckAlign := d.Align
+			deckTheme := d.Theme
 			*d = ParseDeck(state)
 			d.BaseDir = baseDir
 			if d.Align == "" {
 				d.Align = deckAlign
 			}
+			if d.Theme == "" {
+				d.Theme = deckTheme
+			}
+			e.Theme = d.Theme
 			e.Message = "undo"
 		}
 	case "ctrl+r":
@@ -449,11 +473,16 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.RedoStack = e.RedoStack[:len(e.RedoStack)-1]
 			baseDir := d.BaseDir
 			deckAlign := d.Align
+			deckTheme := d.Theme
 			*d = ParseDeck(state)
 			d.BaseDir = baseDir
 			if d.Align == "" {
 				d.Align = deckAlign
 			}
+			if d.Theme == "" {
+				d.Theme = deckTheme
+			}
+			e.Theme = d.Theme
 			e.Message = "redo"
 		}
 
@@ -462,6 +491,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 
 	case "tab", "ctrl+a":
 		e.ToggleAlign(d)
+
+	case "t", "T", "f2":
+		e.CycleTheme(d)
 
 	case "p":
 		blk := e.currentBlock(d)

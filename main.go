@@ -59,6 +59,7 @@ func buildModel(filePath string) (model, error) {
 	}
 
 	editor := internal.NewEditor(filePath)
+	editor.Theme = deck.Theme
 	return model{
 		deck:   deck,
 		editor: editor,
@@ -73,6 +74,8 @@ Usage:
 
 Options:
   -s, --start-at <N>   Start presentation at slide N (1-based)
+  -t, --theme <name>   Set presentation color theme
+      --list-themes    List all available color themes
   -v, --version        Show version information
   -h, --help           Show this help message
 
@@ -80,6 +83,7 @@ Controls:
   Navigation:   → / l / Space / Enter (next), ← / h / Backspace (prev)
   Pointer:      ↓ / j (down), ↑ / k (up)
   Jumps:        g (first slide), G (last slide)
+  Theme:        t / T / f2 (cycle color themes: tokyo-night, dracula, nord, ...)
   Notes:        n (toggle speaker notes overlay)
   Alignment:    Tab / ctrl+a (cycle left/center/right alignment)
   Media:        p (open focused image card in desktop viewer)
@@ -92,6 +96,8 @@ func main() {
 	var startAt int
 	var showHelp bool
 	var showVer bool
+	var cliTheme string
+	var listThemes bool
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -103,6 +109,15 @@ func main() {
 			showHelp = true
 		case arg == "-v" || arg == "--version":
 			showVer = true
+		case arg == "--list-themes":
+			listThemes = true
+		case arg == "-t" || arg == "--theme":
+			if i+1 < len(args) {
+				i++
+				cliTheme = args[i]
+			}
+		case strings.HasPrefix(arg, "--theme="):
+			cliTheme = strings.TrimPrefix(arg, "--theme=")
 		case arg == "-s" || arg == "--start-at":
 			if i+1 < len(args) {
 				i++
@@ -123,6 +138,14 @@ func main() {
 		fmt.Printf("Termdeck v%s\n", version)
 		return
 	}
+	if listThemes {
+		fmt.Println("Available Termdeck Color Themes:")
+		for _, th := range internal.AvailableThemes() {
+			fmt.Printf("  %-14s %-18s (accent: %s)\n", th.ID, th.Name, th.Accent)
+		}
+		fmt.Println("\nTip: Pass '--theme <name>' or set 'theme: <name>' in deck frontmatter.")
+		return
+	}
 
 	if len(fileArgs) < 1 {
 		fmt.Fprintln(os.Stderr, "error: missing deck file")
@@ -135,6 +158,11 @@ func main() {
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)
+	}
+
+	if cliTheme != "" {
+		m.deck.Theme = cliTheme
+		m.editor.Theme = cliTheme
 	}
 
 	if startAt > 0 {

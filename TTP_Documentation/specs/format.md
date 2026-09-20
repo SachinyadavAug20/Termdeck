@@ -34,6 +34,7 @@ Optional YAML block between `---` delimiters. Keys:
 | `title` | no | Deck title |
 | `author` | no | Author name |
 | `align` | no | Default alignment: `left`, `center`, `right` |
+| `theme` | no | Color theme: `tokyo-night`, `dracula`, `catppuccin`, `nord`, `gruvbox`, `monokai`, `solarized`, `cyberpunk`, `termdeck` (or `#hex`) |
 
 ### Slides
 
@@ -138,7 +139,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 ## Slide rendering
 
 - Slides are vertically centered in the terminal with configurable horizontal alignment (`left`, `center`, `right`).
-- Footer shows: `slide N/M (align) · blocks B · [n: notes] · ? help · tab align · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit`
+- Footer shows: `slide N/M (align) · blocks B · [n: notes] · ? help · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit`
 - Subtle hairline progress line (`─`) across the bottom edge of the terminal.
 - Content fills the available height minus footer (and notes overlay when active).
 
@@ -151,6 +152,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `↓`, `j` | Move block cursor / laser pointer down |
 | `↑`, `k` | Move block cursor / laser pointer up |
 | `?`, `F1` | Toggle in-app keyboard shortcuts help modal |
+| `t`, `T`, `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) & auto-save |
 | `n` | Toggle speaker notes overlay box |
 | `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |

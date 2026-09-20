@@ -88,6 +88,7 @@ deck [options] <file.deck.md>
 | `↓` `j` | Move block cursor / laser pointer down |
 | `↑` `k` | Move block cursor / laser pointer up |
 | `?` `F1` | Toggle in-app keyboard shortcuts help modal |
+| `t` `T` `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
@@ -120,8 +121,11 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - Full-screen (alternate screen buffer)
 - Auto-resizes on terminal resize
 - Configurable alignment: `left`, `center`, `right` (via `Tab`, `::align`, or frontmatter)
-- **Automatic saving**: Saves immediately on alignment toggle (`Tab`/`Ctrl+A`), on edit confirm (`Enter`), and on exit (`q`/`Ctrl+C`)
+- **Automatic saving**: Saves immediately on alignment toggle (`Tab`/`Ctrl+A`), on theme change (`t`/`T`/`F2`), on edit confirm (`Enter`), and on exit (`q`/`Ctrl+C`)
 - Manual save anytime with `Ctrl+S`
+- **Dynamic Theme Engine**: 9 curated color palettes (`tokyo-night`, `dracula`, `catppuccin`, `nord`, `gruvbox`, `monokai`, `solarized`, `cyberpunk`, `termdeck`) plus custom hex colors (`#3b82f6`)
+- Live theme switching with `t` / `T` / `F2`
+- Frontmatter theme specification (`theme: dracula`) and CLI option (`--theme <name>`, `--list-themes`)
 - Inline styling: **bold**, *italic*, `code`
 - Heading levels (h1–h6) with clean visual hierarchy
 - **Standard Markdown Fenced Code Blocks** (```` ```lang ````) and `::code lang=X` blocks with syntax highlighting
@@ -130,14 +134,14 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
 - **In-App Help Modal** (`?` / `F1`) detailing all viewer, presenter, and editor controls
 - **Subtle Bottom Progress Line**: sleek, non-intrusive full-width hairline progress line at the bottom of the screen
-- **CLI Options**: `--start-at N`, `--version`, `--help`
+- **CLI Options**: `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **92.3% statement coverage** in `internal/` with 38 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **92.2% statement coverage** in `internal/` with 45 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

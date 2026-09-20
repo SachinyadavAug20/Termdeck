@@ -730,3 +730,40 @@ func TestEditorHelpModal(t *testing.T) {
 		t.Errorf("expected ShowHelp false after second '?'")
 	}
 }
+
+func TestEditorCycleTheme(t *testing.T) {
+	d := sampleDeck()
+	tmpFile := t.TempDir() + "/theme_test.deck.md"
+	ed := NewEditor(tmpFile)
+
+	initialTheme := ed.Theme
+	if initialTheme == "" {
+		initialTheme = "termdeck"
+	}
+
+	// Press 't' to cycle theme
+	sendTestKey(&ed, &d, "t")
+	if ed.Theme == initialTheme || ed.Theme == "" {
+		t.Errorf("expected theme to change after 't', got %q", ed.Theme)
+	}
+	if !strings.Contains(ed.Message, "theme:") {
+		t.Errorf("expected theme notification message, got %q", ed.Message)
+	}
+	if d.Theme != ed.Theme {
+		t.Errorf("expected deck.Theme %q to match editor.Theme %q", d.Theme, ed.Theme)
+	}
+
+	// Press 'T' (shift+t) to cycle again
+	prevTheme := ed.Theme
+	sendTestKey(&ed, &d, "T")
+	if ed.Theme == prevTheme {
+		t.Errorf("expected theme to change after 'T', got %q", ed.Theme)
+	}
+
+	// Press 'f2' to cycle again
+	prevTheme2 := ed.Theme
+	sendTestKey(&ed, &d, "f2")
+	if ed.Theme == prevTheme2 {
+		t.Errorf("expected theme to change after 'f2', got %q", ed.Theme)
+	}
+}
