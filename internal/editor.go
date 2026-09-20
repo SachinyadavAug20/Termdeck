@@ -492,7 +492,7 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 	case "tab", "ctrl+a":
 		e.ToggleAlign(d)
 
-	case "t", "T", "f2":
+	case "t", "T", "ctrl+t", "f2":
 		e.CycleTheme(d)
 
 	case "p":
@@ -550,6 +550,10 @@ func (e *Editor) handleEdit(key string, d *Deck) tea.Cmd {
 				e.Save(*d)
 			}
 		}
+		return nil
+
+	case "ctrl+t", "f2":
+		e.CycleTheme(d)
 		return nil
 
 	case "backspace":

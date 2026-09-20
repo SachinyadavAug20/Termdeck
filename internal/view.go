@@ -569,13 +569,13 @@ func renderNotesOverlay(notes string, width, maxHeight int) string {
 	if strings.TrimSpace(content) == "" {
 		content = dimStyle.Render("(no speaker notes for this slide)")
 	}
-	title := currentTheme.NotesTitleStyle.Render("📝 Speaker Notes") + dimStyle.Render(" (press 'n' to hide)")
+	title := currentTheme.NotesTitleStyle.Render("📝 Speaker Notes") + dimStyle.Render(" (press 'n' to hide · 't' theme)")
 	boxW := width - 4
 	if boxW < 20 {
 		boxW = width
 	}
 	inner := title + "\n" + content
-	return notesBoxStyle.Width(boxW).MaxHeight(maxHeight).Render(inner)
+	return notesBoxStyle.BorderForeground(lipgloss.Color(currentTheme.Accent)).Width(boxW).MaxHeight(maxHeight).Render(inner)
 }
 
 func renderHelpModal(w, h int) string {
@@ -599,13 +599,14 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("g / G"), currentTheme.HelpDescStyle.Render("First / Last slide")))
 
 	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  PRESENTATION") + "\n")
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t / T / f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t, T, ctrl+t, f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
 
 	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  LIVE EDITOR") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("i"), currentTheme.HelpDescStyle.Render("Edit focused block")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+t / f2"), currentTheme.HelpDescStyle.Render("Cycle color theme while editing")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Enter"), currentTheme.HelpDescStyle.Render("Confirm edit & auto-save")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Esc"), currentTheme.HelpDescStyle.Render("Cancel edit / Close help")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+n / ctrl+d"), currentTheme.HelpDescStyle.Render("Add / Delete block")))
@@ -783,7 +784,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	totalSlides := len(d.Slides)
 	curSlide := e.SlideIdx + 1
 
-	left := fmt.Sprintf("slide %d/%d (%s)  ·  blocks %d", curSlide, totalSlides, align, visibleCount)
+	left := fmt.Sprintf("slide %d/%d (%s)  ·  %s  ·  blocks %d", curSlide, totalSlides, align, currentTheme.Name, visibleCount)
 
 	if hasNotes {
 		if e.ShowNotes {
@@ -804,8 +805,8 @@ func navStatus(d Deck, e Editor, w int) string {
 }
 
 func editStatus(e Editor, w int) string {
-	left := fmt.Sprintf("editing  ·  col %d/%d", e.CursorCol, len(e.Draft))
-	right := "esc cancel · enter confirm"
+	left := fmt.Sprintf("editing  ·  %s  ·  col %d/%d", currentTheme.Name, e.CursorCol, len(e.Draft))
+	right := "^t theme · esc cancel · enter confirm"
 	status := left + "  ·  " + right
 	if e.Message != "" {
 		status = e.Message + "  ·  " + status

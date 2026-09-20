@@ -766,4 +766,50 @@ func TestEditorCycleTheme(t *testing.T) {
 	if ed.Theme == prevTheme2 {
 		t.Errorf("expected theme to change after 'f2', got %q", ed.Theme)
 	}
+
+	// Press 'ctrl+t' to cycle again
+	prevTheme3 := ed.Theme
+	sendTestKey(&ed, &d, "ctrl+t")
+	if ed.Theme == prevTheme3 {
+		t.Errorf("expected theme to change after 'ctrl+t', got %q", ed.Theme)
+	}
+}
+
+func TestEditorCycleThemeInEditMode(t *testing.T) {
+	d := sampleDeck()
+	tmpFile := t.TempDir() + "/theme_edit_test.deck.md"
+	ed := NewEditor(tmpFile)
+
+	// Enter edit mode
+	sendTestKey(&ed, &d, "i")
+	if ed.Mode != ModeEdit {
+		t.Fatalf("expected ModeEdit, got %v", ed.Mode)
+	}
+
+	initialTheme := ed.Theme
+	if initialTheme == "" {
+		initialTheme = "termdeck"
+	}
+
+	// In edit mode, press ctrl+t to cycle theme
+	sendTestKey(&ed, &d, "ctrl+t")
+	if ed.Theme == initialTheme || ed.Theme == "" {
+		t.Errorf("expected theme to change in edit mode after ctrl+t, got %q", ed.Theme)
+	}
+	if ed.Mode != ModeEdit {
+		t.Errorf("expected to stay in ModeEdit after ctrl+t, got %v", ed.Mode)
+	}
+
+	// Press f2 to cycle again in edit mode
+	prevTheme := ed.Theme
+	sendTestKey(&ed, &d, "f2")
+	if ed.Theme == prevTheme {
+		t.Errorf("expected theme to change in edit mode after f2, got %q", ed.Theme)
+	}
+
+	// Confirm editStatus renders the theme
+	es := editStatus(ed, 80)
+	if !strings.Contains(es, "^t theme") {
+		t.Errorf("expected editStatus to contain '^t theme': %q", es)
+	}
 }
