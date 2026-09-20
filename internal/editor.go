@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -24,17 +25,21 @@ const (
 // --- Editor state ---
 
 type Editor struct {
-	Mode      EditorMode
-	SlideIdx  int
-	BlockIdx  int
-	CursorCol int
-	Draft     string
-	UndoStack []string
-	RedoStack []string
-	FilePath  string
-	Dirty     bool
-	Message   string
-	ShowNotes bool
+	Mode         EditorMode
+	SlideIdx     int
+	BlockIdx     int
+	CursorCol    int
+	Draft        string
+	UndoStack    []string
+	RedoStack    []string
+	FilePath     string
+	Dirty        bool
+	Message      string
+	ShowNotes    bool
+	ShowHelp     bool
+	TimerRunning bool
+	TimerStart   time.Time
+	TimerElapsed time.Duration
 }
 
 func NewEditor(filePath string) Editor {
@@ -42,6 +47,20 @@ func NewEditor(filePath string) Editor {
 		Mode:     ModeNav,
 		FilePath: filePath,
 	}
+}
+
+func (e *Editor) ElapsedTime() time.Duration {
+	if e.TimerRunning {
+		return e.TimerElapsed + time.Since(e.TimerStart)
+	}
+	return e.TimerElapsed
+}
+
+func (e *Editor) FormatTimer() string {
+	elapsed := e.ElapsedTime()
+	mins := int(elapsed.Minutes())
+	secs := int(elapsed.Seconds()) % 60
+	return fmt.Sprintf("%02d:%02d", mins, secs)
 }
 
 // --- Undo / Redo ---
@@ -477,7 +496,31 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			}
 		}
 
+	case "?", "f1":
+		e.ShowHelp = !e.ShowHelp
+
+	case "t":
+		if !e.TimerRunning {
+			e.TimerRunning = true
+			e.TimerStart = time.Now()
+			e.Message = "timer started"
+		} else {
+			e.TimerRunning = false
+			e.TimerElapsed += time.Since(e.TimerStart)
+			e.Message = "timer paused"
+		}
+
+	case "ctrl+t":
+		e.TimerRunning = false
+		e.TimerElapsed = 0
+		e.TimerStart = time.Time{}
+		e.Message = "timer reset"
+
 	case "esc":
+		if e.ShowHelp {
+			e.ShowHelp = false
+			return nil
+		}
 		e.Message = ""
 	}
 

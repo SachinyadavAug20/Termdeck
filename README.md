@@ -68,6 +68,17 @@ tpp/
     └── api/                # API docs (future)
 ```
 
+## Usage
+
+```bash
+deck [options] <file.deck.md>
+
+# Options:
+#   -s, --start-at <N>   Start at slide N
+#   -h, --help           Show help
+#   -v, --version        Show version
+```
+
 ## Keys — Viewer
 
 | Key | Action |
@@ -76,13 +87,16 @@ tpp/
 | `←` `h` `PageUp` `Backspace` | Previous slide |
 | `↓` `j` | Move block cursor / laser pointer down |
 | `↑` `k` | Move block cursor / laser pointer up |
+| `?` `F1` | Toggle in-app keyboard shortcuts help modal |
+| `t` | Start / pause live elapsed presentation timer |
+| `Ctrl+T` | Reset elapsed presentation timer to `00:00` |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
 | `G` | Last slide |
 | `g` | First slide |
 | `q` `Ctrl+C` | Quit (auto-saves any unsaved changes) |
-| `Esc` | Clear message status |
+| `Esc` | Close help modal / clear message status |
 
 ## Keys — Editor
 
@@ -112,16 +126,21 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - Manual save anytime with `Ctrl+S`
 - Inline styling: **bold**, *italic*, `code`
 - Heading levels (h1–h6) with clean visual hierarchy
-- `::code lang=X` blocks with syntax highlighting
-- `::image` presentation cards with system viewer integration
+- **Standard Markdown Fenced Code Blocks** (```` ```lang ````) and `::code lang=X` blocks with syntax highlighting
+- **Standard Markdown Images** (`![alt](path)`) and `::image` presentation cards with system viewer integration (`p`)
+- **Markdown Tables** (`| col1 | col2 |`) with formatted borders and headers
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
+- **In-App Help Modal** (`?` / `F1`) detailing all viewer, presenter, and editor controls
+- **Live Elapsed Timer** (`t` / `Ctrl+T`) in status bar for pacing presentations
+- **Graphical Progress Bar** (`[████░░░░] 50%`)
+- **CLI Options**: `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **91.6% statement coverage** with 35 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **92.3% statement coverage** in `internal/` with 38 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

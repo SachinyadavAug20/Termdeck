@@ -376,6 +376,53 @@ This is line 2 of notes.
 	}
 }
 
+func TestStandardMarkdownFeatures(t *testing.T) {
+	src := `# Title
+
+` + "```python\ndef hello():\n    print('hi')\n```" + `
+
+![System Architecture](assets/arch.png)
+
+| Command | Action |
+|---|---|
+| git status | check tree |
+| git commit | save commit |
+`
+	deck := ParseDeck(src)
+	if len(deck.Slides) != 1 {
+		t.Fatalf("expected 1 slide, got %d", len(deck.Slides))
+	}
+	s := deck.Slides[0]
+
+	if len(s.Blocks) != 4 {
+		t.Fatalf("expected 4 blocks, got %d", len(s.Blocks))
+	}
+
+	// 1. Standard fenced code
+	bCode := s.Blocks[1]
+	if bCode.Kind != BlockCode || bCode.Lang != "python" || len(bCode.Lines) != 2 {
+		t.Errorf("unexpected code block: %+v", bCode)
+	}
+
+	// 2. Standard markdown image
+	bImg := s.Blocks[2]
+	if bImg.Kind != BlockImage || bImg.Src != "assets/arch.png" || bImg.Text != "System Architecture" {
+		t.Errorf("unexpected image block: %+v", bImg)
+	}
+
+	// 3. Markdown table
+	bTable := s.Blocks[3]
+	if bTable.Kind != BlockTable || len(bTable.Lines) != 4 {
+		t.Errorf("unexpected table block: %+v", bTable)
+	}
+
+	// 4. Test serialization of table
+	ser := SerializeBlock(bTable)
+	if !strings.Contains(ser, "| Command | Action |") || !strings.Contains(ser, "| git commit | save commit |") {
+		t.Errorf("unexpected serialized table: %s", ser)
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

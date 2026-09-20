@@ -2,8 +2,11 @@ package internal
 
 import (
 	"fmt"
+	"regexp"
 	"strings"
 )
+
+var reMarkdownImage = regexp.MustCompile(`^!\[(.*?)\]\((.*?)\)$`)
 
 // --- Block types ---
 
@@ -16,6 +19,7 @@ const (
 	BlockImage
 	BlockDirective
 	BlockList
+	BlockTable
 )
 
 type Block struct {
@@ -142,6 +146,9 @@ func parseSlide(lines []string) Slide {
 	inNotes := false
 	var noteLines []string
 
+	inTable := false
+	var tableLines []string
+
 	flushCode := func() {
 		blocks = append(blocks, Block{
 			Kind:  BlockCode,
@@ -162,8 +169,39 @@ func parseSlide(lines []string) Slide {
 		noteLines = nil
 	}
 
+	flushTable := func() {
+		if len(tableLines) > 0 {
+			blocks = append(blocks, Block{
+				Kind:  BlockTable,
+				Lines: tableLines,
+				Text:  strings.Join(tableLines, "\n"),
+			})
+			tableLines = nil
+		}
+	}
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		// 1. Standard markdown code fences (```)
+		if strings.HasPrefix(trimmed, "```") {
+			if inCode {
+				flushCode()
+				inCode = false
+				continue
+			}
+			if inNotes {
+				flushNotes()
+				inNotes = false
+			}
+			if inTable {
+				flushTable()
+				inTable = false
+			}
+			inCode = true
+			codeLang = strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
+			continue
+		}
 
 		if strings.HasPrefix(trimmed, "::") {
 			if inCode {
@@ -179,6 +217,10 @@ func parseSlide(lines []string) Slide {
 				if strings.HasPrefix(trimmed, "::notes") && trimmed == "::notes" {
 					continue
 				}
+			}
+			if inTable {
+				flushTable()
+				inTable = false
 			}
 
 			if strings.HasPrefix(trimmed, "::code") {
@@ -224,9 +266,24 @@ func parseSlide(lines []string) Slide {
 		}
 
 		if trimmed == "" {
+			if inTable {
+				flushTable()
+				inTable = false
+			}
 			continue
 		}
 
+		// 2. Markdown Table Detection: line starts with '|', ends with '|', has at least 2 '|'
+		if strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") && strings.Count(trimmed, "|") >= 2 {
+			inTable = true
+			tableLines = append(tableLines, trimmed)
+			continue
+		} else if inTable {
+			flushTable()
+			inTable = false
+		}
+
+		// 3. Headings (#)
 		if strings.HasPrefix(trimmed, "#") {
 			level := 0
 			for _, ch := range trimmed {
@@ -241,6 +298,13 @@ func parseSlide(lines []string) Slide {
 			continue
 		}
 
+		// 4. Standard Markdown Image: ![alt](path)
+		if m := reMarkdownImage.FindStringSubmatch(trimmed); len(m) == 3 {
+			blocks = append(blocks, Block{Kind: BlockImage, Src: strings.TrimSpace(m[2]), Text: strings.TrimSpace(m[1]), Raw: line})
+			continue
+		}
+
+		// 5. Lists
 		if strings.HasPrefix(trimmed, "- ") || strings.HasPrefix(trimmed, "* ") {
 			blocks = append(blocks, Block{Kind: BlockList, Text: trimmed, Raw: line})
 			continue
@@ -258,6 +322,9 @@ func parseSlide(lines []string) Slide {
 	}
 	if inNotes {
 		flushNotes()
+	}
+	if inTable {
+		flushTable()
 	}
 
 	return Slide{Blocks: blocks, Align: slideAlign}
@@ -357,6 +424,11 @@ func SerializeBlock(blk Block) string {
 		}
 		return blk.Directive
 	case BlockList:
+		return blk.Text
+	case BlockTable:
+		if len(blk.Lines) > 0 {
+			return strings.Join(blk.Lines, "\n")
+		}
 		return blk.Text
 	default:
 		return blk.Text

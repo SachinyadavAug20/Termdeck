@@ -84,7 +84,7 @@ Lines starting with `::` — special instructions for the viewer.
 
 Sets the text alignment for the slide. Supported values: `left`, `center`, `right`. Shorthand directives `::left`, `::center`, and `::right` are also supported.
 
-#### `::code`
+#### `::code` / Standard Code Fences
 
 ```
 ::code lang=python
@@ -92,12 +92,16 @@ Sets the text alignment for the slide. Supported values: `left`, `center`, `righ
       print("world")
 ```
 
-Rendered as a bordered block with the language label. Content between `::code` and the next `::` or `---` is the code body.
+Standard Markdown code fences (```` ```lang ````) are also natively supported alongside `::code`. Content between code fences is rendered as a bordered code block with language labeling and dynamic box sizing.
 
-#### `::image`
+#### `::image` / Standard Markdown Images
 
 ```
 ::image screenshot.png
+```
+Or standard markdown syntax:
+```
+![Alt Text](screenshot.png)
 ```
 
 Rendered as a clean presentation card with file information, dimensions, and format. Press `p` in navigation mode to open the high-resolution image directly in your system viewer (`xdg-open` / `open`).
@@ -109,6 +113,17 @@ Rendered as a clean presentation card with file information, dimensions, and for
 4. Relative to current working directory
 
 If the file is not found, a styled placeholder `[ image not found: <filename> ]` is displayed.
+
+#### Markdown Tables
+
+```
+| Feature | SVN | Git |
+|---|---|---|
+| Model | Delta | Snapshot |
+| Branching | Slow | Instant |
+```
+
+Standard GitHub-flavored Markdown tables are parsed into `BlockTable` blocks and rendered with styled borders, padded columns, and bold highlighted headers.
 
 #### `::notes`
 
@@ -123,7 +138,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 ## Slide rendering
 
 - Slides are vertically centered in the terminal with configurable horizontal alignment (`left`, `center`, `right`).
-- Footer shows: `slide N/M (align) · blocks B · [n: notes] · tab align · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit`
+- Footer shows: `slide N/M [████░░░░] P% [⏱ mm:ss] (align) · blocks B · [n: notes] · ? help · tab align · n notes · t timer · i edit · ^s save · q quit`
 - Content fills the available height minus footer (and notes overlay when active).
 
 ## Keyboard shortcuts (viewer)
@@ -134,13 +149,16 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `←`, `h`, `PageUp`, `Backspace` | Previous slide |
 | `↓`, `j` | Move block cursor / laser pointer down |
 | `↑`, `k` | Move block cursor / laser pointer up |
+| `?`, `F1` | Toggle in-app keyboard shortcuts help modal |
+| `t` | Start / pause live elapsed presentation timer |
+| `Ctrl+T` | Reset elapsed presentation timer to `00:00` |
 | `n` | Toggle speaker notes overlay box |
 | `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
 | `g`, `Home` | First slide |
 | `G`, `End` | Last slide |
 | `q`, `Ctrl+C` | Quit (auto-saves any unsaved changes) |
-| `Esc` | Clear message status |
+| `Esc` | Close help modal / clear message status |
 
 ## Example
 

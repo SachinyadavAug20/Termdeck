@@ -702,3 +702,67 @@ func TestSpeakerNotesEditor(t *testing.T) {
 		t.Errorf("expected notes closed message, got %q", ed.Message)
 	}
 }
+
+func TestEditorHelpAndTimer(t *testing.T) {
+	d := sampleDeck()
+	ed := NewEditor("test.deck.md")
+
+	// 1. Help modal toggle
+	if ed.ShowHelp {
+		t.Errorf("expected ShowHelp false initially")
+	}
+	sendTestKey(&ed, &d, "?")
+	if !ed.ShowHelp {
+		t.Errorf("expected ShowHelp true after '?'")
+	}
+	// 'esc' closes help
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowHelp {
+		t.Errorf("expected ShowHelp false after 'esc'")
+	}
+	// 'f1' toggles help
+	sendTestKey(&ed, &d, "f1")
+	if !ed.ShowHelp {
+		t.Errorf("expected ShowHelp true after 'f1'")
+	}
+	sendTestKey(&ed, &d, "?")
+	if ed.ShowHelp {
+		t.Errorf("expected ShowHelp false after second '?'")
+	}
+
+	// 2. Timer controls
+	if ed.TimerRunning {
+		t.Errorf("expected TimerRunning false initially")
+	}
+	sendTestKey(&ed, &d, "t")
+	if !ed.TimerRunning {
+		t.Errorf("expected TimerRunning true after 't'")
+	}
+	if !strings.Contains(ed.Message, "timer started") {
+		t.Errorf("expected timer started message, got %q", ed.Message)
+	}
+
+	// FormatTimer check
+	timerStr := ed.FormatTimer()
+	if !strings.Contains(timerStr, ":") {
+		t.Errorf("unexpected timer format: %q", timerStr)
+	}
+
+	// Pause timer
+	sendTestKey(&ed, &d, "t")
+	if ed.TimerRunning {
+		t.Errorf("expected TimerRunning false after pause")
+	}
+	if !strings.Contains(ed.Message, "timer paused") {
+		t.Errorf("expected timer paused message, got %q", ed.Message)
+	}
+
+	// Reset timer
+	sendTestKey(&ed, &d, "ctrl+t")
+	if ed.TimerRunning || ed.TimerElapsed != 0 {
+		t.Errorf("expected timer reset to 0")
+	}
+	if !strings.Contains(ed.Message, "timer reset") {
+		t.Errorf("expected timer reset message, got %q", ed.Message)
+	}
+}

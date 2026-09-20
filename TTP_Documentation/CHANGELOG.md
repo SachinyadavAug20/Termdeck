@@ -1,5 +1,16 @@
 # Changelog
 
+## v0.3 — 20 September 2026
+
+### Added
+- Standard Markdown compatibility: native support for triple-backtick code fences (```` ```lang ````) and standard image tags (`![alt](path)`).
+- Markdown Tables (`| Col 1 | Col 2 |`): native parsing and formatted rendering with Lipgloss box borders and highlighted headers.
+- In-App Help Modal (`?` / `F1`): centered overlay dialog detailing all viewer, presenter, and editor keybindings.
+- Live Presentation Stopwatch (`t` / `Ctrl+T`): integrated speaking timer in the status line with real-time second ticks, pause, and reset.
+- Graphical Progress Bar: visual slide progress track (`[████░░░░] 50%`) in the navigation status bar.
+- Standard CLI Flags: `--help` / `-h`, `--version` / `-v`, and `--start-at <N>` / `-s <N>` in `main.go`.
+- Test suite expanded to 38 automated unit tests achieving **92.3% statement coverage** in `deck/internal`.
+
 ## v0.2 — 18 September 2026
 
 ### Added

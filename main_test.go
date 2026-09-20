@@ -166,3 +166,37 @@ func TestBuildModel(t *testing.T) {
 		t.Errorf("expected editor file path %q, got %q", tmpValid, m.editor.FilePath)
 	}
 }
+
+func TestModelTimerAndFlags(t *testing.T) {
+	d := internal.Deck{
+		Slides: []internal.Slide{
+			{Blocks: []internal.Block{{Kind: internal.BlockParagraph, Text: "Slide 1"}}},
+			{Blocks: []internal.Block{{Kind: internal.BlockParagraph, Text: "Slide 2"}}},
+		},
+	}
+	ed := internal.NewEditor("test.deck.md")
+	m := model{deck: d, editor: ed}
+
+	// 1. Tick when timer is not running returns nil cmd
+	_, cmd := m.Update(tickMsg{})
+	if cmd != nil {
+		t.Errorf("expected tickMsg to return nil when timer not running, got %v", cmd)
+	}
+
+	// 2. Start timer with 't'
+	tKey := tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune{'t'}}
+	mUpdated, tCmd := m.Update(tKey)
+	m = mUpdated.(model)
+	if !m.editor.TimerRunning {
+		t.Errorf("expected timer running after 't'")
+	}
+	if tCmd == nil {
+		t.Errorf("expected batch cmd returning tickCmd on starting timer")
+	}
+
+	// 3. Tick when timer IS running returns new tickCmd
+	_, tickActiveCmd := m.Update(tickMsg{})
+	if tickActiveCmd == nil {
+		t.Errorf("expected active tickMsg to return next tick cmd")
+	}
+}

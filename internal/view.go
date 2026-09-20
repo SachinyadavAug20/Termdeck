@@ -25,6 +25,20 @@ var (
 	notesBoxStyle   = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("240")).Foreground(lipgloss.Color("252")).Padding(0, 1)
 	notesTitleStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
 
+	tableHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).Padding(0, 1)
+	tableCellStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252")).Padding(0, 1)
+	tableBorderStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("240"))
+
+	helpBoxStyle    = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).BorderForeground(lipgloss.Color("212")).Foreground(lipgloss.Color("252")).Padding(1, 2)
+	helpTitleStyle  = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212"))
+	helpHeaderStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("75"))
+	helpKeyStyle    = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("114"))
+	helpDescStyle   = lipgloss.NewStyle().Foreground(lipgloss.Color("252"))
+
+	progressStyle     = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
+	timerRunningStyle = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("114"))
+	timerPausedStyle  = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
+
 	h1Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).Underline(true)
 	h2Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
 	h3Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#D8D8D8"))
@@ -414,9 +428,138 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 		} else {
 			b.WriteString("  " + dimStyle.Render(blk.Directive))
 		}
+
+	case BlockTable:
+		text := blk.Text
+		if isEditing {
+			text = editDraft
+		}
+		if isEditing {
+			b.WriteString(editStyle.Width(w - 4).Render(text))
+		} else {
+			rendered := renderTable(blk, w)
+			lines := strings.Split(rendered, "\n")
+			for idx, l := range lines {
+				if idx > 0 {
+					b.WriteString("\n")
+				}
+				if idx == 0 && isCursor {
+					b.WriteString(cursorMark + l)
+				} else {
+					b.WriteString("  " + l)
+				}
+			}
+		}
 	}
 
 	return b.String()
+}
+
+func renderTable(blk Block, w int) string {
+	rawLines := blk.Lines
+	if len(rawLines) == 0 && blk.Text != "" {
+		rawLines = strings.Split(blk.Text, "\n")
+	}
+	if len(rawLines) == 0 {
+		return ""
+	}
+
+	var rows [][]string
+	for _, l := range rawLines {
+		trimmed := strings.TrimSpace(l)
+		if !strings.HasPrefix(trimmed, "|") {
+			continue
+		}
+		clean := strings.Trim(trimmed, "|")
+		isSep := true
+		for _, ch := range clean {
+			if ch != '-' && ch != ':' && ch != '|' && ch != ' ' {
+				isSep = false
+				break
+			}
+		}
+		if isSep {
+			continue
+		}
+
+		parts := strings.Split(trimmed, "|")
+		var row []string
+		for i := 1; i < len(parts)-1; i++ {
+			row = append(row, strings.TrimSpace(parts[i]))
+		}
+		if len(row) > 0 {
+			rows = append(rows, row)
+		}
+	}
+
+	if len(rows) == 0 {
+		return ""
+	}
+
+	cols := 0
+	for _, r := range rows {
+		if len(r) > cols {
+			cols = len(r)
+		}
+	}
+
+	colWidths := make([]int, cols)
+	for _, r := range rows {
+		for i, cell := range r {
+			if len(cell) > colWidths[i] {
+				colWidths[i] = len(cell)
+			}
+		}
+	}
+	for i := range colWidths {
+		if colWidths[i] < 4 {
+			colWidths[i] = 4
+		}
+	}
+
+	var sb strings.Builder
+	header := rows[0]
+	sb.WriteString("│")
+	for i := 0; i < cols; i++ {
+		val := ""
+		if i < len(header) {
+			val = header[i]
+		}
+		padded := fmt.Sprintf(" %-*s ", colWidths[i], val)
+		sb.WriteString(tableHeaderStyle.Render(padded))
+		sb.WriteString(tableBorderStyle.Render("│"))
+	}
+	sb.WriteString("\n")
+
+	sb.WriteString("├")
+	for i := 0; i < cols; i++ {
+		sb.WriteString(strings.Repeat("─", colWidths[i]+2))
+		if i < cols-1 {
+			sb.WriteString("┼")
+		} else {
+			sb.WriteString("┤")
+		}
+	}
+	sb.WriteString("\n")
+
+	for rIdx := 1; rIdx < len(rows); rIdx++ {
+		r := rows[rIdx]
+		sb.WriteString("│")
+		for i := 0; i < cols; i++ {
+			val := ""
+			if i < len(r) {
+				val = r[i]
+			}
+			padded := fmt.Sprintf(" %-*s ", colWidths[i], val)
+			sb.WriteString(tableCellStyle.Render(padded))
+			sb.WriteString(tableBorderStyle.Render("│"))
+		}
+		if rIdx < len(rows)-1 {
+			sb.WriteString("\n")
+		}
+	}
+
+	return sb.String()
 }
 
 // --- Slide rendering ---
@@ -461,6 +604,48 @@ func renderNotesOverlay(notes string, width, maxHeight int) string {
 	return notesBoxStyle.Width(boxW).MaxHeight(maxHeight).Render(inner)
 }
 
+func renderHelpModal(w, h int) string {
+	boxW := 62
+	if boxW > w-4 {
+		boxW = w - 4
+	}
+	if boxW < 36 {
+		boxW = 36
+	}
+
+	var sb strings.Builder
+	sb.WriteString(helpTitleStyle.Render("Termdeck Keyboard Controls"))
+	sb.WriteString("\n" + dimStyle.Render("Press '?' or 'Esc' to close") + "\n\n")
+
+	sb.WriteString(helpHeaderStyle.Render("  NAVIGATION") + "\n")
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("→, l, Space, Enter"), helpDescStyle.Render("Next slide")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("←, h, Backspace"), helpDescStyle.Render("Previous slide")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("↓, j"), helpDescStyle.Render("Move laser pointer down")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("↑, k"), helpDescStyle.Render("Move laser pointer up")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("g / G"), helpDescStyle.Render("First / Last slide")))
+
+	sb.WriteString("\n" + helpHeaderStyle.Render("  PRESENTATION") + "\n")
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("n"), helpDescStyle.Render("Toggle speaker notes overlay")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("t"), helpDescStyle.Render("Start / Pause elapsed timer")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("ctrl+t"), helpDescStyle.Render("Reset timer to 00:00")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("Tab / ctrl+a"), helpDescStyle.Render("Cycle alignment (left/center/right)")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("p"), helpDescStyle.Render("Open image in system viewer")))
+
+	sb.WriteString("\n" + helpHeaderStyle.Render("  LIVE EDITOR") + "\n")
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("i"), helpDescStyle.Render("Edit focused block")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("Enter"), helpDescStyle.Render("Confirm edit & auto-save")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("Esc"), helpDescStyle.Render("Cancel edit / Close help")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("ctrl+n / ctrl+d"), helpDescStyle.Render("Add / Delete block")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("ctrl+k / ctrl+j"), helpDescStyle.Render("Move block up / down")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("u / ctrl+r"), helpDescStyle.Render("Undo / Redo")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("ctrl+s"), helpDescStyle.Render("Save file manually")))
+
+	sb.WriteString("\n" + fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("q / ctrl+c"), helpDescStyle.Render("Quit (auto-saves changes)")))
+
+	box := helpBoxStyle.Width(boxW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
+}
+
 // --- Full view ---
 
 func View(d Deck, e Editor, width, height int) string {
@@ -469,6 +654,10 @@ func View(d Deck, e Editor, width, height int) string {
 	}
 	if height == 0 {
 		height = 24
+	}
+
+	if e.ShowHelp {
+		return renderHelpModal(width, height)
 	}
 
 	notesOverlay := ""
@@ -567,7 +756,38 @@ func navStatus(d Deck, e Editor, w int) string {
 		hasNotes = d.Slides[e.SlideIdx].Notes() != ""
 	}
 
-	left := fmt.Sprintf("slide %d/%d (%s)  ·  blocks %d", e.SlideIdx+1, len(d.Slides), align, visibleCount)
+	totalSlides := len(d.Slides)
+	curSlide := e.SlideIdx + 1
+	pct := 0
+	if totalSlides > 0 {
+		pct = int(float64(curSlide) / float64(totalSlides) * 100)
+	}
+
+	// Visual progress bar track
+	barLen := 8
+	filled := 0
+	if totalSlides > 0 {
+		filled = (curSlide * barLen) / totalSlides
+	}
+	if filled > barLen {
+		filled = barLen
+	}
+	progressTrack := fmt.Sprintf("[%s%s] %d%%", strings.Repeat("█", filled), strings.Repeat("░", barLen-filled), pct)
+
+	timerStr := ""
+	if e.TimerRunning || e.ElapsedTime() > 0 {
+		timerIcon := "⏱"
+		style := timerRunningStyle
+		if !e.TimerRunning {
+			timerIcon = "⏸"
+			style = timerPausedStyle
+		}
+		timerStr = "  ·  " + style.Render(fmt.Sprintf("[%s %s]", timerIcon, e.FormatTimer()))
+	}
+
+	left := fmt.Sprintf("slide %d/%d %s (%s)  ·  blocks %d", curSlide, totalSlides, progressStyle.Render(progressTrack), align, visibleCount)
+	left += timerStr
+
 	if hasNotes {
 		if e.ShowNotes {
 			left += "  ·  [n: notes open]"
@@ -581,7 +801,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "tab align · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · tab align · n notes · t timer · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

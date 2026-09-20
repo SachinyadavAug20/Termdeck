@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 var reANSI = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
@@ -473,6 +474,50 @@ func TestSpeakerNotesView(t *testing.T) {
 				t.Errorf("slide %d with notes produced empty output", sIdx)
 			}
 		}
+	}
+}
+
+func TestTableAndHelpAndTimerView(t *testing.T) {
+	// 1. Table rendering
+	tblBlock := Block{
+		Kind: BlockTable,
+		Lines: []string{
+			"| Command | Action |",
+			"|---|---|",
+			"| git status | view state |",
+			"| git log | view history |",
+		},
+	}
+	renderedTbl := stripANSI(renderTable(tblBlock, 80))
+	if !strings.Contains(renderedTbl, "Command") || !strings.Contains(renderedTbl, "view history") {
+		t.Errorf("expected table content in rendered table: %q", renderedTbl)
+	}
+
+	// 2. Help Modal view
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{tblBlock}},
+			{Blocks: []Block{{Kind: BlockParagraph, Text: "Slide 2"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	ed.ShowHelp = true
+	helpView := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(helpView, "Termdeck Keyboard Controls") || !strings.Contains(helpView, "NAVIGATION") {
+		t.Errorf("expected help modal in View: %q", helpView)
+	}
+
+	// 3. Status bar with progress track and timer
+	ed.ShowHelp = false
+	ed.TimerRunning = true
+	ed.TimerElapsed = 65 * time.Second
+	ed.TimerStart = time.Now()
+	statusView := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(statusView, "%") || !strings.Contains(statusView, "[") {
+		t.Errorf("expected progress bar in status view: %q", statusView)
+	}
+	if !strings.Contains(statusView, "⏱") && !strings.Contains(statusView, ":") {
+		t.Errorf("expected timer icon in status view: %q", statusView)
 	}
 }
 
