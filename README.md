@@ -16,6 +16,18 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 20 September 2026
+- [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
+- [x] Non-intrusive hairline slide progress indicator along bottom edge
+- [x] Native Markdown tables with borders, alignment, and styled headers
+- [x] Native Markdown fenced code blocks (```` ```lang ````) and syntax highlighting
+- [x] Speaker notes privacy overlay (`n`) isolated from audience view
+- [x] In-app keyboard shortcuts & controls help modal (`?`/`F1`)
+- [x] Educational "Git Under The Hood" example presentation for CS students
+- [x] 45 automated unit tests with 92.2% statement coverage
+
+![Termdeck v0.3: Theme Engine, bottom progress line, and Git Under The Hood demo](TTP_Documentation/development/images/demo.gif)
+
 #### 18 September 2026
 - [x] Text body alignment (`left`, `center`, `right`) with `Tab`/`Ctrl+A`
 - [x] High-contrast laser pointer indicator (`▶ `)
@@ -52,6 +64,7 @@ tpp/
 │   ├── image.go         # Terminal image renderer (ANSI half-blocks)
 │   └── image_test.go    # Path resolution, format probing, card tests
 ├── demo.deck.md         # Sample deck
+├── git_under_the_hood.deck.md # Deep-dive example presentation
 ├── Makefile             # Developer automation (test, coverage, lint, bench, build)
 ├── go.mod
 ├── go.sum
@@ -64,7 +77,8 @@ tpp/
     ├── development/
     │   ├── architecture.md # Technical architecture & deep-dive
     │   ├── testing.md      # Complete QA & testing guide
-    │   └── images/         # Screenshots (1.png, 2.png)
+    │   ├── images/         # Screenshots & demos (1.png, 2.png, demo.gif)
+    │   └── videos/         # Screen recordings
     └── api/                # API docs (future)
 ```
 
