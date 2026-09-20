@@ -138,7 +138,8 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 ## Slide rendering
 
 - Slides are vertically centered in the terminal with configurable horizontal alignment (`left`, `center`, `right`).
-- Footer shows: `slide N/M [████░░░░] P% [⏱ mm:ss] (align) · blocks B · [n: notes] · ? help · tab align · n notes · t timer · i edit · ^s save · q quit`
+- Footer shows: `slide N/M (align) · blocks B · [n: notes] · ? help · tab align · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit`
+- Subtle hairline progress line (`─`) across the bottom edge of the terminal.
 - Content fills the available height minus footer (and notes overlay when active).
 
 ## Keyboard shortcuts (viewer)
@@ -150,8 +151,6 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `↓`, `j` | Move block cursor / laser pointer down |
 | `↑`, `k` | Move block cursor / laser pointer up |
 | `?`, `F1` | Toggle in-app keyboard shortcuts help modal |
-| `t` | Start / pause live elapsed presentation timer |
-| `Ctrl+T` | Reset elapsed presentation timer to `00:00` |
 | `n` | Toggle speaker notes overlay box |
 | `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |

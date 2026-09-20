@@ -88,8 +88,6 @@ deck [options] <file.deck.md>
 | `↓` `j` | Move block cursor / laser pointer down |
 | `↑` `k` | Move block cursor / laser pointer up |
 | `?` `F1` | Toggle in-app keyboard shortcuts help modal |
-| `t` | Start / pause live elapsed presentation timer |
-| `Ctrl+T` | Reset elapsed presentation timer to `00:00` |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
@@ -131,8 +129,7 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Markdown Tables** (`| col1 | col2 |`) with formatted borders and headers
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
 - **In-App Help Modal** (`?` / `F1`) detailing all viewer, presenter, and editor controls
-- **Live Elapsed Timer** (`t` / `Ctrl+T`) in status bar for pacing presentations
-- **Graphical Progress Bar** (`[████░░░░] 50%`)
+- **Subtle Bottom Progress Line**: sleek, non-intrusive full-width hairline progress line at the bottom of the screen
 - **CLI Options**: `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo

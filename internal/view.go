@@ -37,8 +37,6 @@ var (
 
 	progressLineFilledStyle = lipgloss.NewStyle().Foreground(lipgloss.Color("212"))
 	progressLineDimStyle    = lipgloss.NewStyle().Foreground(lipgloss.Color("236"))
-	timerRunningStyle       = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("114"))
-	timerPausedStyle        = lipgloss.NewStyle().Foreground(lipgloss.Color("208"))
 
 	h1Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("212")).Underline(true)
 	h2Style = lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#FFFFFF"))
@@ -627,8 +625,6 @@ func renderHelpModal(w, h int) string {
 
 	sb.WriteString("\n" + helpHeaderStyle.Render("  PRESENTATION") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("n"), helpDescStyle.Render("Toggle speaker notes overlay")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("t"), helpDescStyle.Render("Start / Pause elapsed timer")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("ctrl+t"), helpDescStyle.Render("Reset timer to 00:00")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("Tab / ctrl+a"), helpDescStyle.Render("Cycle alignment (left/center/right)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", helpKeyStyle.Render("p"), helpDescStyle.Render("Open image in system viewer")))
 
@@ -805,19 +801,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	totalSlides := len(d.Slides)
 	curSlide := e.SlideIdx + 1
 
-	timerStr := ""
-	if e.TimerRunning || e.ElapsedTime() > 0 {
-		timerIcon := "⏱"
-		style := timerRunningStyle
-		if !e.TimerRunning {
-			timerIcon = "⏸"
-			style = timerPausedStyle
-		}
-		timerStr = "  ·  " + style.Render(fmt.Sprintf("[%s %s]", timerIcon, e.FormatTimer()))
-	}
-
 	left := fmt.Sprintf("slide %d/%d (%s)  ·  blocks %d", curSlide, totalSlides, align, visibleCount)
-	left += timerStr
 
 	if hasNotes {
 		if e.ShowNotes {
@@ -832,7 +816,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · tab align · n notes · t timer · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · tab align · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

@@ -5,7 +5,6 @@ import (
 	"regexp"
 	"strings"
 	"testing"
-	"time"
 )
 
 var reANSI = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
@@ -477,7 +476,7 @@ func TestSpeakerNotesView(t *testing.T) {
 	}
 }
 
-func TestTableAndHelpAndTimerView(t *testing.T) {
+func TestTableAndHelpModalView(t *testing.T) {
 	// 1. Table rendering
 	tblBlock := Block{
 		Kind: BlockTable,
@@ -507,20 +506,14 @@ func TestTableAndHelpAndTimerView(t *testing.T) {
 		t.Errorf("expected help modal in View: %q", helpView)
 	}
 
-	// 3. Status bar with clean slide info, timer and bottom progress line
+	// 3. Status bar with clean slide info and bottom progress line
 	ed.ShowHelp = false
-	ed.TimerRunning = true
-	ed.TimerElapsed = 65 * time.Second
-	ed.TimerStart = time.Now()
 	statusView := stripANSI(View(d, ed, 80, 24))
 	if !strings.Contains(statusView, "slide 1/2") {
 		t.Errorf("expected slide status in view: %q", statusView)
 	}
 	if !strings.Contains(statusView, "─") {
 		t.Errorf("expected bottom progress line in status view: %q", statusView)
-	}
-	if !strings.Contains(statusView, "⏱") && !strings.Contains(statusView, ":") {
-		t.Errorf("expected timer icon in status view: %q", statusView)
 	}
 }
 

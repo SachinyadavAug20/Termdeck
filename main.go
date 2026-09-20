@@ -5,21 +5,12 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"time"
 
 	"deck/internal"
 	tea "github.com/charmbracelet/bubbletea"
 )
 
 const version = "0.3.0"
-
-type tickMsg time.Time
-
-func tickCmd() tea.Cmd {
-	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
-		return tickMsg(t)
-	})
-}
 
 type model struct {
 	deck    internal.Deck
@@ -41,17 +32,8 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, tea.ClearScreen
 		}
 
-	case tickMsg:
-		if m.editor.TimerRunning {
-			return m, tickCmd()
-		}
-		return m, nil
-
 	case tea.KeyMsg:
 		cmd := m.editor.HandleKey(msg, &m.deck)
-		if m.editor.TimerRunning && msg.String() == "t" {
-			return m, tea.Batch(cmd, tickCmd())
-		}
 		if cmd != nil {
 			return m, cmd
 		}
@@ -99,7 +81,6 @@ Controls:
   Pointer:      ↓ / j (down), ↑ / k (up)
   Jumps:        g (first slide), G (last slide)
   Notes:        n (toggle speaker notes overlay)
-  Timer:        t (start/pause elapsed timer), ctrl+t (reset)
   Alignment:    Tab / ctrl+a (cycle left/center/right alignment)
   Media:        p (open focused image card in desktop viewer)
   Help:         ? / f1 (in-app help modal)
