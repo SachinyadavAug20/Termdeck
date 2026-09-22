@@ -419,11 +419,9 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 		text := blk.Text
 		if isEditing {
 			text = editDraft
-		}
-		rendered := inlineStyle(text)
-		if isEditing {
 			b.WriteString(editStyle.Width(w - 4).Render(text))
 		} else {
+			rendered := renderListItem(text)
 			lines := strings.Split(rendered, "\n")
 			for idx, l := range lines {
 				if idx > 0 {
@@ -491,6 +489,49 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 	}
 
 	return b.String()
+}
+
+func renderListItem(text string) string {
+	trimmed := strings.TrimSpace(text)
+
+	prefix := ""
+	if strings.HasPrefix(trimmed, "- ") {
+		prefix = "- "
+	} else if strings.HasPrefix(trimmed, "* ") {
+		prefix = "* "
+	}
+
+	if prefix != "" {
+		content := trimmed[len(prefix):]
+		if strings.HasPrefix(content, "[x] ") || strings.HasPrefix(content, "[X] ") {
+			itemText := content[4:]
+			checkMark := currentTheme.SyntaxString.Render("✔ ")
+			return checkMark + dimStyle.Render(inlineStyle(itemText))
+		} else if strings.HasPrefix(content, "[ ] ") {
+			itemText := content[4:]
+			circleMark := currentTheme.ProgressLineDimStyle.Render("○ ")
+			return circleMark + inlineStyle(itemText)
+		}
+		bullet := currentTheme.TableHeaderStyle.Render("• ")
+		return bullet + inlineStyle(content)
+	}
+
+	if idx := strings.Index(trimmed, ". "); idx > 0 && idx < 5 {
+		isNum := true
+		for _, ch := range trimmed[:idx] {
+			if ch < '0' || ch > '9' {
+				isNum = false
+				break
+			}
+		}
+		if isNum {
+			numPart := trimmed[:idx+2]
+			content := trimmed[idx+2:]
+			return currentTheme.TableHeaderStyle.Render(numPart) + inlineStyle(content)
+		}
+	}
+
+	return inlineStyle(text)
 }
 
 func renderCallout(blk Block, w int) string {
@@ -737,6 +778,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  PRESENTATION") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t, T, ctrl+t, f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("z"), currentTheme.HelpDescStyle.Render("Toggle distraction-free zen mode")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("x"), currentTheme.HelpDescStyle.Render("Toggle task item ([ ] ⇄ [x]) & auto-save")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
@@ -1004,7 +1046,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · z zen · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

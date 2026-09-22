@@ -62,9 +62,11 @@ Plain text lines. Supports inline formatting:
 | `*italic*` | *italic* |
 | `` `code` `` | `inline code` |
 
-### Lists
+### Lists & Task Checklists
 
-Lines starting with `-` (unordered) or `1.` (ordered). Displayed as-is in v0.1.
+Lines starting with `-` or `*` (unordered) or `1.` (ordered).
+- **Checklists**: `- [ ]` renders as an unchecked item (`○ `), and `- [x]` renders with a bold green checkmark (`✔ `) with dimmed completed text. Press `x` in navigation mode to toggle task state (`[ ]` ⇄ `[x]`) and auto-save immediately to file.
+- **Bullets**: Rendered with clean dot glyphs (`• `) with theme accenting.
 
 ### Directives
 
@@ -173,6 +175,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `?`, `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t`, `T`, `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) & auto-save |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
+| `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay box |
 | `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |

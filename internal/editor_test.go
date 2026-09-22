@@ -912,3 +912,64 @@ func TestEditorQuickJumpPrompt(t *testing.T) {
 		t.Errorf("expected ModeNav after empty enter")
 	}
 }
+
+func TestEditorToggleTask(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Sprint Goals"},
+					{Kind: BlockList, Text: "- [ ] Setup CI pipeline"},
+					{Kind: BlockList, Text: "* Regular bullet"},
+				},
+			},
+		},
+	}
+	tmpFile := t.TempDir() + "/tasks.deck.md"
+	ed := NewEditor(tmpFile)
+
+	// 1. Move to block 0 (Heading) and press 'x' -> should do nothing
+	sendTestKey(&ed, &d, "x")
+	if d.Slides[0].Blocks[0].Text != "Sprint Goals" {
+		t.Errorf("expected heading unchanged after 'x'")
+	}
+
+	// 2. Move to block 1 (- [ ] Setup CI pipeline) and press 'x'
+	sendTestKey(&ed, &d, "j")
+	if ed.BlockIdx != 1 {
+		t.Fatalf("expected BlockIdx 1, got %d", ed.BlockIdx)
+	}
+	sendTestKey(&ed, &d, "x")
+	if d.Slides[0].Blocks[1].Text != "- [x] Setup CI pipeline" {
+		t.Errorf("expected task marked [x], got %q", d.Slides[0].Blocks[1].Text)
+	}
+	if ed.Message != "task: complete" {
+		t.Errorf("expected message 'task: complete', got %q", ed.Message)
+	}
+
+	// 3. Press 'x' again -> should toggle back to [ ]
+	sendTestKey(&ed, &d, "x")
+	if d.Slides[0].Blocks[1].Text != "- [ ] Setup CI pipeline" {
+		t.Errorf("expected task marked [ ], got %q", d.Slides[0].Blocks[1].Text)
+	}
+	if ed.Message != "task: pending" {
+		t.Errorf("expected message 'task: pending', got %q", ed.Message)
+	}
+
+	// 4. Test undo on task toggle
+	sendTestKey(&ed, &d, "x")
+	if d.Slides[0].Blocks[1].Text != "- [x] Setup CI pipeline" {
+		t.Errorf("expected task [x], got %q", d.Slides[0].Blocks[1].Text)
+	}
+	sendTestKey(&ed, &d, "u")
+	if d.Slides[0].Blocks[1].Text != "- [ ] Setup CI pipeline" {
+		t.Errorf("expected task restored to [ ] via undo, got %q", d.Slides[0].Blocks[1].Text)
+	}
+
+	// 5. Move to block 2 (* Regular bullet) and press 'x' -> converts to task
+	sendTestKey(&ed, &d, "j")
+	sendTestKey(&ed, &d, "x")
+	if d.Slides[0].Blocks[2].Text != "* [x] Regular bullet" {
+		t.Errorf("expected converted task, got %q", d.Slides[0].Blocks[2].Text)
+	}
+}

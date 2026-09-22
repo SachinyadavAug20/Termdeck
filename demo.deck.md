@@ -130,15 +130,33 @@ Present technical migrations and refactors cleanly:
 ---
 
 ::align left
+# Task Checklists
+
+Track technical sprint milestones in real time. Press `x` to toggle:
+
+- [x] Design RFC & API schema
+- [x] Implement read replicas
+- [ ] Migrate caching layer
+- [ ] Decommission legacy monolith
+
+---
+
+::align left
 # Navigation
 
 - `←/→` or `j/k` — next/prev slide
 
+- `/` — quick slide jump (number or search)
+
+- `x` — toggle task checklist item ([ ] ⇄ [x])
+
+- `z` — toggle distraction-free zen mode
+
 - `Tab` / `Ctrl+A` — cycle alignment (left / center / right)
 
-- `G` — last slide
+- `t` / `T` / `F2` — cycle color themes
 
-- `g` — first slide
+- `G` / `g` — last / first slide
 
 - `q` or `Ctrl+C` — quit
 

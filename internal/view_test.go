@@ -688,6 +688,32 @@ func TestRenderJumpModal(t *testing.T) {
 	}
 }
 
+func TestRenderListItem(t *testing.T) {
+	// 1. Checked task
+	chk := renderListItem("- [x] Deploy to production")
+	if !strings.Contains(chk, "✔") || !strings.Contains(chk, "Deploy to production") {
+		t.Errorf("expected checked task rendering, got %q", chk)
+	}
+
+	// 2. Unchecked task
+	unchk := renderListItem("- [ ] Migrate database")
+	if !strings.Contains(unchk, "○") || !strings.Contains(unchk, "Migrate database") {
+		t.Errorf("expected unchecked task rendering, got %q", unchk)
+	}
+
+	// 3. Regular bullet
+	bullet := renderListItem("- Standard bullet point")
+	if !strings.Contains(bullet, "•") || !strings.Contains(bullet, "Standard bullet point") {
+		t.Errorf("expected bullet rendering, got %q", bullet)
+	}
+
+	// 4. Numbered list
+	num := renderListItem("1. First step")
+	if !strings.Contains(num, "1.") || !strings.Contains(num, "First step") {
+		t.Errorf("expected numbered list rendering, got %q", num)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

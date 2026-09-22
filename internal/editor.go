@@ -371,6 +371,47 @@ func (e *Editor) ToggleAlign(d *Deck) {
 	}
 }
 
+// --- Task toggle ---
+
+func (e *Editor) ToggleTask(d *Deck) {
+	blk := e.currentBlock(d)
+	if blk == nil || blk.Kind != BlockList {
+		return
+	}
+	trimmed := strings.TrimSpace(blk.Text)
+	prefix := ""
+	if strings.HasPrefix(trimmed, "- ") {
+		prefix = "- "
+	} else if strings.HasPrefix(trimmed, "* ") {
+		prefix = "* "
+	}
+	if prefix == "" {
+		return
+	}
+	content := trimmed[len(prefix):]
+	e.SaveUndo(*d)
+
+	if strings.HasPrefix(content, "[ ] ") {
+		blk.Text = prefix + "[x] " + content[4:]
+		e.Dirty = true
+		e.Message = "task: complete"
+	} else if strings.HasPrefix(content, "[x] ") || strings.HasPrefix(content, "[X] ") {
+		blk.Text = prefix + "[ ] " + content[4:]
+		e.Dirty = true
+		e.Message = "task: pending"
+	} else {
+		blk.Text = prefix + "[x] " + content
+		e.Dirty = true
+		e.Message = "task: converted"
+	}
+
+	if e.FilePath != "" {
+		if _, err := os.Stat(e.FilePath); err == nil {
+			e.Save(*d)
+		}
+	}
+}
+
 // --- Input handling ---
 
 func (e *Editor) HandleKey(msg tea.KeyMsg, d *Deck) tea.Cmd {
@@ -441,6 +482,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 
 	case "z":
 		e.ZenMode = !e.ZenMode
+
+	case "x":
+		e.ToggleTask(d)
 
 	case "i", "a", "o", "I", "A", "O":
 		e.EnterEdit(d)

@@ -22,6 +22,7 @@ deck demo.deck.md
 - [x] Extended modern developer syntax highlighting (Go, Rust, TypeScript, Python, SQL)
 - [x] Native Markdown Callout & Admonition boxes (`> [!TIP]`, `> [!NOTE]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`, `> quote`) with themed rounded borders
 - [x] Quick Slide Jump modal (`/`) with instant numeric jumping and live slide title search
+- [x] Interactive Task Checklists (`- [x]` / `- [ ]`) with live `x` key toggling, green checkmarks (`✔`), and auto-save
 
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
@@ -112,6 +113,7 @@ deck [options] <file.deck.md>
 | `?` `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t` `T` `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
+| `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
@@ -156,6 +158,8 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Standard Markdown Images** (`![alt](path)`) and `::image` presentation cards with system viewer integration (`p`)
 - **Markdown Tables** (`| col1 | col2 |`) with formatted borders and headers
 - **Callout & Admonition Cards**: Native `> [!TIP]`, `> [!NOTE]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`, and `> quote` with custom themed borders and icons
+- **Interactive Task Checklists**: Native `- [x]` / `- [ ]` lists with styled green checkmarks (`✔`), dim completed state, and instant `x` key toggle
+- **Quick Slide Jump Modal**: Press `/` to jump instantly by slide number or live fuzzy title search
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
 - **In-App Help Modal** (`?` / `F1`) detailing all viewer, presenter, and editor controls
 - **Subtle Bottom Progress Line**: sleek, non-intrusive full-width hairline progress line at the bottom of the screen
