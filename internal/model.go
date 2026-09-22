@@ -20,6 +20,7 @@ const (
 	BlockDirective
 	BlockList
 	BlockTable
+	BlockCallout
 )
 
 type Block struct {
@@ -31,6 +32,7 @@ type Block struct {
 	Src       string
 	Directive string
 	Raw       string
+	Callout   string
 }
 
 // --- Slide & Deck ---
@@ -155,6 +157,9 @@ func parseSlide(lines []string) Slide {
 	inTable := false
 	var tableLines []string
 
+	inCallout := false
+	var calloutLines []string
+
 	flushCode := func() {
 		blocks = append(blocks, Block{
 			Kind:  BlockCode,
@@ -186,6 +191,69 @@ func parseSlide(lines []string) Slide {
 		}
 	}
 
+	flushCallout := func() {
+		if len(calloutLines) == 0 {
+			return
+		}
+		first := strings.TrimSpace(calloutLines[0])
+		first = strings.TrimPrefix(first, ">")
+		first = strings.TrimSpace(first)
+
+		calloutType := "quote"
+		var bodyLines []string
+
+		upperFirst := strings.ToUpper(first)
+		switch {
+		case strings.HasPrefix(upperFirst, "[!TIP]"):
+			calloutType = "tip"
+			rest := strings.TrimSpace(first[6:])
+			if rest != "" {
+				bodyLines = append(bodyLines, rest)
+			}
+		case strings.HasPrefix(upperFirst, "[!NOTE]"):
+			calloutType = "note"
+			rest := strings.TrimSpace(first[7:])
+			if rest != "" {
+				bodyLines = append(bodyLines, rest)
+			}
+		case strings.HasPrefix(upperFirst, "[!WARNING]"):
+			calloutType = "warning"
+			rest := strings.TrimSpace(first[10:])
+			if rest != "" {
+				bodyLines = append(bodyLines, rest)
+			}
+		case strings.HasPrefix(upperFirst, "[!IMPORTANT]"):
+			calloutType = "important"
+			rest := strings.TrimSpace(first[12:])
+			if rest != "" {
+				bodyLines = append(bodyLines, rest)
+			}
+		case strings.HasPrefix(upperFirst, "[!CAUTION]"):
+			calloutType = "caution"
+			rest := strings.TrimSpace(first[10:])
+			if rest != "" {
+				bodyLines = append(bodyLines, rest)
+			}
+		default:
+			bodyLines = append(bodyLines, first)
+		}
+
+		for _, l := range calloutLines[1:] {
+			cleaned := strings.TrimSpace(l)
+			cleaned = strings.TrimPrefix(cleaned, ">")
+			cleaned = strings.TrimPrefix(cleaned, " ")
+			bodyLines = append(bodyLines, cleaned)
+		}
+
+		blocks = append(blocks, Block{
+			Kind:    BlockCallout,
+			Callout: calloutType,
+			Lines:   bodyLines,
+			Text:    strings.Join(bodyLines, "\n"),
+		})
+		calloutLines = nil
+	}
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
 
@@ -203,6 +271,10 @@ func parseSlide(lines []string) Slide {
 			if inTable {
 				flushTable()
 				inTable = false
+			}
+			if inCallout {
+				flushCallout()
+				inCallout = false
 			}
 			inCode = true
 			codeLang = strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
@@ -227,6 +299,10 @@ func parseSlide(lines []string) Slide {
 			if inTable {
 				flushTable()
 				inTable = false
+			}
+			if inCallout {
+				flushCallout()
+				inCallout = false
 			}
 
 			if strings.HasPrefix(trimmed, "::code") {
@@ -276,10 +352,28 @@ func parseSlide(lines []string) Slide {
 				flushTable()
 				inTable = false
 			}
+			if inCallout {
+				flushCallout()
+				inCallout = false
+			}
 			continue
 		}
 
-		// 2. Markdown Table Detection: line starts with '|', ends with '|', has at least 2 '|'
+		// 2. Callout / Blockquote: line starts with '>'
+		if strings.HasPrefix(trimmed, ">") {
+			if inTable {
+				flushTable()
+				inTable = false
+			}
+			inCallout = true
+			calloutLines = append(calloutLines, trimmed)
+			continue
+		} else if inCallout {
+			flushCallout()
+			inCallout = false
+		}
+
+		// 3. Markdown Table Detection: line starts with '|', ends with '|', has at least 2 '|'
 		if strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") && strings.Count(trimmed, "|") >= 2 {
 			inTable = true
 			tableLines = append(tableLines, trimmed)
@@ -331,6 +425,9 @@ func parseSlide(lines []string) Slide {
 	}
 	if inTable {
 		flushTable()
+	}
+	if inCallout {
+		flushCallout()
 	}
 
 	return Slide{Blocks: blocks, Align: slideAlign}
@@ -439,6 +536,22 @@ func SerializeBlock(blk Block) string {
 			return strings.Join(blk.Lines, "\n")
 		}
 		return blk.Text
+	case BlockCallout:
+		var b strings.Builder
+		if blk.Callout != "" && blk.Callout != "quote" {
+			fmt.Fprintf(&b, "> [!%s]\n", strings.ToUpper(blk.Callout))
+		}
+		lines := blk.Lines
+		if len(lines) == 0 && blk.Text != "" {
+			lines = strings.Split(blk.Text, "\n")
+		}
+		for i, line := range lines {
+			if i > 0 {
+				b.WriteString("\n")
+			}
+			b.WriteString("> " + line)
+		}
+		return b.String()
 	default:
 		return blk.Text
 	}

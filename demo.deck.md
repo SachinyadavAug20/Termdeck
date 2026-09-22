@@ -52,6 +52,22 @@ mix them: **bold *with italic*** inside
 ---
 
 ::align left
+# Callouts & Admonitions
+
+Highlight crucial technical insights and quotes:
+
+> [!TIP]
+> Keep database transactions short to minimize lock contention.
+
+> [!WARNING]
+> Breaking change in v2: verify client migration before deploying.
+
+> "Simplicity is prerequisite for reliability."
+> — Edsger W. Dijkstra
+
+---
+
+::align left
 # Code highlighting
 
 Syntax highlighting works in `::code` blocks:

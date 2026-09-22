@@ -468,9 +468,100 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 				}
 			}
 		}
+
+	case BlockCallout:
+		text := blk.Text
+		if isEditing {
+			text = editDraft
+			b.WriteString(editStyle.Width(w - 4).Render(text))
+		} else {
+			rendered := renderCallout(blk, w)
+			lines := strings.Split(rendered, "\n")
+			for idx, l := range lines {
+				if idx > 0 {
+					b.WriteString("\n")
+				}
+				if idx == 0 && isCursor {
+					b.WriteString(cursorMark + l)
+				} else {
+					b.WriteString("  " + l)
+				}
+			}
+		}
 	}
 
 	return b.String()
+}
+
+func renderCallout(blk Block, w int) string {
+	boxW := w - 8
+	if boxW > 68 {
+		boxW = 68
+	}
+	if boxW < 30 {
+		boxW = 30
+	}
+
+	icon := "💡"
+	title := "TIP"
+	color := currentTheme.Success
+
+	switch blk.Callout {
+	case "note":
+		icon = "ℹ"
+		title = "NOTE"
+		color = currentTheme.Accent
+	case "warning":
+		icon = "⚠"
+		title = "WARNING"
+		color = currentTheme.Warning
+	case "important":
+		icon = "🚨"
+		title = "IMPORTANT"
+		color = currentTheme.Secondary
+	case "caution":
+		icon = "🛑"
+		title = "CAUTION"
+		color = currentTheme.Laser
+	case "quote":
+		icon = "❝"
+		title = "QUOTE"
+		color = currentTheme.Comment
+	default:
+		icon = "💡"
+		title = "TIP"
+		color = currentTheme.Success
+	}
+
+	header := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(color)).Render(icon + "  " + title)
+
+	lines := blk.Lines
+	if len(lines) == 0 && blk.Text != "" {
+		lines = strings.Split(blk.Text, "\n")
+	}
+
+	var styledBody strings.Builder
+	for i, l := range lines {
+		if i > 0 {
+			styledBody.WriteString("\n")
+		}
+		if blk.Callout == "quote" {
+			styledBody.WriteString(lipgloss.NewStyle().Italic(true).Render(inlineStyle(l)))
+		} else {
+			styledBody.WriteString(inlineStyle(l))
+		}
+	}
+
+	content := header + "\n" + styledBody.String()
+
+	card := lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(color)).
+		Padding(0, 1).
+		Width(boxW).
+		Render(content)
+
+	return card
 }
 
 func renderTable(blk Block, w int) string {

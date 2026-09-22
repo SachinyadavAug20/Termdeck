@@ -20,6 +20,7 @@ deck demo.deck.md
 - [x] Distraction-free Zen Mode (`z`) for clean presentations and video demos
 - [x] Native Markdown code diff syntax highlighting (```` ```diff ````) with green additions and red deletions
 - [x] Extended modern developer syntax highlighting (Go, Rust, TypeScript, Python, SQL)
+- [x] Native Markdown Callout & Admonition boxes (`> [!TIP]`, `> [!NOTE]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`, `> quote`) with themed rounded borders
 
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
@@ -152,6 +153,7 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Distraction-Free Zen Mode**: Toggle off all status bars with `z` for pure presentation focus
 - **Standard Markdown Images** (`![alt](path)`) and `::image` presentation cards with system viewer integration (`p`)
 - **Markdown Tables** (`| col1 | col2 |`) with formatted borders and headers
+- **Callout & Admonition Cards**: Native `> [!TIP]`, `> [!NOTE]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`, and `> quote` with custom themed borders and icons
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
 - **In-App Help Modal** (`?` / `F1`) detailing all viewer, presenter, and editor controls
 - **Subtle Bottom Progress Line**: sleek, non-intrusive full-width hairline progress line at the bottom of the screen

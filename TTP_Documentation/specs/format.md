@@ -126,6 +126,24 @@ If the file is not found, a styled placeholder `[ image not found: <filename> ]`
 
 Standard GitHub-flavored Markdown tables are parsed into `BlockTable` blocks and rendered with styled borders, padded columns, and bold highlighted headers.
 
+#### Callouts & Admonitions
+
+```markdown
+> [!TIP]
+> Keep database transactions short to minimize lock contention.
+
+> [!NOTE]
+> Backward compatible with v1 API.
+
+> [!WARNING]
+> Breaking change in v2.
+
+> "Simplicity is prerequisite for reliability."
+> — Edsger W. Dijkstra
+```
+
+Callouts are parsed into `BlockCallout` blocks and rendered with styled borders matching theme accent, warning, and success colors, prefixed with clear icons (`💡 TIP`, `ℹ NOTE`, `⚠ WARNING`, `🚨 IMPORTANT`, `🛑 CAUTION`, `❝ QUOTE`).
+
 #### `::notes`
 
 ```

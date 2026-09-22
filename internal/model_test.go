@@ -423,6 +423,88 @@ func TestStandardMarkdownFeatures(t *testing.T) {
 	}
 }
 
+func TestCalloutBlocks(t *testing.T) {
+	src := `---
+title: Callout Deck
+---
+# Slide 1
+
+> [!TIP]
+> Use connection pooling to reduce database latency.
+> Keep connections warm.
+
+> [!NOTE]
+> Backward compatible with v1 API.
+
+> [!WARNING]
+> Do not execute during peak production hours.
+
+> [!IMPORTANT]
+> Requires Redis 7.0 or higher.
+
+> [!CAUTION]
+> Irreversible data migration.
+
+> "Simplicity is prerequisite for reliability."
+> — Edsger W. Dijkstra
+`
+	d := ParseDeck(src)
+	if len(d.Slides) != 1 {
+		t.Fatalf("expected 1 slide, got %d", len(d.Slides))
+	}
+	s := d.Slides[0]
+	// Expected blocks: Heading (1) + 6 Callouts = 7 blocks
+	if len(s.Blocks) != 7 {
+		t.Fatalf("expected 7 blocks, got %d", len(s.Blocks))
+	}
+
+	// 1. Tip
+	bTip := s.Blocks[1]
+	if bTip.Kind != BlockCallout || bTip.Callout != "tip" || len(bTip.Lines) != 2 {
+		t.Errorf("expected Tip callout, got %+v", bTip)
+	}
+
+	// 2. Note
+	bNote := s.Blocks[2]
+	if bNote.Kind != BlockCallout || bNote.Callout != "note" || bNote.Lines[0] != "Backward compatible with v1 API." {
+		t.Errorf("expected Note callout, got %+v", bNote)
+	}
+
+	// 3. Warning
+	bWarn := s.Blocks[3]
+	if bWarn.Kind != BlockCallout || bWarn.Callout != "warning" {
+		t.Errorf("expected Warning callout, got %+v", bWarn)
+	}
+
+	// 4. Important
+	bImp := s.Blocks[4]
+	if bImp.Kind != BlockCallout || bImp.Callout != "important" {
+		t.Errorf("expected Important callout, got %+v", bImp)
+	}
+
+	// 5. Caution
+	bCst := s.Blocks[5]
+	if bCst.Kind != BlockCallout || bCst.Callout != "caution" {
+		t.Errorf("expected Caution callout, got %+v", bCst)
+	}
+
+	// 6. Quote
+	bQuote := s.Blocks[6]
+	if bQuote.Kind != BlockCallout || bQuote.Callout != "quote" || len(bQuote.Lines) != 2 {
+		t.Errorf("expected Quote callout, got %+v", bQuote)
+	}
+
+	// Test serialization round-trip
+	ser := SerializeDeck(d)
+	d2 := ParseDeck(ser)
+	if len(d2.Slides[0].Blocks) != 7 {
+		t.Fatalf("expected 7 blocks after serialization round-trip, got %d", len(d2.Slides[0].Blocks))
+	}
+	if d2.Slides[0].Blocks[1].Callout != "tip" || d2.Slides[0].Blocks[6].Callout != "quote" {
+		t.Errorf("mismatch in serialized callouts")
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

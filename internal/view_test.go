@@ -617,6 +617,53 @@ func TestViewZenMode(t *testing.T) {
 	}
 }
 
+func TestRenderCallouts(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockCallout, Callout: "tip", Lines: []string{"Use indexing for fast lookups."}},
+					{Kind: BlockCallout, Callout: "note", Lines: []string{"Default limit is 100."}},
+					{Kind: BlockCallout, Callout: "warning", Lines: []string{"Avoid N+1 queries."}},
+					{Kind: BlockCallout, Callout: "important", Lines: []string{"Migration requires restart."}},
+					{Kind: BlockCallout, Callout: "caution", Lines: []string{"Data drop is irreversible."}},
+					{Kind: BlockCallout, Callout: "quote", Lines: []string{"Code is read more than written."}},
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	out := stripANSI(View(d, ed, 80, 40))
+	if !strings.Contains(out, "TIP") || !strings.Contains(out, "Use indexing for fast lookups.") {
+		t.Errorf("expected Tip callout in output: %q", out)
+	}
+	if !strings.Contains(out, "NOTE") || !strings.Contains(out, "Default limit is 100.") {
+		t.Errorf("expected Note callout in output: %q", out)
+	}
+	if !strings.Contains(out, "WARNING") || !strings.Contains(out, "Avoid N+1 queries.") {
+		t.Errorf("expected Warning callout in output: %q", out)
+	}
+	if !strings.Contains(out, "IMPORTANT") || !strings.Contains(out, "Migration requires restart.") {
+		t.Errorf("expected Important callout in output: %q", out)
+	}
+	if !strings.Contains(out, "CAUTION") || !strings.Contains(out, "Data drop is irreversible.") {
+		t.Errorf("expected Caution callout in output: %q", out)
+	}
+	if !strings.Contains(out, "QUOTE") || !strings.Contains(out, "Code is read more than written.") {
+		t.Errorf("expected Quote callout in output: %q", out)
+	}
+
+	// Editing callout block
+	ed.Mode = ModeEdit
+	ed.BlockIdx = 0
+	ed.Draft = "Edited tip draft"
+	editOut := stripANSI(View(d, ed, 80, 40))
+	if !strings.Contains(editOut, "Edited tip draft") {
+		t.Errorf("expected edit draft in callout edit view: %q", editOut)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

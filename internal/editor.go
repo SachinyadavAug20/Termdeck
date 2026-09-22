@@ -195,6 +195,9 @@ func (e *Editor) ExitEdit(d *Deck) {
 		blk.Text = e.Draft
 	case BlockImage:
 		blk.Src = strings.TrimSpace(e.Draft)
+	case BlockCallout:
+		blk.Text = e.Draft
+		blk.Lines = strings.Split(e.Draft, "\n")
 	}
 	e.Mode = ModeNav
 	e.Dirty = true
