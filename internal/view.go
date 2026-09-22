@@ -486,6 +486,22 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 				}
 			}
 		}
+
+	case BlockDivider:
+		if isEditing {
+			b.WriteString(editStyle.Width(w - 4).Render("***"))
+		} else {
+			divW := 32
+			if divW > w-8 {
+				divW = w - 8
+			}
+			divider := currentTheme.TableBorderStyle.Render(strings.Repeat("─", divW))
+			if isCursor {
+				b.WriteString(cursorMark + divider)
+			} else {
+				b.WriteString("  " + divider)
+			}
+		}
 	}
 
 	return b.String()

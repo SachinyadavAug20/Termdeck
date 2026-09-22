@@ -43,6 +43,8 @@ A terminal-native presentation format
 
 mix them: **bold *with italic*** inside
 
+***
+
 - **git-friendly** — plain text diffs
 
 - **AI-native** — agents write `.deck.md` directly

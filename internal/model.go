@@ -21,6 +21,7 @@ const (
 	BlockList
 	BlockTable
 	BlockCallout
+	BlockDivider
 )
 
 type Block struct {
@@ -349,6 +350,8 @@ func parseSlide(lines []string) Slide {
 
 			if key == "image" {
 				blocks = append(blocks, Block{Kind: BlockImage, Src: val})
+			} else if key == "hr" {
+				blocks = append(blocks, Block{Kind: BlockDivider, Raw: line})
 			} else {
 				blocks = append(blocks, Block{Kind: BlockDirective, Directive: trimmed, Raw: line})
 			}
@@ -391,7 +394,21 @@ func parseSlide(lines []string) Slide {
 			inCallout = false
 		}
 
-		// 3. Markdown Table Detection: line starts with '|', ends with '|', has at least 2 '|'
+		// 3. Horizontal divider: "***", "___", or "::hr"
+		if trimmed == "***" || trimmed == "___" || trimmed == "::hr" {
+			if inTable {
+				flushTable()
+				inTable = false
+			}
+			if inCallout {
+				flushCallout()
+				inCallout = false
+			}
+			blocks = append(blocks, Block{Kind: BlockDivider, Raw: line})
+			continue
+		}
+
+		// 4. Markdown Table Detection: line starts with '|', ends with '|', has at least 2 '|'
 		if strings.HasPrefix(trimmed, "|") && strings.HasSuffix(trimmed, "|") && strings.Count(trimmed, "|") >= 2 {
 			inTable = true
 			tableLines = append(tableLines, trimmed)
@@ -570,6 +587,8 @@ func SerializeBlock(blk Block) string {
 			b.WriteString("> " + line)
 		}
 		return b.String()
+	case BlockDivider:
+		return "***"
 	default:
 		return blk.Text
 	}

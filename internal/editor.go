@@ -198,6 +198,11 @@ func (e *Editor) ExitEdit(d *Deck) {
 	case BlockCallout:
 		blk.Text = e.Draft
 		blk.Lines = strings.Split(e.Draft, "\n")
+	case BlockDivider:
+		if e.Draft != "***" && e.Draft != "___" && e.Draft != "::hr" {
+			blk.Kind = BlockParagraph
+			blk.Text = e.Draft
+		}
 	}
 	e.Mode = ModeNav
 	e.Dirty = true

@@ -505,6 +505,50 @@ title: Callout Deck
 	}
 }
 
+func TestBlockDivider(t *testing.T) {
+	src := `---
+title: Divider Deck
+---
+# Section 1
+First concept
+
+***
+
+Second concept
+
+___
+
+Third concept
+
+::hr
+
+Fourth concept
+`
+	d := ParseDeck(src)
+	if len(d.Slides) != 1 {
+		t.Fatalf("expected 1 slide, got %d", len(d.Slides))
+	}
+	s := d.Slides[0]
+	// Heading (1) + 4 Paragraphs + 3 Dividers = 8 blocks
+	if len(s.Blocks) != 8 {
+		t.Fatalf("expected 8 blocks, got %d", len(s.Blocks))
+	}
+	if s.Blocks[2].Kind != BlockDivider {
+		t.Errorf("expected BlockDivider from '***', got %+v", s.Blocks[2])
+	}
+	if s.Blocks[4].Kind != BlockDivider {
+		t.Errorf("expected BlockDivider from '___', got %+v", s.Blocks[4])
+	}
+	if s.Blocks[6].Kind != BlockDivider {
+		t.Errorf("expected BlockDivider from '::hr', got %+v", s.Blocks[6])
+	}
+
+	ser := SerializeBlock(s.Blocks[2])
+	if ser != "***" {
+		t.Errorf("expected serialized divider '***', got %q", ser)
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

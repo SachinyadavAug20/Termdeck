@@ -77,7 +77,12 @@ Lines starting with `::` — special instructions for the viewer.
 | `::align` | `::align left/center/right` | Slide alignment (also `::left`, `::center`, `::right`) |
 | `::code` | `::code lang=X` | Code block (until next `::` or `---`) |
 | `::image` | `::image src=X` | Image card (or `::image filename.png`) |
+| `::hr` | `::hr` | Horizontal divider hairline within slide (also `***`, `___`) |
 | `::notes` | `::notes` | Speaker notes (hidden in presentation) |
+
+### Horizontal Dividers
+
+Lines containing `***`, `___`, or `::hr` render a clean horizontal hairline (`────────`) in theme border styling to separate concepts within a single slide.
 
 #### `::align`
 

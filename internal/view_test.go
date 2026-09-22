@@ -714,6 +714,37 @@ func TestRenderListItem(t *testing.T) {
 	}
 }
 
+func TestRenderDivider(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Title"},
+					{Kind: BlockDivider},
+					{Kind: BlockParagraph, Text: "Below line"},
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	out := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(out, "Title") || !strings.Contains(out, "Below line") {
+		t.Errorf("expected slide content in divider view: %q", out)
+	}
+	if !strings.Contains(out, "──") {
+		t.Errorf("expected divider horizontal line in view: %q", out)
+	}
+
+	// Edit mode on divider
+	ed.Mode = ModeEdit
+	ed.BlockIdx = 1
+	editOut := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(editOut, "***") {
+		t.Errorf("expected '***' in edit mode on divider: %q", editOut)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{
