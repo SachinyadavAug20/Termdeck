@@ -973,3 +973,35 @@ func TestEditorToggleTask(t *testing.T) {
 		t.Errorf("expected converted task, got %q", d.Slides[0].Blocks[2].Text)
 	}
 }
+
+func TestEditorToggleLineNumbers(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockCode, Lang: "go", Lines: []string{"func main() {}"}},
+				},
+			},
+		},
+	}
+	ed := NewEditor("")
+	if ed.ShowLineNumbers {
+		t.Errorf("expected ShowLineNumbers to start false")
+	}
+
+	sendTestKey(&ed, &d, "L")
+	if !ed.ShowLineNumbers {
+		t.Errorf("expected ShowLineNumbers to be true after pressing 'L'")
+	}
+	if ed.Message != "line numbers: on" {
+		t.Errorf("expected message 'line numbers: on', got %q", ed.Message)
+	}
+
+	sendTestKey(&ed, &d, "L")
+	if ed.ShowLineNumbers {
+		t.Errorf("expected ShowLineNumbers to be false after second 'L'")
+	}
+	if ed.Message != "line numbers: off" {
+		t.Errorf("expected message 'line numbers: off', got %q", ed.Message)
+	}
+}

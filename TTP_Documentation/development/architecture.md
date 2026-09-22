@@ -295,6 +295,7 @@ Code highlighting natively supports git diffs and patches alongside modern syste
   - Hunk headers (`@@ ... @@`): Cyan (`#22d3ee`)
   - File metadata headers (`---`, `+++`): Dim slate (`#94a3b8`)
 - **Expanded Language Keywords**: Full lexing support for Rust (`fn`, `let`, `mut`, `impl`, `match`, `trait`), TypeScript (`const`, `let`, `interface`, `type`, `export`, `async`, `await`), Python (`def`, `class`, `import`, `yield`), Go (`func`, `package`, `chan`, `goroutine`), and SQL (`SELECT`, `INSERT`, `UPDATE`, `JOIN`, `GROUP BY`, `ORDER BY`).
+- **Code Block Line Numbering**: Toggled dynamically across all code and diff blocks with `L`. Formats right-aligned line numbers with vertical bar dividers (`%*d │ `) in `currentTheme.SyntaxComment` and automatically expands the dynamic code box width (`boxW += digits + 3`) to preserve code readability.
 
 ### 10. Quick Slide Jump Modal (`renderJumpModal`)
 
@@ -319,6 +320,7 @@ stateDiagram-v2
         Browsing --> Browsing: Slide Nav (h/l, Left/Right, g/G)
         Browsing --> Browsing: Toggle Align (Tab / Ctrl+A) -> Auto-Saves
         Browsing --> Browsing: Toggle Task (x) -> Auto-Saves
+        Browsing --> Browsing: Toggle Line Numbers (L)
         Browsing --> Browsing: Toggle Zen Mode (z)
         Browsing --> Browsing: Cycle Theme (t / T / F2) -> Auto-Saves
         Browsing --> Browsing: Toggle Help Modal (? / F1)
@@ -451,8 +453,8 @@ func stripANSI(s string) string {
 ```bash
 $ make test
 ok   deck            coverage: 23.5% of statements (excluding CLI os.Exit)
-ok   deck/internal   coverage: 91.1% of statements
-total statement coverage: 88.1% (65 unit tests)
+ok   deck/internal   coverage: 91.2% of statements
+total statement coverage: 88.1% (67 unit tests)
 
 $ make bench
 BenchmarkParseDeck-8       387848       3567 ns/op        4678 B/op      24 allocs/op

@@ -10,7 +10,8 @@
 - Quick Slide Jump Modal (`/`): Activated interactive modal for instant slide navigation with live numeric jumping (e.g. `/5` jumps to slide 5) and real-time fuzzy title search with visual match preview and laser cursor.
 - Interactive Task Checklists: Native markdown task lists (`- [ ]`, `- [x]`) rendered with clean bullet markers (`○`, `✔`) and dim completed text. Press `x` in viewer mode to toggle task completion with immediate auto-save to disk.
 - Native Horizontal Dividers (`***`, `___`, `::hr`): Subtle themed hairline section dividers within slides to structure complex technical ideas cleanly.
-- Test suite expanded to **65 automated unit tests** achieving **91.1% statement coverage** in `deck/internal` with zero regressions and clean `go vet`/`gofmt`.
+- Code Block Line Numbers (`L`): Toggle dimmed line numbers (` 1 │ `, ` 2 │ `) across code and diff blocks with dynamic gutter bounding box adjustment and `[L: lines]` status badge.
+- Test suite expanded to **67 automated unit tests** achieving **91.2% statement coverage** in `deck/internal` with zero regressions and clean `go vet`/`gofmt`.
 
 ## v0.3 — 20 September 2026
 

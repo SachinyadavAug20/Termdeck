@@ -24,20 +24,21 @@ const (
 // --- Editor state ---
 
 type Editor struct {
-	Mode      EditorMode
-	SlideIdx  int
-	BlockIdx  int
-	CursorCol int
-	Draft     string
-	UndoStack []string
-	RedoStack []string
-	FilePath  string
-	Dirty     bool
-	Message   string
-	ShowNotes bool
-	ShowHelp  bool
-	ZenMode   bool
-	Theme     string
+	Mode            EditorMode
+	SlideIdx        int
+	BlockIdx        int
+	CursorCol       int
+	Draft           string
+	UndoStack       []string
+	RedoStack       []string
+	FilePath        string
+	Dirty           bool
+	Message         string
+	ShowNotes       bool
+	ShowHelp        bool
+	ZenMode         bool
+	ShowLineNumbers bool
+	Theme           string
 }
 
 func NewEditor(filePath string) Editor {
@@ -487,6 +488,14 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 
 	case "z":
 		e.ZenMode = !e.ZenMode
+
+	case "L":
+		e.ShowLineNumbers = !e.ShowLineNumbers
+		if e.ShowLineNumbers {
+			e.Message = "line numbers: on"
+		} else {
+			e.Message = "line numbers: off"
+		}
 
 	case "x":
 		e.ToggleTask(d)

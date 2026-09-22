@@ -175,9 +175,15 @@ func TestHighlightCode(t *testing.T) {
 		`    println("Hello")`,
 		"}",
 	}
-	out := highlightCode(lines, "go")
+	out := highlightCode(lines, "go", false)
 	if !strings.Contains(out, "package") || !strings.Contains(out, "Hello") {
 		t.Errorf("expected highlighted code output, got %q", out)
+	}
+
+	// Line numbering enabled
+	outLines := highlightCode(lines, "go", true)
+	if !strings.Contains(outLines, "1 │") || !strings.Contains(outLines, "5 │") {
+		t.Errorf("expected line numbers in highlighted code, got %q", outLines)
 	}
 
 	// Diff syntax highlighting
@@ -189,7 +195,7 @@ func TestHighlightCode(t *testing.T) {
 		"+ func fetch(ctx context.Context, id int)",
 		"  context line",
 	}
-	diffOut := highlightCode(diffLines, "diff")
+	diffOut := highlightCode(diffLines, "diff", false)
 	if !strings.Contains(diffOut, "+ func fetch") || !strings.Contains(diffOut, "- func fetch") {
 		t.Errorf("expected diff additions and deletions, got %q", diffOut)
 	}
@@ -197,8 +203,14 @@ func TestHighlightCode(t *testing.T) {
 		t.Errorf("expected diff chunk header, got %q", diffOut)
 	}
 
+	// Diff with line numbers
+	diffWithLines := highlightCode(diffLines, "diff", true)
+	if !strings.Contains(diffWithLines, "1 │") || !strings.Contains(diffWithLines, "+ func fetch") {
+		t.Errorf("expected line numbers with diff, got %q", diffWithLines)
+	}
+
 	// Patch language alias
-	patchOut := highlightCode([]string{"+ added"}, "patch")
+	patchOut := highlightCode([]string{"+ added"}, "patch", false)
 	if !strings.Contains(patchOut, "+ added") {
 		t.Errorf("expected patch addition, got %q", patchOut)
 	}
@@ -259,69 +271,73 @@ func TestRenderBlockVariants(t *testing.T) {
 
 	// 1. Heading normal & editing
 	hBlk := Block{Kind: BlockHeading, Level: 1, Text: "Title"}
-	outH := stripANSI(renderBlock(hBlk, w, maxH, baseDir, true, false, "", 0))
+	outH := stripANSI(renderBlock(hBlk, w, maxH, baseDir, true, false, "", 0, false))
 	if !strings.Contains(outH, "Title") || !strings.Contains(outH, "▶") {
 		t.Errorf("expected laser pointer and title in heading, got %q", outH)
 	}
-	outHEdit := stripANSI(renderBlock(hBlk, w, maxH, baseDir, true, true, "Editing Title", 5))
+	outHEdit := stripANSI(renderBlock(hBlk, w, maxH, baseDir, true, true, "Editing Title", 5, false))
 	if !strings.Contains(outHEdit, "Editing Title") {
 		t.Errorf("expected edit draft in heading edit: %q", outHEdit)
 	}
 
 	// 2. Paragraph normal & editing
 	pBlk := Block{Kind: BlockParagraph, Text: "Some paragraph"}
-	outP := stripANSI(renderBlock(pBlk, w, maxH, baseDir, false, false, "", 0))
+	outP := stripANSI(renderBlock(pBlk, w, maxH, baseDir, false, false, "", 0, false))
 	if !strings.Contains(outP, "Some paragraph") {
 		t.Errorf("expected paragraph text: %q", outP)
 	}
-	outPEdit := stripANSI(renderBlock(pBlk, w, maxH, baseDir, true, true, "Draft Para", 2))
+	outPEdit := stripANSI(renderBlock(pBlk, w, maxH, baseDir, true, true, "Draft Para", 2, false))
 	if !strings.Contains(outPEdit, "Draft Para") {
 		t.Errorf("expected edit draft in paragraph edit: %q", outPEdit)
 	}
 
-	// 3. Code block normal & editing
+	// 3. Code block normal & editing & with line numbers
 	cBlk := Block{Kind: BlockCode, Lang: "go", Lines: []string{"func foo() {}", "var x = 10"}}
-	outC := stripANSI(renderBlock(cBlk, w, maxH, baseDir, true, false, "", 0))
+	outC := stripANSI(renderBlock(cBlk, w, maxH, baseDir, true, false, "", 0, false))
 	if !strings.Contains(outC, "go") || !strings.Contains(outC, "func") {
 		t.Errorf("expected code block output: %q", outC)
 	}
-	outCEdit := stripANSI(renderBlock(cBlk, w, maxH, baseDir, true, true, "draft code", 0))
+	outCLines := stripANSI(renderBlock(cBlk, w, maxH, baseDir, false, false, "", 0, true))
+	if !strings.Contains(outCLines, "1 │") || !strings.Contains(outCLines, "2 │") {
+		t.Errorf("expected line numbers in code block render, got: %q", outCLines)
+	}
+	outCEdit := stripANSI(renderBlock(cBlk, w, maxH, baseDir, true, true, "draft code", 0, false))
 	if !strings.Contains(outCEdit, "draft code") {
 		t.Errorf("expected code edit output: %q", outCEdit)
 	}
 
 	// 4. Image block editing
 	iBlk := Block{Kind: BlockImage, Src: "test.png"}
-	outIEdit := stripANSI(renderBlock(iBlk, w, maxH, baseDir, true, true, "new_src.png", 0))
+	outIEdit := stripANSI(renderBlock(iBlk, w, maxH, baseDir, true, true, "new_src.png", 0, false))
 	if !strings.Contains(outIEdit, "new_src.png") {
 		t.Errorf("expected image draft edit output: %q", outIEdit)
 	}
 
 	// 5. List block normal & editing
 	lBlk := Block{Kind: BlockList, Text: "- List Item"}
-	outL := stripANSI(renderBlock(lBlk, w, maxH, baseDir, true, false, "", 0))
+	outL := stripANSI(renderBlock(lBlk, w, maxH, baseDir, true, false, "", 0, false))
 	if !strings.Contains(outL, "List Item") {
 		t.Errorf("expected list block output: %q", outL)
 	}
-	outLEdit := stripANSI(renderBlock(lBlk, w, maxH, baseDir, true, true, "- New List Item", 0))
+	outLEdit := stripANSI(renderBlock(lBlk, w, maxH, baseDir, true, true, "- New List Item", 0, false))
 	if !strings.Contains(outLEdit, "- New List Item") {
 		t.Errorf("expected list draft edit output: %q", outLEdit)
 	}
 
 	// 6. Directive block
 	dBlk := Block{Kind: BlockDirective, Directive: "::plugin param"}
-	outD := stripANSI(renderBlock(dBlk, w, maxH, baseDir, true, false, "", 0))
+	outD := stripANSI(renderBlock(dBlk, w, maxH, baseDir, true, false, "", 0, false))
 	if !strings.Contains(outD, "::plugin") || !strings.Contains(outD, "▶") {
 		t.Errorf("expected laser pointer and directive: %q", outD)
 	}
-	outDNoCursor := stripANSI(renderBlock(dBlk, w, maxH, baseDir, false, false, "", 0))
+	outDNoCursor := stripANSI(renderBlock(dBlk, w, maxH, baseDir, false, false, "", 0, false))
 	if !strings.Contains(outDNoCursor, "::plugin") {
 		t.Errorf("expected directive: %q", outDNoCursor)
 	}
 
 	// 7. Speaker notes directive is hidden from canvas
 	notesBlk := Block{Kind: BlockDirective, Directive: "::notes"}
-	outNotes := renderBlock(notesBlk, w, maxH, baseDir, false, false, "", 0)
+	outNotes := renderBlock(notesBlk, w, maxH, baseDir, false, false, "", 0, false)
 	if outNotes != "" {
 		t.Errorf("expected notes directive to be hidden from canvas, got: %q", outNotes)
 	}
@@ -742,6 +758,39 @@ func TestRenderDivider(t *testing.T) {
 	editOut := stripANSI(View(d, ed, 80, 24))
 	if !strings.Contains(editOut, "***") {
 		t.Errorf("expected '***' in edit mode on divider: %q", editOut)
+	}
+}
+
+func TestCodeLineNumbersView(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Code Slide"},
+					{Kind: BlockCode, Lang: "go", Lines: []string{"func sum(a, b int) int {", "    return a + b", "}"}},
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	// Standard view without line numbers
+	outNoLines := stripANSI(View(d, ed, 80, 24))
+	if strings.Contains(outNoLines, "1 │") {
+		t.Errorf("expected no line numbers by default, got: %q", outNoLines)
+	}
+	if strings.Contains(outNoLines, "[L: lines]") {
+		t.Errorf("expected no [L: lines] badge by default, got: %q", outNoLines)
+	}
+
+	// View with line numbers enabled
+	ed.ShowLineNumbers = true
+	outWithLines := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(outWithLines, "1 │") || !strings.Contains(outWithLines, "2 │") || !strings.Contains(outWithLines, "3 │") {
+		t.Errorf("expected line numbers 1-3 in view, got: %q", outWithLines)
+	}
+	if !strings.Contains(outWithLines, "[L: lines]") {
+		t.Errorf("expected [L: lines] badge in status bar, got: %q", outWithLines)
 	}
 }
 

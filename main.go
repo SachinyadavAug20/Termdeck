@@ -85,6 +85,7 @@ Controls:
   Jumps:        / (jump to slide by number/search), g (first), G (last)
   Theme:        t / T / f2 (cycle color themes: tokyo-night, dracula, nord, ...)
   Zen Mode:     z (toggle distraction-free zen mode)
+  Line numbers: L (toggle code block line numbers)
   Notes:        n (toggle speaker notes overlay)
   Alignment:    Tab / ctrl+a (cycle left/center/right alignment)
   Media:        p (open focused image card in desktop viewer)

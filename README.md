@@ -24,7 +24,8 @@ deck demo.deck.md
 - [x] Quick Slide Jump modal (`/`) with instant numeric jumping and live slide title search
 - [x] Interactive Task Checklists (`- [x]` / `- [ ]`) with live `x` key toggling, green checkmarks (`✔`), and auto-save
 - [x] Native Horizontal Dividers (`***` / `___` / `::hr`) with subtle themed hairline styling
-- [x] 65 automated unit tests with comprehensive coverage (91.1% in internal/) and zero regressions
+- [x] Code Block Line Numbers (`L`) toggleable on the fly with dimmed gutter styling
+- [x] 67 automated unit tests with comprehensive coverage (91.2% in internal/) and zero regressions
 
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
@@ -115,6 +116,7 @@ deck [options] <file.deck.md>
 | `?` `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t` `T` `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
+| `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
@@ -156,6 +158,7 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - Inline styling: **bold**, *italic*, `code`
 - Heading levels (h1–h6) with clean visual hierarchy
 - **Standard Markdown Fenced Code Blocks** (```` ```lang ````) and `::code lang=X` blocks with syntax highlighting and `diff`/`patch` support
+- **Code Block Line Numbers**: Press `L` anytime to toggle subtle line numbers in code and diff blocks with auto-expanding gutters
 - **Distraction-Free Zen Mode**: Toggle off all status bars with `z` for pure presentation focus
 - **Standard Markdown Images** (`![alt](path)`) and `::image` presentation cards with system viewer integration (`p`)
 - **Markdown Tables** (`| col1 | col2 |`) with formatted borders and headers
@@ -173,7 +176,7 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **91.1% statement coverage** in `internal/` with 65 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **91.2% statement coverage** in `internal/` with 67 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

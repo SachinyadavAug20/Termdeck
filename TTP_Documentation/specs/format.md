@@ -180,6 +180,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `?`, `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t`, `T`, `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) & auto-save |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
+| `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay box |
 | `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |

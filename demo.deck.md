@@ -90,7 +90,7 @@ Highlight crucial technical insights, warnings, and architectural decisions:
 ::align left
 # Syntax Highlighting
 
-Native syntax highlighting for modern backend and systems languages:
+Native syntax highlighting for modern backend and systems languages (press `L` to toggle line numbers):
 
 ::code lang=go
   // Concurrent worker pool
@@ -182,6 +182,7 @@ Full keyboard control designed for efficient presenting:
 
 - `←/→` or `j/k` — next/prev slide or block
 - `/` — quick slide jump (number or live title search)
+- `L` — toggle code block line numbers
 - `x` — toggle task checklist item ([ ] ⇄ [x])
 - `z` — toggle distraction-free zen mode
 - `t` / `T` / `F2` — cycle color themes

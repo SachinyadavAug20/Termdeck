@@ -204,23 +204,37 @@ func highlightLine(line string) string {
 	return result.String()
 }
 
-func highlightCode(lines []string, lang string) string {
+func highlightCode(lines []string, lang string, showLineNumbers bool) string {
 	normLang := strings.ToLower(strings.TrimSpace(lang))
 	var result strings.Builder
+
+	digits := 1
+	if len(lines) > 0 {
+		digits = len(fmt.Sprintf("%d", len(lines)))
+	}
+
+	getGutter := func(idx int) string {
+		if !showLineNumbers {
+			return ""
+		}
+		numStr := fmt.Sprintf("%*d │ ", digits, idx+1)
+		return currentTheme.SyntaxComment.Render(numStr)
+	}
 
 	if normLang == "diff" || normLang == "patch" {
 		for i, line := range lines {
 			if i > 0 {
 				result.WriteString("\n")
 			}
+			gutter := getGutter(i)
 			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
-				result.WriteString(currentTheme.SyntaxString.Render(line))
+				result.WriteString(gutter + currentTheme.SyntaxString.Render(line))
 			} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
-				result.WriteString(currentTheme.LaserPointerStyle.Render(line))
+				result.WriteString(gutter + currentTheme.LaserPointerStyle.Render(line))
 			} else if strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") {
-				result.WriteString(currentTheme.SyntaxComment.Render(line))
+				result.WriteString(gutter + currentTheme.SyntaxComment.Render(line))
 			} else {
-				result.WriteString(currentTheme.SyntaxPlain.Render(line))
+				result.WriteString(gutter + currentTheme.SyntaxPlain.Render(line))
 			}
 		}
 		return result.String()
@@ -230,7 +244,8 @@ func highlightCode(lines []string, lang string) string {
 		if i > 0 {
 			result.WriteString("\n")
 		}
-		result.WriteString(highlightLine(line))
+		gutter := getGutter(i)
+		result.WriteString(gutter + highlightLine(line))
 	}
 	return result.String()
 }
@@ -288,7 +303,7 @@ func renderImageCard(src string, baseDir string, maxW int) string {
 
 // --- Block rendering ---
 
-func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool, isEditing bool, editDraft string, cursorCol int) string {
+func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool, isEditing bool, editDraft string, cursorCol int, showLineNumbers bool) string {
 	var b strings.Builder
 
 	cursorMark := "  "
@@ -355,6 +370,10 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 				maxCodeLineLen = len(l)
 			}
 		}
+		if showLineNumbers && len(blk.Lines) > 0 {
+			digits := len(fmt.Sprintf("%d", len(blk.Lines)))
+			maxCodeLineLen += digits + 3
+		}
 		if blk.Lang != "" && len(blk.Lang)+6 > maxCodeLineLen {
 			maxCodeLineLen = len(blk.Lang) + 6
 		}
@@ -376,7 +395,7 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 			header = strings.Repeat(" ", gap) + langLabel + "\n"
 		}
 
-		codeContent := highlightCode(blk.Lines, blk.Lang)
+		codeContent := highlightCode(blk.Lines, blk.Lang, showLineNumbers)
 		rendered := codeBlockStyle.Width(boxW).Render(codeContent)
 
 		fullCode := header + rendered
@@ -745,7 +764,7 @@ func renderSlide(slide Slide, w, h int, baseDir string, e Editor) string {
 		if isEditing {
 			editDraft = e.Draft
 		}
-		rendered := renderBlock(blk, w, maxBlockH, baseDir, isCursor, isEditing, editDraft, e.CursorCol)
+		rendered := renderBlock(blk, w, maxBlockH, baseDir, isCursor, isEditing, editDraft, e.CursorCol, e.ShowLineNumbers)
 		if rendered != "" {
 			lines = append(lines, rendered)
 		}
@@ -794,6 +813,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  PRESENTATION") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t, T, ctrl+t, f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("z"), currentTheme.HelpDescStyle.Render("Toggle distraction-free zen mode")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("L"), currentTheme.HelpDescStyle.Render("Toggle code block line numbers")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("x"), currentTheme.HelpDescStyle.Render("Toggle task item ([ ] ⇄ [x]) & auto-save")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
@@ -1056,13 +1076,16 @@ func navStatus(d Deck, e Editor, w int) string {
 			left += "  ·  [n: notes]"
 		}
 	}
+	if e.ShowLineNumbers {
+		left += "  ·  [L: lines]"
+	}
 	if e.Dirty {
 		left += "  ·  [modified]"
 	}
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

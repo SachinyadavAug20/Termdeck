@@ -62,6 +62,7 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorZenMode`: Verifies toggling distraction-free Zen mode (`z`).
 - `TestEditorQuickJumpPrompt`: Verifies `/` prompt activation, typing query/numbers, slide jump execution on Enter, and cancellation on Esc.
 - `TestEditorToggleTask`: Validates interactive toggling of task checklists (`- [ ]` $\leftrightarrow$ `- [x]`) with `x` key and auto-save to disk.
+- `TestEditorToggleLineNumbers`: Validates pressing `L` toggles code line numbers mode on and off with status message updates.
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
 Tests visual layout, card rendering, and terminal text styling:
@@ -72,7 +73,7 @@ Tests visual layout, card rendering, and terminal text styling:
   - Keywords for Go, Rust, TypeScript, Python, SQL, and Shell
   - Diff chunks (`+`, `-`, `@@`, `---`, `+++`)
   - PascalCase types
-- `TestHighlightCode`: Multiline code and diff syntax highlighting.
+- `TestHighlightCode`: Multiline code and diff syntax highlighting with optional line numbers.
 - `TestInlineStyle`: Markdown inline styling (`**bold**`, `*italic*`, `` `code` `` spans).
 - `TestRenderHeadingLevels`: Hierarchy rendering for H1 (pink underline) and H2–H6 (stepped white opacity).
 - `TestRenderLaserPointer`: Verifies the laser pointer marker (`▶ ` in `#FF2A55`) renders on the active line.
@@ -88,6 +89,7 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestRenderJumpModal`: Tests layout of quick slide jump modal with matching results and cursor.
 - `TestRenderListItem`: Verifies styled checkmarks (`✔`), unchecked circles (`○`), and standard bullets (`•`).
 - `TestRenderDivider`: Verifies centered hairline horizontal section dividers (`***`, `___`, `::hr`).
+- `TestCodeLineNumbersView`: Validates code block line numbering rendering, vertical bar separator (`1 │`), and `[L: lines]` status bar badge.
 - `BenchmarkRenderView`: Measures frames-per-second rendering efficiency.
 
 ### D. Model & Parser — `internal/model_test.go`
@@ -157,12 +159,12 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (65 unit tests):
+Statement coverage across packages (67 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
 | `deck` (root) | 23.5% | Covers model, update loop, flags (excluding `main()` process exit) |
-| `deck/internal` | 91.1% | Exceeds >90% target across all core modules |
+| `deck/internal` | 91.2% | Exceeds >90% target across all core modules |
 | **Total Project** | **88.1%** | **PASSED** |
 
 ---
