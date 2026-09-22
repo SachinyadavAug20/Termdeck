@@ -24,7 +24,7 @@ deck demo.deck.md
 - [x] Quick Slide Jump modal (`/`) with instant numeric jumping and live slide title search
 - [x] Interactive Task Checklists (`- [x]` / `- [ ]`) with live `x` key toggling, green checkmarks (`✔`), and auto-save
 - [x] Native Horizontal Dividers (`***` / `___` / `::hr`) with subtle themed hairline styling
-- [x] 51 automated unit tests with comprehensive coverage and zero regressions
+- [x] 65 automated unit tests with comprehensive coverage (91.1% in internal/) and zero regressions
 
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
@@ -173,7 +173,7 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **91.1% statement coverage** in `internal/` with 51 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **91.1% statement coverage** in `internal/` with 65 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

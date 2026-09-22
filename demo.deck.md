@@ -7,28 +7,28 @@ title: termdeck demo
 ::align left
 # termdeck
 
-A terminal-native presentation format
+A terminal-native presentation format designed by developers, for developers.
 
 - plain **text** files, git-friendly
-
 - AI agents can *write* decks directly
+- present from any ssh session or tmux pane
+- zero dependencies — just a single binary
 
-- present from any ssh session
-
-- `deck demo.deck.md` and go
-
-::image demo.png
+::code lang=bash
+  # run demo deck
+  deck demo.deck.md
 
 ---
 
 ::align left
-# Why terminal?
+# Why Terminal?
+
+Present technical ideas in a simple, clean, and distraction-free medium:
 
 - no font or video codec hell
-
 - the canvas is just a character grid
-
 - works over **SSH**, in **tmux**, anywhere
+- switch between editing and presenting instantly
 
 ::code lang=bash
   curl -sSL https://example.com/deck.sh | bash
@@ -37,29 +37,47 @@ A terminal-native presentation format
 ---
 
 ::align left
-# Styling
+# Styling & Dividers
 
-**bold text** and *italic text* and `inline code`
+Support for inline formatting and horizontal section dividers:
 
-mix them: **bold *with italic*** inside
+**bold text** and *italic text* and `inline code` spans.
+
+Mix styles seamlessly: **bold with *italic* text** inside.
 
 ***
 
-- **git-friendly** — plain text diffs
+- **git-friendly** — readable line-by-line diffs
+- **AI-native** — agents generate `.deck.md` cleanly
+- *zero bloat* — fast launch, sub-millisecond rendering
 
-- **AI-native** — agents write `.deck.md` directly
+---
 
-- *zero dependencies* — just a binary
+::align left
+# Architecture & Comparison
+
+Structured technical comparison with native Markdown tables:
+
+| Dimension | Traditional Slides | Termdeck |
+|---|---|---|
+| Source Format | Binary / Bloated XML | Git-friendly Markdown |
+| Rendering | Heavy GUI / Web View | Native ANSI Character Grid |
+| Version Control | Unreadable binary diffs | Clean line-by-line git diffs |
+| Workflow | Context-switch to browser | In-terminal with your code |
+| Latency | Slow launch, high RAM | Instant (<0.2ms per frame) |
 
 ---
 
 ::align left
 # Callouts & Admonitions
 
-Highlight crucial technical insights and quotes:
+Highlight crucial technical insights, warnings, and architectural decisions:
 
 > [!TIP]
 > Keep database transactions short to minimize lock contention.
+
+> [!NOTE]
+> Termdeck stores all slide content directly in human-readable Markdown files.
 
 > [!WARNING]
 > Breaking change in v2: verify client migration before deploying.
@@ -70,64 +88,58 @@ Highlight crucial technical insights and quotes:
 ---
 
 ::align left
-# Code highlighting
+# Syntax Highlighting
 
-Syntax highlighting works in `::code` blocks:
+Native syntax highlighting for modern backend and systems languages:
 
 ::code lang=go
-  // keyword, string, comment highlighting
-  func hello(name string) string {
-      return "Hello, " + name  // strings are green
+  // Concurrent worker pool
+  func worker(ctx context.Context, jobs <-chan Job) {
+      for job := range jobs {
+          process(ctx, job) // strings & comments highlighted
+      }
   }
 
 ::code lang=bash
-  # comments are dimmed
-  echo "keywords are highlighted"
+  # automated deployment pipeline
+  git pull origin main && make test && make build
 
 ---
 
 ::align left
-# Code blocks
+# Multi-Language Code
 
-::code lang=go
-  package main
+Highlighting Rust, Python, TypeScript, and SQL queries:
 
-  import "fmt"
-
-  func main() {
-      fmt.Println("Hello, termdeck!")
+::code lang=rust
+  // Memory safety without garbage collection
+  fn compute_hash(input: &str) -> String {
+      let digest = sha256::digest(input.as_bytes());
+      format!("0x{}", digest)
   }
 
-::code lang=python
-  print("Hello, termdeck!")
+::code lang=sql
+  -- Fast analytical queries
+  SELECT service, AVG(latency_ms) AS p99_latency
+  FROM telemetry_events
+  GROUP BY service ORDER BY p99_latency DESC;
 
 ---
 
 ::align left
-# Code diffs
+# Code Diffs
 
-Present technical migrations and refactors cleanly:
+Present migrations, code reviews, and refactors cleanly:
 
 ```diff
 @@ -1,4 +1,4 @@
 - func getUser(id int) (*User, error)
 + func getUser(ctx context.Context, id int) (*User, error)
+  {
+-     return db.QueryRow("SELECT * FROM users WHERE id = ?", id)
++     return db.QueryRowContext(ctx, "SELECT * FROM users WHERE id = ?", id)
+  }
 ```
-
----
-
-::align left
-# Headings
-
-## this is h2
-
-### this is h3
-
-#### this is h4
-
-##### this is h5
-
-###### this is h6
 
 ---
 
@@ -141,75 +153,91 @@ Track technical sprint milestones in real time. Press `x` to toggle:
 - [ ] Migrate caching layer
 - [ ] Decommission legacy monolith
 
+> [!TIP]
+> Toggling tasks with `x` automatically saves changes directly to disk.
+
 ---
 
 ::align left
-# Navigation
+# Themes & Zen Mode
 
-- `←/→` or `j/k` — next/prev slide
+Tailored for terminal aesthetics and distraction-free presenting:
 
-- `/` — quick slide jump (number or search)
+- **9 Curated Themes** — Tokyo Night, Dracula, Nord, Catppuccin, Gruvbox, Monokai, Solarized, Cyberpunk, Termdeck Pink
+- Press `t` / `T` / `F2` to cycle color themes on the fly
+- Press `z` to enter **Zen Mode** (hiding status bars for clean screen sharing)
+- Hairline slide progress indicator at the bottom edge
 
+***
+
+::notes
+Speaker reminder: Demonstrate pressing 'z' to toggle Zen Mode on and off.
+
+---
+
+::align left
+# Navigation & Shortcuts
+
+Full keyboard control designed for efficient presenting:
+
+- `←/→` or `j/k` — next/prev slide or block
+- `/` — quick slide jump (number or live title search)
 - `x` — toggle task checklist item ([ ] ⇄ [x])
-
 - `z` — toggle distraction-free zen mode
-
-- `Tab` / `Ctrl+A` — cycle alignment (left / center / right)
-
 - `t` / `T` / `F2` — cycle color themes
-
-- `G` / `g` — last / first slide
-
-- `q` or `Ctrl+C` — quit
+- `Tab` / `Ctrl+A` — cycle alignment (left / center / right)
+- `n` — toggle speaker notes overlay
+- `?` or `F1` — open in-app keyboard shortcuts help modal
+- `q` or `Ctrl+C` — quit (with auto-save)
 
 ---
 
 ::align left
-# Editor
+# Live Block Editor
 
-Press `i` to enter edit mode on any block.
+Press `i` to enter edit mode on any block. Edit slides directly:
 
 - `↑/↓` or `k/j` — move between blocks
-
 - `Esc` — exit edit mode
-
-- `Enter` — confirm edit
-
+- `Enter` — confirm edit (auto-saves to disk)
 - `Ctrl+N` — add new block
-
 - `Ctrl+D` — delete block
-
-- `Ctrl+K/J` — reorder blocks
-
-- `Ctrl+S` — save file
-
-- `u` / `Ctrl+R` — undo / redo
-
+- `Ctrl+K/J` — reorder blocks up / down
+- `Ctrl+S` — save file manually
+- `u` / `Ctrl+R` — undo / redo changes
 - `p` — open image in system viewer
 
 ---
 
 ::align left
-# Terminal Images
+# Terminal Images & Diagrams
 
-::image 1.png
+Native presentation image cards with dimensions and viewer integration:
+
+::image demo.png
 
 ::code lang=text
-  +-----------+     +----------+
-  | .deck.md  | --> |  deck    |
-  +-----------+     +----------+
-                         |
-                    +----v-----+
-                    | terminal  |
-                    +----------+
+  +-----------+     +----------+     +---------------+
+  | .deck.md  | --> |  deck    | --> | Terminal ANSI |
+  +-----------+     +----------+     +---------------+
+                          |
+                     [ press 'p' to open image ]
 
 ---
 
 ::align left
-# Notes (hidden in presentation)
+# Speaker Notes (Hidden)
 
 ::notes
 
-These notes are not shown to the audience.
+These notes are strictly omitted from the audience canvas.
+Use them for speaker cues, talk timing, and Q&A prep.
+Press 'n' during presentation to toggle this overlay on/off.
 
-Use them for speaker prep.
+Speaker notes are isolated from audience view.
+
+- Status bar displays `[n: notes]` when notes exist on slide
+- Press `n` to toggle private speaker notes overlay
+- Laser pointer cursor (`▶`) automatically skips hidden notes
+- Safe for screen shares and projector mirroring
+

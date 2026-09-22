@@ -34,9 +34,11 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestModelUpdateQuitKey`: Asserts pressing `"q"` returns `tea.Quit`.
 - `TestModelView`: Asserts full-screen rendering and status bar contents.
 - `TestBuildModel`: Tests loading valid decks, non-existent files, and empty files (asserting "no slides found").
+- `TestPrintHelp`: Verifies CLI help message and key controls formatting.
+- `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
 
 ### B. Editor State Machine — `internal/editor_test.go`
-Tests the navigation and editing state machine:
+Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorNavigation`: Block pointer bounds and movement (`MoveUp`, `MoveDown`).
 - `TestEditorBlockEditing`: Draft buffer lifecycle and commit in `EnterEdit`/`ExitEdit`.
 - `TestEditorAddDeleteBlock`: Block insertion and deletion with undo snapshots.
@@ -53,16 +55,24 @@ Tests the navigation and editing state machine:
 - `TestEditorSaveAndError`: Disk serialization and unwritable directory error handling.
 - `TestEditorEdgeCases`: Boundaries (preventing deleting last block or last slide, empty undo/redo stacks, out-of-range indices).
 - `TestAutoSaveFeatures`: Verifies immediate disk persistence when toggling alignment (`Tab`/`Ctrl+A`), auto-saving edited text on confirm (`Enter`), and auto-saving dirty buffers on exit (`q`/`Ctrl+C`).
+- `TestSpeakerNotesEditor`: Ensures block cursor skips hidden speaker notes blocks during up/down movement.
+- `TestEditorHelpModal`: Tests opening and dismissing keyboard shortcuts modal (`?`, `F1`, `Esc`).
+- `TestEditorCycleTheme`: Validates forward and reverse theme cycling (`t`, `T`, `F2`) and auto-save persistence.
+- `TestEditorCycleThemeInEditMode`: Asserts theme cycling works seamlessly even while typing inside edit mode.
+- `TestEditorZenMode`: Verifies toggling distraction-free Zen mode (`z`).
+- `TestEditorQuickJumpPrompt`: Verifies `/` prompt activation, typing query/numbers, slide jump execution on Enter, and cancellation on Esc.
+- `TestEditorToggleTask`: Validates interactive toggling of task checklists (`- [ ]` $\leftrightarrow$ `- [x]`) with `x` key and auto-save to disk.
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
-Tests visual layout and terminal text styling:
+Tests visual layout, card rendering, and terminal text styling:
 - `TestHighlightLine`: Syntax highlighter lexer covering:
   - Comments (`//`, `#`, `--`)
   - String literals (`"..."`, `'...'`, `` `...` ``)
   - Numeric literals (`42`, `3.14`)
-  - Keywords (`func`, `return`, `def`, `class`, `echo`, etc.)
+  - Keywords for Go, Rust, TypeScript, Python, SQL, and Shell
+  - Diff chunks (`+`, `-`, `@@`, `---`, `+++`)
   - PascalCase types
-- `TestHighlightCode`: Multiline code syntax highlighting.
+- `TestHighlightCode`: Multiline code and diff syntax highlighting.
 - `TestInlineStyle`: Markdown inline styling (`**bold**`, `*italic*`, `` `code` `` spans).
 - `TestRenderHeadingLevels`: Hierarchy rendering for H1 (pink underline) and H2–H6 (stepped white opacity).
 - `TestRenderLaserPointer`: Verifies the laser pointer marker (`▶ ` in `#FF2A55`) renders on the active line.
@@ -70,6 +80,14 @@ Tests visual layout and terminal text styling:
 - `TestRenderBlockVariants`: Renders headings, paragraphs, code blocks with language tags, image cards, list items, and directives in both display and edit modes.
 - `TestStatusBars`: Validates `navStatus` (slide position, alignment badge, dirty indicator) and `editStatus` (cursor column position, messages).
 - `TestViewDimensionsAndModes`: Validates fallback on zero dimensions, edit mode rendering, and alignment padding.
+- `TestSpeakerNotesView`: Verifies notes overlay rendering at bottom of screen.
+- `TestTableAndHelpModalView`: Verifies Markdown table border styling and help modal formatting.
+- `TestRenderProgressLine`: Tests full-width hairline progress line math and styling.
+- `TestViewZenMode`: Asserts status bars are omitted in Zen mode while progress line remains.
+- `TestRenderCallouts`: Asserts rounded borders and icons for `[!TIP]`, `[!NOTE]`, `[!WARNING]`, `[!IMPORTANT]`, `[!CAUTION]`, and quotes.
+- `TestRenderJumpModal`: Tests layout of quick slide jump modal with matching results and cursor.
+- `TestRenderListItem`: Verifies styled checkmarks (`✔`), unchecked circles (`○`), and standard bullets (`•`).
+- `TestRenderDivider`: Verifies centered hairline horizontal section dividers (`***`, `___`, `::hr`).
 - `BenchmarkRenderView`: Measures frames-per-second rendering efficiency.
 
 ### D. Model & Parser — `internal/model_test.go`
@@ -80,9 +98,22 @@ Tests markdown AST parsing and serialization:
 - `TestParseAlignment`: Slide-level and deck-level alignment specifications.
 - `TestParseDeckEdgeCases`: Empty decks, missing frontmatter, numbered lists, bullet points, closed code blocks, and custom directives.
 - `TestSerializeDeckEdgeCases`: Serialization with alignments and multiple block types.
+- `TestSpeakerNotesModel`: Multi-line accumulator under `::notes` directive.
+- `TestStandardMarkdownFeatures`: Native Markdown tables, fenced code blocks (```` ```lang ````), and standard images (`![alt](path)`).
+- `TestCalloutBlocks`: Parsing `> [!TIP]`, `> [!NOTE]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`, and quotes.
+- `TestBlockDivider`: Parsing `***`, `___`, and `::hr` into `BlockDivider`.
 - `BenchmarkParseDeck`: Measures markdown parser throughput.
 
-### E. Terminal Images — `internal/image_test.go`
+### E. Theme Engine — `internal/theme_test.go`
+Tests theme definitions, resolution, and persistence:
+- `TestAvailableThemes`: Verifies 9 curated themes and color fields.
+- `TestResolveTheme`: Tests case-insensitive theme resolution.
+- `TestCustomHexTheme`: Tests custom hex color strings (`#3b82f6`).
+- `TestNextThemeCycle`: Tests cycling forward/backward through theme list.
+- `TestThemeAppliedInView`: Tests that theme accents and background styles affect rendering.
+- `TestThemeFrontmatterRoundTrip`: Verifies frontmatter `theme: dracula` serialization and preservation.
+
+### F. Terminal Images — `internal/image_test.go`
 Tests image resolution and ANSI rendering:
 - `TestResolveImagePath`: Path lookup relative to `.deck.md` and current working directory.
 - `TestRenderImageMissing`: Missing file fallback placeholder.
@@ -126,13 +157,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages:
+Statement coverage across packages (65 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
-| `deck` (root) | 65.6% | Fully covers all model & helper logic (excluding CLI `os.Exit` loop) |
-| `deck/internal` | 92.5% | Passes >90% target across all subsystems |
-| **Total Project** | **91.7%** | **PASSED** |
+| `deck` (root) | 23.5% | Covers model, update loop, flags (excluding `main()` process exit) |
+| `deck/internal` | 91.1% | Exceeds >90% target across all core modules |
+| **Total Project** | **88.1%** | **PASSED** |
 
 ---
 
@@ -142,12 +173,12 @@ Performance targets ensure real-time terminal responsiveness:
 
 ```bash
 $ make bench
-BenchmarkParseDeck-8       415594       3045 ns/op        4176 B/op      24 allocs/op
-BenchmarkRenderView-8        4814     262283 ns/op       68454 B/op     630 allocs/op
+BenchmarkParseDeck-8       387848       3567 ns/op        4678 B/op      24 allocs/op
+BenchmarkRenderView-8        4365     268766 ns/op       78581 B/op     650 allocs/op
 ```
 
-- **Markdown Parsing**: ~3.0 microseconds per slide deck.
-- **Terminal Rendering**: ~0.26 milliseconds per full terminal frame (equivalent to >3000 FPS rendering capability).
+- **Markdown Parsing**: ~3.5 microseconds per slide deck.
+- **Terminal Rendering**: ~0.26 milliseconds per full terminal frame (equivalent to >3700 FPS rendering capability).
 
 ---
 

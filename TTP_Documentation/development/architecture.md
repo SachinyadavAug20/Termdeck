@@ -133,12 +133,15 @@ Termdeck converts `.deck.md` files into a strongly-typed Abstract Syntax Tree ([
 type BlockKind int
 
 const (
-    BlockHeading BlockKind = iota // Headings (H1 to H6)
-    BlockParagraph                // Markdown paragraphs
-    BlockCode                     // Fenced code with syntax tags
-    BlockImage                    // Local or relative images
-    BlockDirective                // Directives (::notes, etc.)
-    BlockList                     // Bullets (- / *) and numbered (1.)
+    BlockHeading   BlockKind = iota // Headings (H1 to H6)
+    BlockParagraph                  // Markdown paragraphs
+    BlockCode                       // Fenced code with syntax tags
+    BlockImage                      // Local or relative images
+    BlockDirective                  // Directives (::notes, etc.)
+    BlockList                       // Bullets (- / *) and numbered (1.)
+    BlockTable                      // Markdown tables (| col | col |)
+    BlockCallout                    // Admonition boxes (> [!TIP], etc.)
+    BlockDivider                    // Horizontal hairlines (***, ___, ::hr)
 )
 
 type Block struct {
@@ -146,10 +149,11 @@ type Block struct {
     Level     int        // Heading level (1-6)
     Text      string     // Text content or bullet text
     Lang      string     // Language identifier for code highlighting
-    Lines     []string   // Individual lines for multiline code
+    Lines     []string   // Individual lines for multiline code/tables/notes
     Src       string     // Path to referenced image
     Directive string     // Full directive line
     Raw       string     // Raw source line
+    Callout   string     // Callout type: "tip", "note", "warning", "important", "caution", "quote"
 }
 
 type Slide struct {
@@ -255,6 +259,50 @@ The syntax highlighter is a zero-dependency lexer:
      $$\text{Text} \xrightarrow{} \text{"\x00CODE0\x00"} \xrightarrow{\text{Bold/Italic}} \text{Styled Text} \xrightarrow{} \text{Restore Code Spans}$$
    - This prevents asterisks inside code spans from triggering unwanted italic/bold styles.
 
+### 6. Admonition & Callout Cards (`renderCallout`)
+
+Callouts (`BlockCallout`) render markdown blockquotes (`> [!TIP]`, `> [!NOTE]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`, and standard quotes `> ...`) as styled presentation cards:
+- **Rounded Box Borders**: Styled using `lipgloss.RoundedBorder()` with colored borders mapped to semantic themes:
+  - `[!TIP]`: Theme Accent / Success color with `💡 TIP` header badge
+  - `[!NOTE]`: Theme Dim / Accent color with `ℹ NOTE` header badge
+  - `[!WARNING]`: Warning yellow/orange color with `⚠ WARNING` header badge
+  - `[!IMPORTANT]`: Laser red/pink color with `🚨 IMPORTANT` header badge
+  - `[!CAUTION]`: High-contrast warning color with `🛑 CAUTION` header badge
+  - Standard quotes: Subtle border with `❝ QUOTE` header badge
+- **Dynamic Width Clamping**: Width matches the longest line plus padding ($+6$), clamped between 36 columns and terminal width $-8$.
+- **Inline Formatting**: Inner lines are styled through `inlineStyle` for bold, italic, and code highlighting inside cards.
+
+### 7. Horizontal Divider Hairlines (`renderDivider`)
+
+Dividers (`BlockDivider`) created via `***`, `___`, or `::hr` render subtle hairlines:
+- Draws horizontal line characters (`─`) centered across the presentation canvas.
+- Colored using `currentTheme.TableBorderStyle` to create clean visual section boundaries without drawing focus away from primary content.
+
+### 8. Interactive Task Checklists (`renderListItem`)
+
+Checklist items are parsed into `BlockList` and rendered via `renderListItem`:
+- `- [ ]` renders as an open circle (`○ `) in theme dim styling.
+- `- [x]` renders as a bold green checkmark (`✔ `) with strike/dim styling applied to completed item text.
+- Standard bullets (`- `, `* `) render with theme accent dots (`• `).
+- Pressing `x` in viewer mode invokes `ToggleTask(&Deck)`, flipping completion state (`[ ]` $\leftrightarrow$ `[x]`) and triggering an immediate disk auto-save.
+
+### 9. Diff & Multi-Language Syntax Highlighting
+
+Code highlighting natively supports git diffs and patches alongside modern systems and backend languages:
+- **Diff Highlighting (`highlightDiffLine`)**:
+  - Additions (`+`): Bright green (`#4ade80`)
+  - Deletions (`-`): Bright red (`#f87171`)
+  - Hunk headers (`@@ ... @@`): Cyan (`#22d3ee`)
+  - File metadata headers (`---`, `+++`): Dim slate (`#94a3b8`)
+- **Expanded Language Keywords**: Full lexing support for Rust (`fn`, `let`, `mut`, `impl`, `match`, `trait`), TypeScript (`const`, `let`, `interface`, `type`, `export`, `async`, `await`), Python (`def`, `class`, `import`, `yield`), Go (`func`, `package`, `chan`, `goroutine`), and SQL (`SELECT`, `INSERT`, `UPDATE`, `JOIN`, `GROUP BY`, `ORDER BY`).
+
+### 10. Quick Slide Jump Modal (`renderJumpModal`)
+
+Pressing `/` opens an interactive centered popup modal for fast slide navigation:
+- **Numeric Jump**: Entering a number (e.g. `5` or `12`) jumps directly to slide $N$ upon pressing Enter.
+- **Live Search**: Entering text performs live case-insensitive substring matching against slide titles and content blocks.
+- **Match Preview**: Displays a list of matching slide numbers and titles with the laser pointer marker (`▶ `) indicating the selected target.
+
 ---
 
 ## 5. Editor State Machine & In-Place Buffer (`internal/editor.go`)
@@ -270,6 +318,10 @@ stateDiagram-v2
         Browsing --> Browsing: Move Pointer (j/k, Down/Up)
         Browsing --> Browsing: Slide Nav (h/l, Left/Right, g/G)
         Browsing --> Browsing: Toggle Align (Tab / Ctrl+A) -> Auto-Saves
+        Browsing --> Browsing: Toggle Task (x) -> Auto-Saves
+        Browsing --> Browsing: Toggle Zen Mode (z)
+        Browsing --> Browsing: Cycle Theme (t / T / F2) -> Auto-Saves
+        Browsing --> Browsing: Toggle Help Modal (? / F1)
         Browsing --> Browsing: Mutate Blocks (Ctrl+N / Ctrl+D / Ctrl+K / Ctrl+J)
         Browsing --> Browsing: Mutate Slides (Ctrl+Shift+N / Ctrl+Shift+D)
         Browsing --> Browsing: Undo / Redo (u / Ctrl+R)
@@ -277,6 +329,7 @@ stateDiagram-v2
     }
 
     ModeNav --> ModeEdit: Press i / a / o / I / A / O
+    ModeNav --> ModePrompt: Press / (Quick Jump)
 
     state ModeEdit {
         [*] --> Editing
@@ -285,12 +338,26 @@ stateDiagram-v2
         Editing --> Editing: Delete Characters (Backspace, Delete)
     }
 
+    state ModePrompt {
+        [*] --> Querying
+        Querying --> Querying: Type Query / Number
+        Querying --> Querying: Delete (Backspace)
+    }
+
     ModeEdit --> ModeNav: Esc / Ctrl+C (CancelEdit, Discard Draft)
     ModeEdit --> ModeNav: Enter (ExitEdit, Commit & Auto-Save)
+    ModePrompt --> ModeNav: Esc / Ctrl+C (Cancel Jump)
+    ModePrompt --> ModeNav: Enter (Commit Jump to Target Slide)
 ```
 
+### Modes & Subsystems:
+1. **ModeNav**: Primary presentation and navigation mode. Supports laser pointer traversal, task toggling (`x`), alignment cycling (`Tab`), theme switching (`t`), and distraction-free Zen mode (`z`).
+2. **ModePrompt**: Quick jump modal triggered by `/`. Captures keystrokes into `e.Draft`, dynamically recalculates target slide from numeric input or fuzzy title matches, and jumps immediately on Enter.
+3. **ModeEdit**: In-place block editing with full cursor control (`home`, `end`, arrow keys). Edits are auto-saved to disk on Enter.
+4. **Distraction-Free Zen Mode (`ZenMode`)**: Toggled via `z`. When active, `View()` skips rendering the top/bottom status lines and shortcut hints, providing a distraction-free screen while maintaining the hairline slide progress line along the bottom.
+
 ### Undo/Redo Engine:
-- Before any state change (`AddBlock`, `DeleteBlock`, `MoveBlockUp`, `MoveBlockDown`, `AddSlide`, `DeleteSlide`, `ExitEdit`, `ToggleAlign`), the current deck is serialized into Markdown text and pushed onto `e.UndoStack []string`.
+- Before any state change (`AddBlock`, `DeleteBlock`, `MoveBlockUp`, `MoveBlockDown`, `AddSlide`, `DeleteSlide`, `ExitEdit`, `ToggleAlign`, `ToggleTask`), the current deck is serialized into Markdown text and pushed onto `e.UndoStack []string`.
 - The stack is capped at 100 entries to prevent memory growth.
 - Pressing `u` pushes the current state to `RedoStack`, pops the last state from `UndoStack`, and calls `ParseDeck(state)`.
 
@@ -383,17 +450,17 @@ func stripANSI(s string) string {
 
 ```bash
 $ make test
-ok   deck            coverage: 60.0% of statements
-ok   deck/internal   coverage: 92.6% of statements
-total statement coverage: 91.6%
+ok   deck            coverage: 23.5% of statements (excluding CLI os.Exit)
+ok   deck/internal   coverage: 91.1% of statements
+total statement coverage: 88.1% (65 unit tests)
 
 $ make bench
-BenchmarkParseDeck-8       353647       2863 ns/op        4176 B/op      24 allocs/op
-BenchmarkRenderView-8        4861     240812 ns/op       68494 B/op     630 allocs/op
+BenchmarkParseDeck-8       387848       3567 ns/op        4678 B/op      24 allocs/op
+BenchmarkRenderView-8        4365     268766 ns/op       78581 B/op     650 allocs/op
 ```
 
-- **Markdown Parser**: ~2.8 microseconds per slide deck.
-- **Render Engine**: ~0.24 milliseconds per frame (>4,000 FPS capability), providing instantaneous keystroke response in the terminal.
+- **Markdown Parser**: ~3.5 microseconds per slide deck.
+- **Render Engine**: ~0.26 milliseconds per frame (>3,700 FPS capability), providing instantaneous keystroke response in the terminal.
 
 ---
 
