@@ -946,12 +946,15 @@ func TestBlankScreenView(t *testing.T) {
 	if !strings.Contains(help, "b / B") || !strings.Contains(help, "Blank presentation screen") {
 		t.Errorf("expected help modal to document b/B, got: %s", help)
 	}
+	if !strings.Contains(help, "E") || !strings.Contains(help, "Export presentation to HTML") {
+		t.Errorf("expected help modal to document E export, got: %s", help)
+	}
 
 	// Verify navStatus entries
 	ed.ScreenBlank = false
-	nav := stripANSI(navStatus(d, ed, 140))
-	if !strings.Contains(nav, "y yank") || !strings.Contains(nav, "b blank") {
-		t.Errorf("expected navStatus to show y yank and b blank, got: %s", nav)
+	nav := stripANSI(navStatus(d, ed, 160))
+	if !strings.Contains(nav, "y yank") || !strings.Contains(nav, "E export") || !strings.Contains(nav, "b blank") {
+		t.Errorf("expected navStatus to show y yank, E export, and b blank, got: %s", nav)
 	}
 }
 

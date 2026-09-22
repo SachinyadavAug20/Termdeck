@@ -14,6 +14,11 @@ This document provides a comprehensive technical breakdown of **Termdeck (`deck`
 6. [Image Subsystem & ANSI Rendering (`internal/image.go`)](#6-image-subsystem--ansi-rendering-internalimagego)
 7. [Storage & Auto-Save Invariant](#7-storage--auto-save-invariant)
 8. [Testing Architecture & Benchmarks](#8-testing-architecture--benchmarks)
+9. [Speaker Notes Subsystem & Presenter Mode](#9-speaker-notes-subsystem--presenter-mode)
+10. [Live File Watcher & Hot-Reload Subsystem (`-w` / `--watch`)](#10-live-file-watcher--hot-reload-subsystem--w---watch)
+11. [Slide Overview & 2D Grid Sorter Subsystem (`o` / `O`)](#11-slide-overview--2d-grid-sorter-subsystem-o--o)
+12. [Terminal Clipboard Subsystem (OSC 52) & Screen Blanking](#12-terminal-clipboard-subsystem-osc-52--screen-blanking)
+13. [Standalone Offline HTML Export Subsystem (`--export-html` & `E`)](#13-standalone-offline-html-export-subsystem---export-html--e)
 
 ---
 
@@ -583,6 +588,40 @@ flowchart TD
    In parallel with OSC 52, `CopyToSystemClipboard` dynamically checks for local desktop utilities (`pbcopy` on macOS, `wl-copy` on Wayland, `xclip`/`xsel` on X11, `clip` on Windows) for guaranteed delivery to the host clipboard.
 3. **Screen Blackout / Blanking (`b` / `B`)**:
    Sets `e.ScreenBlank = true`, rendering `renderBlankScreen()` (`● presentation paused · press any key to resume`). The state machine intercepts any subsequent key press at the top of `handleNav()`, instantaneously un-blanking the screen and resuming the slide without dropped inputs.
+
+---
+
+## 13. Standalone Offline HTML Export Subsystem (`--export-html` & `E`)
+
+To solve the friction of sharing terminal presentations with non-terminal users, browser-based conference screens, and offline teams, Termdeck compiles any `.deck.md` deck into a standalone, single-file HTML5 presentation bundle:
+
+```mermaid
+flowchart TD
+    Trigger["Export Trigger\n(--export-html CLI flag OR 'E' in ModeNav)"] --> Engine["internal.ExportHTML(deck, title)"]
+    Engine --> CSS["generateDeckCSS(theme)\n(Theme Palette -> CSS Custom Properties)"]
+    Engine --> Body["Loop Slides & Visible Blocks\n(renderBlockHTML)"]
+    Body --> ImgCheck{"BlockImage?"}
+    ImgCheck -->|Yes| Base64["resolveImagePath() -> Probe Disk ->\nRead Bytes -> base64.StdEncoding ->\nEmbedded data:image/...;base64,..."]
+    ImgCheck -->|No| BlockDOM["Render Code, Diff, Table, Callout, Task DOM"]
+    Engine --> JS["generateDeckJS(totalSlides)\n(Vanilla JS Keyboard Runner + Touch Swipes)"]
+    CSS --> HTML["Assemble Self-Contained HTML5 Document"]
+    Body --> HTML
+    JS --> HTML
+    HTML --> SaveFile["os.WriteFile(outputPath, html, 0644)"]
+```
+
+### Architectural Highlights & Invariants:
+
+1. **Zero External Runtime Dependencies**:
+   The output HTML file requires no CDNs, external web fonts, or npm packages. It functions 100% offline—openable via `file:///` URLs on air-gapped systems or USB flash drives.
+2. **Embedded Base64 Asset Inlining**:
+   When images are referenced in slides, `renderBlockHTML` resolves local image paths (relative to `.deck.md`, `images/`, `assets/`, or root) and embeds the raw image bytes as Base64 URI strings (`data:image/png;base64,...`), producing a single self-contained artifact.
+3. **Strict Speaker Notes Isolation Invariant**:
+   `::notes` directives and hidden presenter notes are completely filtered out during DOM generation. Audience HTML exports contain strictly public slide content.
+4. **Theme Custom Property Synchronization**:
+   The active Termdeck theme palette (`Tokyo Night`, `Dracula`, `Catppuccin`, `Nord`, etc.) is injected as CSS variables (`--bg`, `--fg`, `--laser`, `--title`, `--dim`, `--card-bg`), preserving pixel-accurate visual identity across terminal and web.
+5. **Universal Keyboard & Touch Runner**:
+   The embedded vanilla JS runtime handles `ArrowRight`, `ArrowLeft`, `Space`, `Enter`, `h`, `l`, `g` (start), `G` (end), `f` (browser fullscreen API), and touch swipe navigation on mobile devices with smooth fade transitions.
 
 
 

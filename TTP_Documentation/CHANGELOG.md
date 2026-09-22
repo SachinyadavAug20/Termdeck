@@ -17,7 +17,8 @@
 - Slide Overview & 2D Grid Sorter (`o` / `O`): Visual multi-column deck overview modal presenting all slides as structured cards with titles, block element counts (code, tables, cards, tasks, images), laser cursor focus, active slide badge, and 2D grid arrow/hjkl navigation with instant Enter-to-jump.
 - Code Block & Element Yank (`y` / `Y`): Instant copy of focused code snippets, terminal commands, markdown tables, callout blocks, or paragraphs straight to the system clipboard via ANSI OSC 52 sequences (fully functional over SSH and tmux sessions) and native OS clipboard utilities (`pbcopy`, `wl-copy`, `xclip`, `clip`).
 - Presentation Screen Blanking (`b` / `B`): Toggle a minimalist blackout presentation screen (`presentation paused · press any key to resume`) to redirect audience attention to the speaker during key verbal explanations; any key instantly resumes presentation view.
-- Test suite expanded to **76 automated unit tests** achieving **90.6% statement coverage** in `deck/internal` with zero regressions and clean `go vet`/`gofmt`.
+- Standalone Offline HTML Deck Export (`--export-html <file.deck.md>` / `E` key): Zero-dependency, single-file HTML presentation export with responsive CSS layout matching active terminal theme palette, embedded base64 image encoding, keyboard slide navigation (`←`/`→`, `Space`, `h`/`l`, `g`/`G`, `f`), mobile swipe gesture support, and strict exclusion of private speaker notes for effortless offline deck distribution to colleagues and conference attendees.
+- Test suite expanded to **80 automated unit tests** achieving **90.6% statement coverage** in `deck/internal` with zero regressions and clean `go vet`/`gofmt`.
 
 ## v0.3 — 20 September 2026
 

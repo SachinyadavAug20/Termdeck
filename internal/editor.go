@@ -686,6 +686,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		return tea.Printf("%s", OSC52Copy(text))
 
+	case "E":
+		_, _ = e.ExportHTML(d)
+
 	case "i", "a", "I", "A":
 		e.EnterEdit(d)
 

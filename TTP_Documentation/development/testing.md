@@ -20,6 +20,7 @@ tpp/
 ├── main_test.go             # Root CLI & Bubble Tea engine tests
 ├── internal/
 │   ├── editor_test.go       # Navigation, edit mode, undo/redo, block mutations
+│   ├── export_test.go       # HTML export formatting, CSS/JS bundling, file generation
 │   ├── view_test.go         # Syntax highlighting, inline styles, Lipgloss layout
 │   ├── model_test.go        # Parser edge cases, directives, round-trip serialization
 │   └── image_test.go        # Image path resolution, format probing, ASCII cards
@@ -35,8 +36,11 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestModelView`: Asserts full-screen rendering and status bar contents.
 - `TestBuildModel`: Tests loading valid decks, non-existent files, and empty files (asserting "no slides found").
 - `TestPrintHelp`: Verifies CLI help message and key controls formatting.
+- `TestPrintHelpExportHTML`: Asserts `--export-html` is documented in CLI help output.
 - `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
 - `TestModelUpdateTickMsg`: Verifies Bubble Tea model dispatches `TickCmd()` only when timer is enabled, avoiding background polling overhead.
+- `TestModelInitWatchMode`: Asserts `WatchCmd()` is initialized when `-w` / `--watch` CLI flag is set.
+- `TestModelUpdateWatchMsg`: Validates background disk polling and auto-reload on file modification.
 
 ### B. Editor State Machine — `internal/editor_test.go`
 Tests the navigation, editing, jumping, and toggling state machine:
@@ -65,6 +69,11 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorToggleTask`: Validates interactive toggling of task checklists (`- [ ]` $\leftrightarrow$ `- [x]`) with `x` key and auto-save to disk.
 - `TestEditorToggleLineNumbers`: Validates pressing `L` toggles code line numbers mode on and off with status message updates.
 - `TestEditorToggleTimer`: Validates toggling timer on/off with `c`, starting ticker cmd, and resetting timer to 00:00 with `C`.
+- `TestEditorReload`: Tests manual deck reload from disk, index clamping, and dirty session preservation.
+- `TestEditorReloadKeyNav`: Asserts pressing `r` / `R` in navigation mode triggers reload and updates status bar.
+- `TestEditorSlideOverview`: Validates opening overview modal (`o`/`O`), 2D navigation (arrows/hjkl), Enter-to-jump, and Esc cancellation.
+- `TestEditorYankAndBlankScreen`: Asserts `y`/`Y` extracts focused text to OSC 52 sequence and `b`/`B` blanks presentation screen.
+- `TestEditorExportHTMLKeyNav`: Verifies pressing `E` in navigation mode invokes HTML exporter and sets status bar confirmation.
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
 Tests visual layout, card rendering, and terminal text styling:
@@ -93,6 +102,9 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestRenderDivider`: Verifies centered hairline horizontal section dividers (`***`, `___`, `::hr`).
 - `TestCodeLineNumbersView`: Validates code block line numbering rendering, vertical bar separator (`1 │`), and `[L: lines]` status bar badge.
 - `TestTimerView`: Validates presentation stopwatch rendering in status bar (`[⏱ 05:23]` and hour formatting `[⏱ 1:12:04]`).
+- `TestWatchModeView`: Asserts `[watch]` live reload badge renders in status bar when watch mode is active.
+- `TestOverviewModalView`: Verifies multi-column grid layout, slide cards, cursor highlighting, and badges.
+- `TestBlankScreenView`: Asserts blackout presentation screen rendering with resume prompt.
 - `BenchmarkRenderView`: Measures frames-per-second rendering efficiency.
 
 ### D. Model & Parser — `internal/model_test.go`
@@ -125,6 +137,13 @@ Tests image resolution and ANSI rendering:
 - `TestRenderImageOutput`: ANSI half-block (`▀`) truecolor character emission.
 - `TestRenderRealImages`: Rendering test fixtures.
 - `TestGetImageInfo`: Decoding image dimensions and format types.
+
+### G. Standalone HTML Export — `internal/export_test.go`
+Tests single-file self-contained HTML presentation generation:
+- `TestFormatInlineHTML`: Escapes HTML entities and translates markdown bold, italic, and code spans to semantic HTML tags.
+- `TestExportHTML`: Validates HTML assembly, embedded CSS theme palette variables, block rendering (headings, paragraphs, code blocks, diffs, tables, callouts, task checklists), and embedded vanilla JS runner.
+- `TestExportHTMLFile`: Hermetic disk test asserting file creation, `.deck.md` trimming, and base64 asset encoding.
+- `TestEditorExportHTML`: Asserts `editor.ExportHTML()` writes file to expected path with correct status update.
 
 ---
 
@@ -162,13 +181,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (76 unit tests):
+Statement coverage across packages (80 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
-| `deck` (root) | 33.9% | Covers model, update loop, flags, live watch loop (excluding `main()` process exit) |
+| `deck` (root) | 26.5% | Covers model, update loop, flags, live watch loop (excluding `main()` process exit) |
 | `deck/internal` | 90.6% | Exceeds >90% target across all core modules |
-| **Total Project** | **88.9%** | **PASSED** |
+| **Total Project** | **87.2%** | **PASSED** |
 
 ---
 

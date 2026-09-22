@@ -26,7 +26,12 @@ deck demo.deck.md
 - [x] Native Horizontal Dividers (`***` / `___` / `::hr`) with subtle themed hairline styling
 - [x] Code Block Line Numbers (`L`) toggleable on the fly with dimmed gutter styling
 - [x] Presentation Stopwatch & Talk Pacing Timer (`c` / `C`) with live per-second ticking and status bar display
-- [x] 69 automated unit tests with comprehensive coverage (91.2% in internal/) and zero regressions
+- [x] Live File Watch (`-w` / `--watch`) and manual reload (`r` / `R`) for dual-monitor workflows
+- [x] Slide Overview & 2D Grid Sorter (`o` / `O`) for visual deck restructuring and fast multi-slide navigation
+- [x] Code Yank to Clipboard (`y` / `Y`) with OSC 52 ANSI escape codes and system clipboard fallback
+- [x] Presentation Screen Blackout (`b` / `B`) to refocus audience attention with instant any-key resume
+- [x] Standalone Offline HTML Deck Export (`--export-html` flag and `E` key) with zero dependencies and embedded base64 assets
+- [x] 80 automated unit tests with comprehensive coverage (90.6% in internal/) and zero regressions
 
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
@@ -73,6 +78,8 @@ tpp/
 │   ├── view_test.go     # Highlighting lexer, styling, view benchmarks
 │   ├── editor.go        # Edit mode, block operations, undo/redo
 │   ├── editor_test.go   # Navigation, keyboard dispatch, edit mode tests
+│   ├── export.go        # Standalone HTML export, CSS/JS bundling, base64 images
+│   ├── export_test.go   # HTML export tests, formatting, file output verification
 │   ├── image.go         # Terminal image renderer (ANSI half-blocks)
 │   └── image_test.go    # Path resolution, format probing, card tests
 ├── demo.deck.md         # Sample deck
@@ -104,6 +111,7 @@ deck [options] <file.deck.md>
 #   -t, --theme <name>   Set presentation theme
 #       --list-themes    List all available themes
 #   -w, --watch          Watch file for external changes and auto-reload
+#       --export-html    Export presentation to standalone HTML file
 #   -h, --help           Show help
 #   -v, --version        Show version
 ```
@@ -125,6 +133,7 @@ deck [options] <file.deck.md>
 | `r` / `R` | Reload deck file from disk (manual refresh) |
 | `y` / `Y` | Yank focused code block or text to clipboard (OSC 52 + system) |
 | `b` / `B` | Blank/blackout presentation screen (any key resumes) |
+| `E` | Export deck to standalone offline HTML presentation |
 | `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |

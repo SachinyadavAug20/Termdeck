@@ -824,6 +824,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("E"), currentTheme.HelpDescStyle.Render("Export presentation to HTML")))
 
 	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  LIVE EDITOR") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("i"), currentTheme.HelpDescStyle.Render("Edit focused block")))
@@ -1278,7 +1279,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · o grid · y yank · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · o grid · y yank · E export · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

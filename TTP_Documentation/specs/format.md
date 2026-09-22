@@ -185,6 +185,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `r`, `R` | Reload deck file from disk |
 | `y`, `Y` | Copy focused code/block to clipboard (OSC 52 + system) |
 | `b`, `B` | Blank/blackout presentation screen (any key resumes) |
+| `E` | Export deck to standalone HTML presentation |
 | `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay box |

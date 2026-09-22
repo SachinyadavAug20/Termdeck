@@ -112,6 +112,7 @@ Options:
   -t, --theme <name>   Set presentation color theme
       --list-themes    List all available color themes
   -w, --watch          Watch deck file for external changes and auto-reload
+      --export-html    Export presentation to standalone HTML file
   -v, --version        Show version information
   -h, --help           Show this help message
 
@@ -127,6 +128,7 @@ Controls:
   Reload:       r / R (reload deck from disk)
   Yank:         y / Y (yank focused code/block to system clipboard)
   Blank Screen: b / B (blank presentation screen, any key resumes)
+  Export HTML:  E (export deck to standalone HTML presentation)
   Notes:        n (toggle speaker notes overlay)
   Alignment:    Tab / ctrl+a (cycle left/center/right alignment)
   Media:        p (open focused image card in desktop viewer)
@@ -142,6 +144,8 @@ func main() {
 	var cliTheme string
 	var listThemes bool
 	var watchMode bool
+	var exportHTML bool
+	var exportOutPath string
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -157,6 +161,15 @@ func main() {
 			listThemes = true
 		case arg == "-w" || arg == "--watch":
 			watchMode = true
+		case arg == "--export-html":
+			exportHTML = true
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") && !strings.HasSuffix(args[i+1], ".deck.md") && !strings.HasSuffix(args[i+1], ".md") {
+				i++
+				exportOutPath = args[i]
+			}
+		case strings.HasPrefix(arg, "--export-html="):
+			exportHTML = true
+			exportOutPath = strings.TrimPrefix(arg, "--export-html=")
 		case arg == "-t" || arg == "--theme":
 			if i+1 < len(args) {
 				i++
@@ -190,6 +203,35 @@ func main() {
 			fmt.Printf("  %-14s %-18s (accent: %s)\n", th.ID, th.Name, th.Accent)
 		}
 		fmt.Println("\nTip: Pass '--theme <name>' or set 'theme: <name>' in deck frontmatter.")
+		return
+	}
+
+	if exportHTML {
+		if len(fileArgs) < 1 {
+			fmt.Fprintln(os.Stderr, "error: missing deck file for --export-html")
+			os.Exit(1)
+		}
+		deckFile := fileArgs[0]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
+			os.Exit(1)
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		if cliTheme != "" {
+			d.Theme = cliTheme
+		}
+		outPath := exportOutPath
+		if outPath == "" {
+			ext := filepath.Ext(deckFile)
+			outPath = strings.TrimSuffix(deckFile, ext) + ".html"
+		}
+		if err := internal.ExportHTMLFile(d, outPath); err != nil {
+			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Exported presentation to %s\n", outPath)
 		return
 	}
 

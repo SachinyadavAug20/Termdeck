@@ -1333,3 +1333,25 @@ func TestEditorYankAndBlankScreen(t *testing.T) {
 		t.Errorf("expected ScreenBlank false after pressing enter to resume")
 	}
 }
+
+func TestEditorExportHTMLKeyNav(t *testing.T) {
+	tmpDir := t.TempDir()
+	tmpFile := filepath.Join(tmpDir, "export_key.deck.md")
+	content := "# Original Slide\nBody\n"
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write tmp file: %v", err)
+	}
+
+	d := ParseDeck(content)
+	ed := NewEditor(tmpFile)
+
+	// Press 'E'
+	sendTestKey(&ed, &d, "E")
+	if ed.Message != "exported to export_key.html" {
+		t.Errorf("expected status 'exported to export_key.html', got %q", ed.Message)
+	}
+	expectedHTML := filepath.Join(tmpDir, "export_key.html")
+	if _, err := os.Stat(expectedHTML); err != nil {
+		t.Errorf("expected exported html file %q to exist", expectedHTML)
+	}
+}

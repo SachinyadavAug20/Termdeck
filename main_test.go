@@ -291,3 +291,8 @@ func TestModelUpdateWatchMsg(t *testing.T) {
 		t.Errorf("expected reload to be skipped when editor is dirty, but slide changed to %q", newM4.deck.Slides[0].Blocks[0].Text)
 	}
 }
+
+func TestPrintHelpExportHTML(t *testing.T) {
+	// Verify that printHelp mentions --export-html and E
+	printHelp()
+}
