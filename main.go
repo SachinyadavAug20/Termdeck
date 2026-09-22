@@ -10,7 +10,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const version = "0.3.0"
+const version = "0.4.0"
 
 type model struct {
 	deck    internal.Deck
