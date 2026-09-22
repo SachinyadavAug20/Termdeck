@@ -499,3 +499,31 @@ flowchart TD
    When `ShowNotes` is active, `lipgloss.Height(notesOverlay)` is subtracted from `bodyHeight`, ensuring the total terminal frame height matches `height` without screen scrolling or line jitter.
 4. **Contextual Status Bar Badges**:
    The status bar counts only visible slide blocks (`blocks 2` instead of `blocks 3`) and renders `[n: notes]` or `[n: notes open]` whenever notes exist.
+
+---
+
+## 10. Live File Watcher & Hot-Reload Subsystem (`-w` / `--watch`)
+
+Termdeck includes an asynchronous file monitor designed for dual-screen setups, live-coding sessions, and external editor workflows:
+
+```mermaid
+flowchart TD
+    Init["CLI starts with -w / --watch"] --> Schedule["WatchCmd() schedules tea.Tick(500ms)"]
+    Schedule --> Tick["Bubble Tea emits WatchMsg"]
+    Tick --> Stat["os.Stat(FilePath) checks ModTime"]
+    Stat --> Changed{"ModTime > lastModTime?"}
+    Changed -->|No| Reschedule["Reschedule WatchCmd()"]
+    Changed -->|Yes| Guard{"Mode == ModeEdit || Dirty?"}
+    Guard -->|Yes (Editing)| Protect["Skip Reload to protect user draft"]
+    Guard -->|No| Reload["ed.Reload(&deck)"]
+    Protect --> Reschedule
+    Reload --> UpdateMod["lastModTime = ModTime"]
+    UpdateMod --> Reschedule
+```
+
+### Safety & Concurrency Invariants:
+1. **Edit Session Protection**: If the presenter has pressed `i` and is actively drafting text (`m.editor.Mode == ModeEdit`), or has uncommitted modifications (`m.editor.Dirty`), incoming disk changes are intentionally deferred so work is never overwritten.
+2. **Partial Write Resilience**: If an external editor temporarily truncates the file during save, `Reload` checks `len(newDeck.Slides) == 0` and aborts with an error, preserving the in-memory deck undisturbed.
+3. **Slide Index Clamping**: After reloading, `e.SlideIdx` and `e.ClampBlockIdx(d)` clamp to valid bounds of the reloaded deck without resetting the presenter's active slide.
+4. **Manual Refresh (`r` / `R`)**: Users can trigger `Reload()` directly via keyboard without leaving presentation view.
+

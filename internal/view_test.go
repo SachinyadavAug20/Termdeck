@@ -825,6 +825,34 @@ func TestTimerView(t *testing.T) {
 	}
 }
 
+func TestWatchModeView(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Watch Deck"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	// WatchMode off
+	out := stripANSI(View(d, ed, 80, 24))
+	if strings.Contains(out, "[watch]") {
+		t.Errorf("expected no [watch] badge when watch mode is off")
+	}
+
+	// WatchMode on
+	ed.WatchMode = true
+	out = stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(out, "[watch]") {
+		t.Errorf("expected [watch] badge in status bar when watch mode is on")
+	}
+
+	// Help modal should contain reload shortcut
+	help := stripANSI(renderHelpModal(80, 24))
+	if !strings.Contains(help, "r / R") || !strings.Contains(help, "Reload deck file from disk") {
+		t.Errorf("expected help modal to document 'r / R' reload, got: %s", help)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

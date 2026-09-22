@@ -1053,3 +1053,72 @@ func TestEditorToggleTimer(t *testing.T) {
 		t.Errorf("expected non-nil TickCmd after resetting timer")
 	}
 }
+
+func TestEditorReload(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "reload.deck.md")
+	initialContent := "---\ntitle: Deck 1\n---\n# Slide 1\nHello\n"
+	if err := os.WriteFile(tmpFile, []byte(initialContent), 0644); err != nil {
+		t.Fatalf("failed to write tmp file: %v", err)
+	}
+
+	d := ParseDeck(initialContent)
+	ed := NewEditor(tmpFile)
+
+	// Modify file externally on disk
+	updatedContent := "---\ntitle: Deck 2\n---\n# Slide 1 Updated\nNew Content\n---\n# Slide 2\nSecond slide\n"
+	if err := os.WriteFile(tmpFile, []byte(updatedContent), 0644); err != nil {
+		t.Fatalf("failed to update tmp file: %v", err)
+	}
+
+	// Trigger reload
+	err := ed.Reload(&d)
+	if err != nil {
+		t.Fatalf("unexpected reload error: %v", err)
+	}
+	if len(d.Slides) != 2 {
+		t.Errorf("expected 2 slides after reload, got %d", len(d.Slides))
+	}
+	if d.Slides[0].Blocks[0].Text != "Slide 1 Updated" {
+		t.Errorf("expected updated title after reload, got %q", d.Slides[0].Blocks[0].Text)
+	}
+	if ed.Message != "reloaded from disk" {
+		t.Errorf("expected message 'reloaded from disk', got %q", ed.Message)
+	}
+
+	// Error handling: missing file
+	edNoFile := NewEditor("")
+	if err := edNoFile.Reload(&d); err == nil {
+		t.Errorf("expected error when reloading with empty FilePath")
+	}
+
+	// Error handling: file with 0 slides
+	emptyFile := filepath.Join(t.TempDir(), "empty.deck.md")
+	_ = os.WriteFile(emptyFile, []byte(""), 0644)
+	edEmpty := NewEditor(emptyFile)
+	if err := edEmpty.Reload(&d); err == nil {
+		t.Errorf("expected error when reloading empty file")
+	}
+}
+
+func TestEditorReloadKeyNav(t *testing.T) {
+	tmpFile := filepath.Join(t.TempDir(), "reload_key.deck.md")
+	content := "# Original Slide\nBody\n"
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write tmp file: %v", err)
+	}
+
+	d := ParseDeck(content)
+	ed := NewEditor(tmpFile)
+
+	// External change
+	_ = os.WriteFile(tmpFile, []byte("# Changed Slide\nBody\n"), 0644)
+
+	// Press 'r'
+	sendTestKey(&ed, &d, "r")
+	if d.Slides[0].Blocks[0].Text != "Changed Slide" {
+		t.Errorf("expected slide reloaded on 'r', got %q", d.Slides[0].Blocks[0].Text)
+	}
+	if ed.Message != "reloaded from disk" {
+		t.Errorf("expected message 'reloaded from disk', got %q", ed.Message)
+	}
+}

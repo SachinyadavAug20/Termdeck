@@ -210,3 +210,84 @@ func TestModelUpdateTickMsg(t *testing.T) {
 		t.Errorf("expected non-nil cmd when timer is on")
 	}
 }
+
+func TestModelInitWatchMode(t *testing.T) {
+	m := model{
+		editor: internal.NewEditor("test.deck.md"),
+	}
+	// Watch off: Init returns nil
+	if cmd := m.Init(); cmd != nil {
+		t.Errorf("expected nil cmd when watch mode is off, got %v", cmd)
+	}
+
+	// Watch on: Init returns non-nil WatchCmd
+	m.editor.WatchMode = true
+	if cmd := m.Init(); cmd == nil {
+		t.Errorf("expected non-nil cmd when watch mode is on")
+	}
+}
+
+func TestModelUpdateWatchMsg(t *testing.T) {
+	tmpFile := t.TempDir() + "/watch_test.deck.md"
+	content := "# Slide 1\nInitial content\n"
+	if err := os.WriteFile(tmpFile, []byte(content), 0644); err != nil {
+		t.Fatalf("failed to write tmp file: %v", err)
+	}
+
+	m, err := buildModel(tmpFile, true)
+	if err != nil {
+		t.Fatalf("failed to build model: %v", err)
+	}
+	if !m.editor.WatchMode {
+		t.Errorf("expected watchMode true")
+	}
+
+	// 1. Initial watch msg when mod time hasn't changed
+	updated, cmd := m.Update(internal.WatchMsg(time.Now()))
+	newM := updated.(model)
+	if cmd == nil {
+		t.Errorf("expected non-nil cmd to reschedule watch check")
+	}
+	if newM.deck.Slides[0].Blocks[0].Text != "Slide 1" {
+		t.Errorf("expected content unchanged")
+	}
+
+	// 2. File modified on disk -> reload occurs
+	// Sleep briefly to ensure mod time changes
+	time.Sleep(10 * time.Millisecond)
+	newContent := "# Reloaded Slide\nUpdated text\n"
+	if err := os.WriteFile(tmpFile, []byte(newContent), 0644); err != nil {
+		t.Fatalf("failed to rewrite tmp file: %v", err)
+	}
+
+	updated2, cmd2 := newM.Update(internal.WatchMsg(time.Now()))
+	newM2 := updated2.(model)
+	if cmd2 == nil {
+		t.Errorf("expected non-nil cmd")
+	}
+	if newM2.deck.Slides[0].Blocks[0].Text != "Reloaded Slide" {
+		t.Errorf("expected slide title 'Reloaded Slide' after watch reload, got %q", newM2.deck.Slides[0].Blocks[0].Text)
+	}
+
+	// 3. File modified but editor is in ModeEdit -> reload is skipped to protect active editing
+	time.Sleep(10 * time.Millisecond)
+	editContent := "# Third Edit\nEven more text\n"
+	if err := os.WriteFile(tmpFile, []byte(editContent), 0644); err != nil {
+		t.Fatalf("failed to rewrite tmp file: %v", err)
+	}
+	newM2.editor.Mode = internal.ModeEdit
+	updated3, _ := newM2.Update(internal.WatchMsg(time.Now()))
+	newM3 := updated3.(model)
+	if newM3.deck.Slides[0].Blocks[0].Text != "Reloaded Slide" {
+		t.Errorf("expected reload to be skipped during active edit mode, but slide changed to %q", newM3.deck.Slides[0].Blocks[0].Text)
+	}
+
+	// 4. File modified but editor is Dirty -> reload is skipped
+	newM3.editor.Mode = internal.ModeNav
+	newM3.editor.Dirty = true
+	updated4, _ := newM3.Update(internal.WatchMsg(time.Now()))
+	newM4 := updated4.(model)
+	if newM4.deck.Slides[0].Blocks[0].Text != "Reloaded Slide" {
+		t.Errorf("expected reload to be skipped when editor is dirty, but slide changed to %q", newM4.deck.Slides[0].Blocks[0].Text)
+	}
+}

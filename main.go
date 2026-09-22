@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"time"
 
 	"deck/internal"
 	tea "github.com/charmbracelet/bubbletea"
@@ -13,14 +14,20 @@ import (
 const version = "0.4.0"
 
 type model struct {
-	deck    internal.Deck
-	editor  internal.Editor
-	width   int
-	height  int
-	resized bool
+	deck        internal.Deck
+	editor      internal.Editor
+	width       int
+	height      int
+	resized     bool
+	lastModTime time.Time
 }
 
-func (m model) Init() tea.Cmd { return nil }
+func (m model) Init() tea.Cmd {
+	if m.editor.WatchMode {
+		return internal.WatchCmd()
+	}
+	return nil
+}
 
 func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 	switch msg := msg.(type) {
@@ -42,6 +49,22 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if m.editor.ShowTimer {
 			return m, internal.TickCmd()
 		}
+
+	case internal.WatchMsg:
+		if m.editor.WatchMode && m.editor.FilePath != "" {
+			if fi, err := os.Stat(m.editor.FilePath); err == nil {
+				modTime := fi.ModTime()
+				if !m.lastModTime.IsZero() && modTime.After(m.lastModTime) {
+					m.lastModTime = modTime
+					if m.editor.Mode != internal.ModeEdit && !m.editor.Dirty {
+						_ = m.editor.Reload(&m.deck)
+					}
+				} else if m.lastModTime.IsZero() {
+					m.lastModTime = modTime
+				}
+			}
+			return m, internal.WatchCmd()
+		}
 	}
 
 	return m, nil
@@ -51,7 +74,7 @@ func (m model) View() string {
 	return internal.View(m.deck, m.editor, m.width, m.height)
 }
 
-func buildModel(filePath string) (model, error) {
+func buildModel(filePath string, watchMode ...bool) (model, error) {
 	src, err := os.ReadFile(filePath)
 	if err != nil {
 		return model{}, err
@@ -65,9 +88,16 @@ func buildModel(filePath string) (model, error) {
 
 	editor := internal.NewEditor(filePath)
 	editor.Theme = deck.Theme
+	isWatch := len(watchMode) > 0 && watchMode[0]
+	editor.WatchMode = isWatch
+	var modTime time.Time
+	if fi, err := os.Stat(filePath); err == nil {
+		modTime = fi.ModTime()
+	}
 	return model{
-		deck:   deck,
-		editor: editor,
+		deck:        deck,
+		editor:      editor,
+		lastModTime: modTime,
 	}, nil
 }
 
@@ -81,6 +111,7 @@ Options:
   -s, --start-at <N>   Start presentation at slide N (1-based)
   -t, --theme <name>   Set presentation color theme
       --list-themes    List all available color themes
+  -w, --watch          Watch deck file for external changes and auto-reload
   -v, --version        Show version information
   -h, --help           Show this help message
 
@@ -91,6 +122,8 @@ Controls:
   Theme:        t / T / f2 (cycle color themes: tokyo-night, dracula, nord, ...)
   Zen Mode:     z (toggle distraction-free zen mode)
   Line numbers: L (toggle code block line numbers)
+  Timer:        c (toggle presentation timer), C (reset timer)
+  Reload:       r / R (reload deck from disk)
   Notes:        n (toggle speaker notes overlay)
   Alignment:    Tab / ctrl+a (cycle left/center/right alignment)
   Media:        p (open focused image card in desktop viewer)
@@ -105,6 +138,7 @@ func main() {
 	var showVer bool
 	var cliTheme string
 	var listThemes bool
+	var watchMode bool
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -118,6 +152,8 @@ func main() {
 			showVer = true
 		case arg == "--list-themes":
 			listThemes = true
+		case arg == "-w" || arg == "--watch":
+			watchMode = true
 		case arg == "-t" || arg == "--theme":
 			if i+1 < len(args) {
 				i++
@@ -161,7 +197,7 @@ func main() {
 		os.Exit(1)
 	}
 
-	m, err := buildModel(fileArgs[0])
+	m, err := buildModel(fileArgs[0], watchMode)
 	if err != nil {
 		fmt.Fprintln(os.Stderr, err)
 		os.Exit(1)

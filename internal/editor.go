@@ -22,6 +22,14 @@ func TickCmd() tea.Cmd {
 	})
 }
 
+type WatchMsg time.Time
+
+func WatchCmd() tea.Cmd {
+	return tea.Tick(500*time.Millisecond, func(t time.Time) tea.Msg {
+		return WatchMsg(t)
+	})
+}
+
 // --- Editor modes ---
 
 type EditorMode int
@@ -51,6 +59,7 @@ type Editor struct {
 	ShowLineNumbers bool
 	ShowTimer       bool
 	TimerStart      time.Time
+	WatchMode       bool
 	Theme           string
 }
 
@@ -354,6 +363,47 @@ func (e *Editor) Save(d Deck) {
 	e.Message = "saved"
 }
 
+// --- Reload from disk ---
+
+func (e *Editor) Reload(d *Deck) error {
+	if e.FilePath == "" {
+		return fmt.Errorf("no file path")
+	}
+	content, err := os.ReadFile(e.FilePath)
+	if err != nil {
+		return err
+	}
+	newDeck := ParseDeck(string(content))
+	if len(newDeck.Slides) == 0 {
+		return fmt.Errorf("file contains no slides")
+	}
+	baseDir := d.BaseDir
+	deckTheme := d.Theme
+	deckAlign := d.Align
+	newDeck.BaseDir = baseDir
+	if newDeck.Theme == "" {
+		newDeck.Theme = deckTheme
+	}
+	if newDeck.Align == "" {
+		newDeck.Align = deckAlign
+	}
+	*d = newDeck
+	if e.Theme != "" && newDeck.Theme != "" {
+		e.Theme = newDeck.Theme
+		SetCurrentTheme(e.Theme)
+	}
+	if e.SlideIdx >= len(d.Slides) {
+		e.SlideIdx = len(d.Slides) - 1
+		if e.SlideIdx < 0 {
+			e.SlideIdx = 0
+		}
+	}
+	e.ClampBlockIdx(d)
+	e.Dirty = false
+	e.Message = "reloaded from disk"
+	return nil
+}
+
 // --- Slide alignment ---
 
 func (e *Editor) ToggleAlign(d *Deck) {
@@ -518,6 +568,13 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		e.ShowTimer = true
 		e.Message = "timer: reset to 00:00"
 		return TickCmd()
+
+	case "r", "R":
+		if err := e.Reload(d); err == nil {
+			e.Message = "reloaded from disk"
+		} else {
+			e.Message = "reload error: " + err.Error()
+		}
 
 	case "L":
 		e.ShowLineNumbers = !e.ShowLineNumbers

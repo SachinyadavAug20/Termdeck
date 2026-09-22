@@ -101,6 +101,9 @@ deck [options] <file.deck.md>
 
 # Options:
 #   -s, --start-at <N>   Start at slide N
+#   -t, --theme <name>   Set presentation theme
+#       --list-themes    List all available themes
+#   -w, --watch          Watch file for external changes and auto-reload
 #   -h, --help           Show help
 #   -v, --version        Show version
 ```
@@ -118,6 +121,7 @@ deck [options] <file.deck.md>
 | `t` `T` `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
 | `c` / `C` | Toggle presentation stopwatch (`c`) / Reset timer to 00:00 (`C`) |
+| `r` / `R` | Reload deck file from disk (manual refresh) |
 | `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
@@ -172,7 +176,8 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
 - **In-App Help Modal** (`?` / `F1`) detailing all viewer, presenter, and editor controls
 - **Subtle Bottom Progress Line**: sleek, non-intrusive full-width hairline progress line at the bottom of the screen
-- **CLI Options**: `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
+- **Live File Watch & Hot-Reload**: Start with `-w` or `--watch` to auto-reload on file edits from external editors/IDEs, or press `r` / `R` anytime to reload manually (safeguards protect active in-app edit sessions)
+- **CLI Options**: `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`

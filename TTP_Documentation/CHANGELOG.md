@@ -12,7 +12,9 @@
 - Native Horizontal Dividers (`***`, `___`, `::hr`): Subtle themed hairline section dividers within slides to structure complex technical ideas cleanly.
 - Code Block Line Numbers (`L`): Toggle dimmed line numbers (` 1 │ `, ` 2 │ `) across code and diff blocks with dynamic gutter bounding box adjustment and `[L: lines]` status badge.
 - Presentation Stopwatch & Talk Pacing Timer (`c` / `C`): Built-in elapsed talk timer displaying `[⏱ MM:SS]` (or `[⏱ H:MM:SS]`) in the status bar to assist speakers during timed tech talks, lightning talks, and sprint demos. Press `c` to toggle, `C` to reset to `00:00`.
-- Test suite expanded to **69 automated unit tests** achieving **91.2% statement coverage** in `deck/internal` with zero regressions and clean `go vet`/`gofmt`.
+- Live File Watch & Auto-Reload (`-w` / `--watch`): Background file monitor for live coding presentations and dual-monitor deck editing. When running with `-w`, Termdeck checks file modification timestamps every 500ms and reloads the deck instantly, strictly preserving user edit sessions if an in-app edit is active or dirty.
+- Manual Deck Reload (`r` / `R`): Instantly refresh deck contents from disk at any time without leaving the presentation or losing the current slide index.
+- Test suite expanded to **72 automated unit tests** achieving **90.9% statement coverage** in `deck/internal` with zero regressions and clean `go vet`/`gofmt`.
 
 ## v0.3 — 20 September 2026
 

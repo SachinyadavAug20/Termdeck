@@ -181,6 +181,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `t`, `T`, `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) & auto-save |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
 | `c`, `C` | Toggle presentation stopwatch (`c`) / Reset timer to 00:00 (`C`) |
+| `r`, `R` | Reload deck file from disk |
 | `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay box |
