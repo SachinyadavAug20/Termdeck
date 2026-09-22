@@ -86,6 +86,19 @@ Syntax highlighting works in `::code` blocks:
 ---
 
 ::align left
+# Code diffs
+
+Present technical migrations and refactors cleanly:
+
+```diff
+@@ -1,4 +1,4 @@
+- func getUser(id int) (*User, error)
++ func getUser(ctx context.Context, id int) (*User, error)
+```
+
+---
+
+::align left
 # Headings
 
 ## this is h2

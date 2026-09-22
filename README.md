@@ -16,6 +16,11 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 22 September 2026
+- [x] Distraction-free Zen Mode (`z`) for clean presentations and video demos
+- [x] Native Markdown code diff syntax highlighting (```` ```diff ````) with green additions and red deletions
+- [x] Extended modern developer syntax highlighting (Go, Rust, TypeScript, Python, SQL)
+
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
 - [x] Non-intrusive hairline slide progress indicator along bottom edge
@@ -143,7 +148,8 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - Frontmatter theme specification (`theme: dracula`) and CLI option (`--theme <name>`, `--list-themes`)
 - Inline styling: **bold**, *italic*, `code`
 - Heading levels (h1–h6) with clean visual hierarchy
-- **Standard Markdown Fenced Code Blocks** (```` ```lang ````) and `::code lang=X` blocks with syntax highlighting
+- **Standard Markdown Fenced Code Blocks** (```` ```lang ````) and `::code lang=X` blocks with syntax highlighting and `diff`/`patch` support
+- **Distraction-Free Zen Mode**: Toggle off all status bars with `z` for pure presentation focus
 - **Standard Markdown Images** (`![alt](path)`) and `::image` presentation cards with system viewer integration (`p`)
 - **Markdown Tables** (`| col1 | col2 |`) with formatted borders and headers
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)

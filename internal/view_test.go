@@ -144,7 +144,7 @@ func TestHighlightLine(t *testing.T) {
 		t.Errorf("expected keywords and types: %q", kw)
 	}
 
-	// Other languages: python, bash
+	// Other languages: python, bash, rust, typescript, sql
 	py := highlightLine("def foo(self): print(None)")
 	if !strings.Contains(py, "def") {
 		t.Errorf("expected python keywords: %q", py)
@@ -152,6 +152,18 @@ func TestHighlightLine(t *testing.T) {
 	sh := highlightLine("if [ -z $x ]; then echo done; fi")
 	if !strings.Contains(sh, "then") {
 		t.Errorf("expected bash keywords: %q", sh)
+	}
+	rs := highlightLine("pub fn run(mut item: State) -> Result")
+	if !strings.Contains(rs, "fn") || !strings.Contains(rs, "mut") || !strings.Contains(rs, "pub") {
+		t.Errorf("expected rust keywords: %q", rs)
+	}
+	ts := highlightLine("async function getData(): Promise { let x = await fetch(); }")
+	if !strings.Contains(ts, "async") || !strings.Contains(ts, "await") || !strings.Contains(ts, "let") {
+		t.Errorf("expected typescript keywords: %q", ts)
+	}
+	sql := highlightLine("SELECT name, age FROM users WHERE id = 10")
+	if !strings.Contains(sql, "SELECT") || !strings.Contains(sql, "FROM") || !strings.Contains(sql, "WHERE") {
+		t.Errorf("expected sql keywords: %q", sql)
 	}
 }
 
@@ -166,6 +178,29 @@ func TestHighlightCode(t *testing.T) {
 	out := highlightCode(lines, "go")
 	if !strings.Contains(out, "package") || !strings.Contains(out, "Hello") {
 		t.Errorf("expected highlighted code output, got %q", out)
+	}
+
+	// Diff syntax highlighting
+	diffLines := []string{
+		"--- a/main.go",
+		"+++ b/main.go",
+		"@@ -10,3 +10,3 @@",
+		"- func fetch(id int)",
+		"+ func fetch(ctx context.Context, id int)",
+		"  context line",
+	}
+	diffOut := highlightCode(diffLines, "diff")
+	if !strings.Contains(diffOut, "+ func fetch") || !strings.Contains(diffOut, "- func fetch") {
+		t.Errorf("expected diff additions and deletions, got %q", diffOut)
+	}
+	if !strings.Contains(diffOut, "@@ -10,3 +10,3 @@") {
+		t.Errorf("expected diff chunk header, got %q", diffOut)
+	}
+
+	// Patch language alias
+	patchOut := highlightCode([]string{"+ added"}, "patch")
+	if !strings.Contains(patchOut, "+ added") {
+		t.Errorf("expected patch addition, got %q", patchOut)
 	}
 }
 

@@ -99,19 +99,43 @@ func renderHeading(text string, level int) string {
 // --- Syntax highlighting ---
 
 var simpleKeywords = map[string]bool{
+	// Go
 	"func": true, "return": true, "if": true, "else": true, "for": true,
 	"range": true, "var": true, "const": true, "type": true, "struct": true,
 	"package": true, "import": true, "defer": true, "go": true, "chan": true,
 	"select": true, "case": true, "switch": true, "default": true, "break": true,
-	"continue": true, "true": true, "false": true, "nil": true,
+	"continue": true, "true": true, "false": true, "nil": true, "interface": true,
+	"map": true, "make": true, "new": true, "panic": true, "recover": true, "iota": true,
+	"any": true,
+
+	// Python
 	"def": true, "class": true, "from": true, "as": true,
-	"print": true, "self": true, "None": true,
+	"print": true, "self": true, "None": true, "True": true, "False": true,
 	"with": true, "try": true, "except": true, "finally": true, "raise": true,
 	"yield": true, "lambda": true, "pass": true, "del": true, "global": true,
-	"echo": true, "then": true, "fi": true,
-	"elif": true, "while": true, "do": true, "done": true,
-	"esac": true, "function": true, "exit": true, "local": true, "export": true,
-	"null": true, "undefined": true,
+	"nonlocal": true, "assert": true, "is": true, "in": true, "not": true,
+	"and": true, "or": true, "elif": true, "while": true,
+
+	// JavaScript / TypeScript
+	"let": true, "function": true, "async": true, "await": true, "export": true,
+	"null": true, "undefined": true, "typeof": true, "instanceof": true, "throw": true,
+	"catch": true, "enum": true, "implements": true, "extends": true,
+
+	// Rust
+	"fn": true, "mut": true, "impl": true, "trait": true, "match": true,
+	"pub": true, "use": true, "mod": true, "loop": true, "where": true,
+	"crate": true, "ref": true, "move": true, "dyn": true,
+
+	// Shell / Bash
+	"echo": true, "then": true, "fi": true, "do": true, "done": true,
+	"esac": true, "exit": true, "local": true,
+
+	// SQL
+	"SELECT": true, "FROM": true, "WHERE": true, "INSERT": true, "INTO": true,
+	"UPDATE": true, "DELETE": true, "JOIN": true, "LEFT": true, "RIGHT": true,
+	"INNER": true, "OUTER": true, "GROUP": true, "BY": true, "ORDER": true,
+	"HAVING": true, "LIMIT": true, "OFFSET": true, "CREATE": true, "TABLE": true,
+	"DROP": true, "ALTER": true,
 }
 
 func highlightLine(line string) string {
@@ -181,7 +205,27 @@ func highlightLine(line string) string {
 }
 
 func highlightCode(lines []string, lang string) string {
+	normLang := strings.ToLower(strings.TrimSpace(lang))
 	var result strings.Builder
+
+	if normLang == "diff" || normLang == "patch" {
+		for i, line := range lines {
+			if i > 0 {
+				result.WriteString("\n")
+			}
+			if strings.HasPrefix(line, "+") && !strings.HasPrefix(line, "+++") {
+				result.WriteString(currentTheme.SyntaxString.Render(line))
+			} else if strings.HasPrefix(line, "-") && !strings.HasPrefix(line, "---") {
+				result.WriteString(currentTheme.LaserPointerStyle.Render(line))
+			} else if strings.HasPrefix(line, "@@") || strings.HasPrefix(line, "---") || strings.HasPrefix(line, "+++") {
+				result.WriteString(currentTheme.SyntaxComment.Render(line))
+			} else {
+				result.WriteString(currentTheme.SyntaxPlain.Render(line))
+			}
+		}
+		return result.String()
+	}
+
 	for i, line := range lines {
 		if i > 0 {
 			result.WriteString("\n")

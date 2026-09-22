@@ -93,7 +93,7 @@ Sets the text alignment for the slide. Supported values: `left`, `center`, `righ
       print("world")
 ```
 
-Standard Markdown code fences (```` ```lang ````) are also natively supported alongside `::code`. Content between code fences is rendered as a bordered code block with language labeling and dynamic box sizing.
+Standard Markdown code fences (```` ```lang ````) and `::code` blocks are natively supported with syntax highlighting for Go, Python, TypeScript, Rust, Shell, SQL, and `diff`/`patch` (with green additions and red deletions). Content between code fences is rendered as a bordered code block with language labeling and dynamic box sizing.
 
 #### `::image` / Standard Markdown Images
 
