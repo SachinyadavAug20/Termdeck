@@ -92,6 +92,59 @@ func (s *Slide) Title() string {
 	return "Slide"
 }
 
+func (s *Slide) Summary() string {
+	var kinds []string
+	hasCode := false
+	hasImage := false
+	hasTable := false
+	hasCallout := false
+	hasTask := false
+
+	for _, b := range s.Blocks {
+		switch b.Kind {
+		case BlockCode:
+			hasCode = true
+		case BlockImage:
+			hasImage = true
+		case BlockTable:
+			hasTable = true
+		case BlockCallout:
+			hasCallout = true
+		case BlockList:
+			trimmed := strings.TrimSpace(b.Text)
+			if strings.HasPrefix(trimmed, "- [ ]") || strings.HasPrefix(trimmed, "- [x]") {
+				hasTask = true
+			}
+		}
+	}
+
+	visCount := len(s.VisibleBlockIndices())
+	summary := fmt.Sprintf("%d blk", visCount)
+	if visCount != 1 {
+		summary += "s"
+	}
+
+	if hasCode {
+		kinds = append(kinds, "code")
+	}
+	if hasTable {
+		kinds = append(kinds, "table")
+	}
+	if hasCallout {
+		kinds = append(kinds, "card")
+	}
+	if hasImage {
+		kinds = append(kinds, "img")
+	}
+	if hasTask {
+		kinds = append(kinds, "task")
+	}
+	if len(kinds) > 0 {
+		summary += " · " + strings.Join(kinds, ",")
+	}
+	return summary
+}
+
 type Deck struct {
 	Meta    map[string]string
 	Slides  []Slide

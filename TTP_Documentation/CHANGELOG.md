@@ -14,7 +14,8 @@
 - Presentation Stopwatch & Talk Pacing Timer (`c` / `C`): Built-in elapsed talk timer displaying `[⏱ MM:SS]` (or `[⏱ H:MM:SS]`) in the status bar to assist speakers during timed tech talks, lightning talks, and sprint demos. Press `c` to toggle, `C` to reset to `00:00`.
 - Live File Watch & Auto-Reload (`-w` / `--watch`): Background file monitor for live coding presentations and dual-monitor deck editing. When running with `-w`, Termdeck checks file modification timestamps every 500ms and reloads the deck instantly, strictly preserving user edit sessions if an in-app edit is active or dirty.
 - Manual Deck Reload (`r` / `R`): Instantly refresh deck contents from disk at any time without leaving the presentation or losing the current slide index.
-- Test suite expanded to **72 automated unit tests** achieving **90.9% statement coverage** in `deck/internal` with zero regressions and clean `go vet`/`gofmt`.
+- Slide Overview & 2D Grid Sorter (`o` / `O`): Visual multi-column deck overview modal presenting all slides as structured cards with titles, block element counts (code, tables, cards, tasks, images), laser cursor focus, active slide badge, and 2D grid arrow/hjkl navigation with instant Enter-to-jump.
+- Test suite expanded to **74 automated unit tests** achieving **90.8% statement coverage** in `deck/internal` with zero regressions and clean `go vet`/`gofmt`.
 
 ## v0.3 — 20 September 2026
 

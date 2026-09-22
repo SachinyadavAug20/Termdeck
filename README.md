@@ -117,6 +117,7 @@ deck [options] <file.deck.md>
 | `↓` `j` | Move block cursor / laser pointer down |
 | `↑` `k` | Move block cursor / laser pointer up |
 | `/` | Quick Jump to slide (enter slide number or title search) |
+| `o` / `O` | Slide Overview & 2D Grid Sorter (navigate cards, Enter to jump) |
 | `?` `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t` `T` `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
@@ -176,6 +177,7 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
 - **In-App Help Modal** (`?` / `F1`) detailing all viewer, presenter, and editor controls
 - **Subtle Bottom Progress Line**: sleek, non-intrusive full-width hairline progress line at the bottom of the screen
+- **Slide Overview & 2D Grid Sorter**: Press `o` or `O` anytime to open a visual grid map of all slides with titles, block element counts, cursor focus, active slide indicator, and 2D arrow/hjkl navigation
 - **Live File Watch & Hot-Reload**: Start with `-w` or `--watch` to auto-reload on file edits from external editors/IDEs, or press `r` / `R` anytime to reload manually (safeguards protect active in-app edit sessions)
 - **CLI Options**: `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
@@ -184,7 +186,7 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **91.2% statement coverage** in `internal/` with 69 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **90.8% statement coverage** in `internal/` with 74 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

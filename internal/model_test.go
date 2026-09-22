@@ -549,6 +549,52 @@ Fourth concept
 	}
 }
 
+func TestSlideSummary(t *testing.T) {
+	s1 := Slide{
+		Blocks: []Block{
+			{Kind: BlockHeading, Level: 1, Text: "Introduction"},
+			{Kind: BlockParagraph, Text: "Welcome to the talk."},
+		},
+	}
+	if sum := s1.Summary(); sum != "2 blks" {
+		t.Errorf("expected '2 blks', got %q", sum)
+	}
+
+	s2 := Slide{
+		Blocks: []Block{
+			{Kind: BlockHeading, Level: 1, Text: "Code Sample"},
+			{Kind: BlockCode, Lang: "go", Lines: []string{"func main() {}"}},
+			{Kind: BlockTable, Lines: []string{"| a | b |", "|---|---|"}},
+		},
+	}
+	if sum := s2.Summary(); sum != "3 blks · code,table" {
+		t.Errorf("expected '3 blks · code,table', got %q", sum)
+	}
+
+	s3 := Slide{
+		Blocks: []Block{
+			{Kind: BlockHeading, Level: 1, Text: "Sprint Tasks"},
+			{Kind: BlockList, Text: "- [ ] Write tests"},
+			{Kind: BlockCallout, Callout: "tip", Text: "Keep it DRY"},
+			{Kind: BlockImage, Src: "demo.png"},
+			{Kind: BlockDirective, Directive: "::notes reminder"},
+		},
+	}
+	// Note block is not visible, so 4 visible blocks
+	if sum := s3.Summary(); sum != "4 blks · card,img,task" {
+		t.Errorf("expected '4 blks · card,img,task', got %q", sum)
+	}
+
+	sSingle := Slide{
+		Blocks: []Block{
+			{Kind: BlockHeading, Level: 1, Text: "Single Block"},
+		},
+	}
+	if sum := sSingle.Summary(); sum != "1 blk" {
+		t.Errorf("expected '1 blk', got %q", sum)
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

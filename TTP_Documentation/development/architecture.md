@@ -527,3 +527,37 @@ flowchart TD
 3. **Slide Index Clamping**: After reloading, `e.SlideIdx` and `e.ClampBlockIdx(d)` clamp to valid bounds of the reloaded deck without resetting the presenter's active slide.
 4. **Manual Refresh (`r` / `R`)**: Users can trigger `Reload()` directly via keyboard without leaving presentation view.
 
+---
+
+## 11. Slide Overview & 2D Grid Sorter Subsystem (`o` / `O`)
+
+For non-linear presentation navigation, Q&A sessions, and high-level deck exploration, Termdeck includes a terminal-native visual grid overview:
+
+```mermaid
+flowchart TD
+    PressO["User presses 'o' or 'O' in ModeNav"] --> Open["ShowOverview = true\nOverviewCursor = SlideIdx"]
+    Open --> Key{"User Input"}
+    
+    Key -->|Arrows / hjkl| MoveCursor["2D Grid Navigation\n(Cursor ± 1 for Left/Right, Cursor ± Cols for Up/Down)"]
+    Key -->|g / G| JumpBoundary["g -> First Slide (0)\nG -> Last Slide (len-1)"]
+    Key -->|Enter / Space| Select["SlideIdx = OverviewCursor\nBlockIdx = 0\nShowOverview = false"]
+    Key -->|Esc / o / q| Cancel["ShowOverview = false\n(SlideIdx Unchanged)"]
+    
+    MoveCursor --> View["renderOverviewModal()"]
+    JumpBoundary --> View
+    View --> Window["Responsive Column Fitting (1 to 3 cols)\n+ Viewport Row Pagination"]
+```
+
+### Architectural Highlights:
+1. **Responsive Card Geometry**:
+   Calculates card width dynamically based on terminal columns ($cardW \approx (w - 6 - (cols-1)\times 2)/cols$). Adapts smoothly between 1 column (compact screens $<54$ cols), 2 columns ($54$–$73$ cols), and 3 columns ($\ge 74$ cols).
+2. **Smooth Viewport Pagination**:
+   Calculates `cursorRow := cursor / cols` and maintains a sliding window `[startRow, endRow]` bounded by `maxVisibleRows`. If a deck contains 50+ slides, users can navigate vertically with indicator arrows (`▲ more slides above`, `▼ more slides below`) without terminal canvas overflow.
+3. **Element Metadata Summarizer (`Slide.Summary()`)**:
+   Inspects each slide's block graph to report concise technical components (`code`, `table`, `card`, `task`, `img`) alongside visible block counts.
+4. **Visual Hierarchy & State Badging**:
+   - Focused card: Rounded border in `currentTheme.Laser` with `▶ #N` marker.
+   - Active presentation slide: Rounded border in `currentTheme.Success` with `● ACTIVE` badge.
+   - Other slides: Rounded border in `currentTheme.DimTrack`.
+
+

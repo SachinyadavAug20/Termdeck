@@ -119,6 +119,7 @@ Controls:
   Navigation:   → / l / Space / Enter (next), ← / h / Backspace (prev)
   Pointer:      ↓ / j (down), ↑ / k (up)
   Jumps:        / (jump to slide by number/search), g (first), G (last)
+  Overview:     o / O (slide overview & 2D grid sorter)
   Theme:        t / T / f2 (cycle color themes: tokyo-night, dracula, nord, ...)
   Zen Mode:     z (toggle distraction-free zen mode)
   Line numbers: L (toggle code block line numbers)

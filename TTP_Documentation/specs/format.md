@@ -177,6 +177,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `↓`, `j` | Move block cursor / laser pointer down |
 | `↑`, `k` | Move block cursor / laser pointer up |
 | `/` | Quick Jump to slide (by number or title search) |
+| `o`, `O` | Slide Overview & 2D Grid Sorter (navigate cards, Enter to jump) |
 | `?`, `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t`, `T`, `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) & auto-save |
 | `z` | Toggle distraction-free zen mode (hides status bar) |

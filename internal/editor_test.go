@@ -372,7 +372,7 @@ func TestEditorHandleKeyNav(t *testing.T) {
 	// 12. Entering edit mode
 	ed.SlideIdx = 0
 	ed.BlockIdx = 0
-	for _, k := range []string{"i", "a", "o", "I", "A", "O"} {
+	for _, k := range []string{"i", "a", "I", "A"} {
 		ed.Mode = ModeNav
 		sendTestKey(&ed, &d, k)
 		if ed.Mode != ModeEdit {
@@ -1120,5 +1120,117 @@ func TestEditorReloadKeyNav(t *testing.T) {
 	}
 	if ed.Message != "reloaded from disk" {
 		t.Errorf("expected message 'reloaded from disk', got %q", ed.Message)
+	}
+}
+
+func TestEditorSlideOverview(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 1"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 2"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 3"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 4"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 5"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	ed.SlideIdx = 1
+
+	// 1. Press 'o' to open overview
+	sendTestKey(&ed, &d, "o")
+	if !ed.ShowOverview {
+		t.Errorf("expected ShowOverview true on 'o'")
+	}
+	if ed.OverviewCursor != 1 {
+		t.Errorf("expected OverviewCursor initialized to current SlideIdx 1, got %d", ed.OverviewCursor)
+	}
+
+	// 2. Navigate right / l
+	sendTestKey(&ed, &d, "right")
+	if ed.OverviewCursor != 2 {
+		t.Errorf("expected OverviewCursor 2 after right arrow, got %d", ed.OverviewCursor)
+	}
+	sendTestKey(&ed, &d, "l")
+	if ed.OverviewCursor != 3 {
+		t.Errorf("expected OverviewCursor 3 after 'l', got %d", ed.OverviewCursor)
+	}
+
+	// 3. Navigate left / h
+	sendTestKey(&ed, &d, "left")
+	if ed.OverviewCursor != 2 {
+		t.Errorf("expected OverviewCursor 2 after left arrow, got %d", ed.OverviewCursor)
+	}
+	sendTestKey(&ed, &d, "h")
+	if ed.OverviewCursor != 1 {
+		t.Errorf("expected OverviewCursor 1 after 'h', got %d", ed.OverviewCursor)
+	}
+
+	// 4. Navigate down / j (3 cols by default)
+	// Cursor 1 + 3 = 4 (slide 5)
+	sendTestKey(&ed, &d, "down")
+	if ed.OverviewCursor != 4 {
+		t.Errorf("expected OverviewCursor 4 after down arrow, got %d", ed.OverviewCursor)
+	}
+
+	// Down at bottom clamps
+	sendTestKey(&ed, &d, "j")
+	if ed.OverviewCursor != 4 {
+		t.Errorf("expected OverviewCursor clamped at 4, got %d", ed.OverviewCursor)
+	}
+
+	// 5. Navigate up / k (Cursor 4 - 3 = 1)
+	sendTestKey(&ed, &d, "up")
+	if ed.OverviewCursor != 1 {
+		t.Errorf("expected OverviewCursor 1 after up arrow, got %d", ed.OverviewCursor)
+	}
+
+	// 6. Navigate g / G
+	sendTestKey(&ed, &d, "G")
+	if ed.OverviewCursor != 4 {
+		t.Errorf("expected OverviewCursor 4 after G, got %d", ed.OverviewCursor)
+	}
+	sendTestKey(&ed, &d, "g")
+	if ed.OverviewCursor != 0 {
+		t.Errorf("expected OverviewCursor 0 after g, got %d", ed.OverviewCursor)
+	}
+
+	// 7. Jump on Enter
+	ed.OverviewCursor = 3 // Slide 4
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowOverview {
+		t.Errorf("expected ShowOverview false after Enter")
+	}
+	if ed.SlideIdx != 3 {
+		t.Errorf("expected SlideIdx 3 after jump, got %d", ed.SlideIdx)
+	}
+	if !strings.Contains(ed.Message, "jumped to slide 4/5") {
+		t.Errorf("expected jump message, got %q", ed.Message)
+	}
+
+	// 8. Open and cancel with Esc
+	sendTestKey(&ed, &d, "O")
+	if !ed.ShowOverview {
+		t.Errorf("expected ShowOverview true after 'O'")
+	}
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowOverview {
+		t.Errorf("expected ShowOverview false after esc")
+	}
+
+	// 9. Open and cancel with 'o' toggle
+	sendTestKey(&ed, &d, "o")
+	sendTestKey(&ed, &d, "o")
+	if ed.ShowOverview {
+		t.Errorf("expected ShowOverview false after toggling 'o' again")
+	}
+
+	// 10. Close overview with 'q'
+	sendTestKey(&ed, &d, "o")
+	cmd := sendTestKey(&ed, &d, "q")
+	if ed.ShowOverview {
+		t.Errorf("expected ShowOverview false after 'q'")
+	}
+	if cmd != nil {
+		t.Errorf("expected nil cmd from 'q' in overview modal (not quit application)")
 	}
 }

@@ -182,6 +182,7 @@ Full keyboard control designed for efficient presenting:
 
 - `←/→` or `j/k` — next/prev slide or block
 - `/` — quick slide jump (number or live title search)
+- `o` / `O` — slide overview & 2D grid sorter (visual deck map)
 - `c` / `C` — toggle presentation stopwatch / reset timer
 - `r` / `R` — reload deck file from disk (`-w` flag for auto-watch)
 - `L` — toggle code block line numbers

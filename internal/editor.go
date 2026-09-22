@@ -61,12 +61,16 @@ type Editor struct {
 	TimerStart      time.Time
 	WatchMode       bool
 	Theme           string
+	ShowOverview    bool
+	OverviewCursor  int
+	OverviewCols    int
 }
 
 func NewEditor(filePath string) Editor {
 	return Editor{
-		Mode:     ModeNav,
-		FilePath: filePath,
+		Mode:         ModeNav,
+		FilePath:     filePath,
+		OverviewCols: 3,
 	}
 }
 
@@ -498,6 +502,63 @@ func (e *Editor) HandleKey(msg tea.KeyMsg, d *Deck) tea.Cmd {
 }
 
 func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
+	if e.ShowOverview {
+		cols := e.OverviewCols
+		if cols <= 0 {
+			cols = 3
+		}
+		totalSlides := len(d.Slides)
+		switch key {
+		case "esc", "o", "O":
+			e.ShowOverview = false
+			e.Message = ""
+			return nil
+		case "left", "h":
+			if e.OverviewCursor > 0 {
+				e.OverviewCursor--
+			}
+			return nil
+		case "right", "l":
+			if e.OverviewCursor < totalSlides-1 {
+				e.OverviewCursor++
+			}
+			return nil
+		case "up", "k":
+			if e.OverviewCursor-cols >= 0 {
+				e.OverviewCursor -= cols
+			}
+			return nil
+		case "down", "j":
+			if e.OverviewCursor+cols < totalSlides {
+				e.OverviewCursor += cols
+			} else if e.OverviewCursor < totalSlides-1 {
+				e.OverviewCursor = totalSlides - 1
+			}
+			return nil
+		case "enter", " ":
+			if e.OverviewCursor >= 0 && e.OverviewCursor < totalSlides {
+				e.SlideIdx = e.OverviewCursor
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				e.Message = fmt.Sprintf("jumped to slide %d/%d", e.SlideIdx+1, totalSlides)
+			}
+			e.ShowOverview = false
+			return nil
+		case "g", "home":
+			e.OverviewCursor = 0
+			return nil
+		case "G", "end":
+			if totalSlides > 0 {
+				e.OverviewCursor = totalSlides - 1
+			}
+			return nil
+		case "q", "ctrl+c":
+			e.ShowOverview = false
+			return nil
+		}
+		return nil
+	}
+
 	switch key {
 	case "q", "ctrl+c":
 		if e.Dirty && e.FilePath != "" {
@@ -587,7 +648,15 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 	case "x":
 		e.ToggleTask(d)
 
-	case "i", "a", "o", "I", "A", "O":
+	case "o", "O":
+		e.ShowOverview = true
+		e.OverviewCursor = e.SlideIdx
+		if e.OverviewCols <= 0 {
+			e.OverviewCols = 3
+		}
+		e.Message = "slide overview (arrows/hjkl to navigate, enter to jump, esc/o to close)"
+
+	case "i", "a", "I", "A":
 		e.EnterEdit(d)
 
 	case "ctrl+n":
@@ -676,6 +745,10 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 	case "esc":
 		if e.ShowHelp {
 			e.ShowHelp = false
+			return nil
+		}
+		if e.ShowOverview {
+			e.ShowOverview = false
 			return nil
 		}
 		e.Message = ""

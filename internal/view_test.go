@@ -853,6 +853,74 @@ func TestWatchModeView(t *testing.T) {
 	}
 }
 
+func TestOverviewModalView(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Architecture Overview"}}},
+			{Blocks: []Block{
+				{Kind: BlockHeading, Level: 1, Text: "Code Details"},
+				{Kind: BlockCode, Lang: "go", Lines: []string{"func run() {}"}},
+			}},
+			{Blocks: []Block{
+				{Kind: BlockHeading, Level: 1, Text: "Task List"},
+				{Kind: BlockList, Text: "- [x] Done"},
+			}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 4"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 5"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 6"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 7"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Slide 8"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	ed.SlideIdx = 0
+	ed.ShowOverview = true
+	ed.OverviewCursor = 1 // Cursor on Slide 2
+
+	// 1. Standard 80x24 view
+	out := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(out, "Slide Overview & Grid Sorter") {
+		t.Errorf("expected overview title in view output, got: %s", out)
+	}
+	if !strings.Contains(out, "Architecture") {
+		t.Errorf("expected slide 1 title 'Architecture' in overview")
+	}
+	if !strings.Contains(out, "Code Details") {
+		t.Errorf("expected slide 2 title in overview")
+	}
+	if !strings.Contains(out, "▶ #2") {
+		t.Errorf("expected cursor pointer on slide #2, got: %s", out)
+	}
+	if !strings.Contains(out, "code") {
+		t.Errorf("expected 'code' summary in slide #2 card")
+	}
+
+	// 2. Narrow terminal width (e.g. 50 cols -> 1 or 2 cols)
+	narrowOut := stripANSI(View(d, ed, 50, 20))
+	if !strings.Contains(narrowOut, "Slide Overview & Grid Sorter") {
+		t.Errorf("expected overview title in narrow view")
+	}
+
+	// 3. Very small height triggers pagination
+	shortOut := stripANSI(View(d, ed, 80, 14))
+	if !strings.Contains(shortOut, "Slide Overview & Grid Sorter") {
+		t.Errorf("expected overview title in short view")
+	}
+
+	// 4. Help modal lists 'o / O'
+	help := stripANSI(renderHelpModal(80, 24))
+	if !strings.Contains(help, "o / O") || !strings.Contains(help, "Slide overview & grid sorter") {
+		t.Errorf("expected help modal to document 'o / O', got: %s", help)
+	}
+
+	// 5. navStatus lists 'o grid'
+	ed.ShowOverview = false
+	status := stripANSI(navStatus(d, ed, 120))
+	if !strings.Contains(status, "o grid") {
+		t.Errorf("expected navStatus to show 'o grid', got: %s", status)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

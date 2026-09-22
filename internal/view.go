@@ -807,6 +807,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Next slide")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h, Backspace"), currentTheme.HelpDescStyle.Render("Previous slide")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("/"), currentTheme.HelpDescStyle.Render("Jump to slide (number or search)")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("o / O"), currentTheme.HelpDescStyle.Render("Slide overview & grid sorter")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j"), currentTheme.HelpDescStyle.Render("Move laser pointer down")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↑, k"), currentTheme.HelpDescStyle.Render("Move laser pointer up")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("g / G"), currentTheme.HelpDescStyle.Render("First / Last slide")))
@@ -928,6 +929,162 @@ func renderJumpModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderOverviewModal(d Deck, e Editor, w, h int) string {
+	totalSlides := len(d.Slides)
+	if totalSlides == 0 {
+		return ""
+	}
+
+	modalW := w - 4
+	if modalW > 84 {
+		modalW = 84
+	}
+	if modalW < 36 {
+		modalW = 36
+	}
+
+	cols := 3
+	if modalW < 54 {
+		cols = 1
+	} else if modalW < 74 {
+		cols = 2
+	}
+
+	// Width of each card
+	cardW := (modalW - 6 - (cols-1)*2) / cols
+	if cardW < 18 {
+		cardW = 18
+	}
+
+	cursor := e.OverviewCursor
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor >= totalSlides {
+		cursor = totalSlides - 1
+	}
+
+	cursorRow := cursor / cols
+	totalRows := (totalSlides + cols - 1) / cols
+
+	// Determine how many rows we can display
+	maxVisibleRows := (h - 9) / 4
+	if maxVisibleRows < 1 {
+		maxVisibleRows = 1
+	}
+	if maxVisibleRows > 4 {
+		maxVisibleRows = 4
+	}
+
+	startRow := 0
+	if cursorRow >= maxVisibleRows {
+		startRow = cursorRow - maxVisibleRows + 1
+	}
+	endRow := startRow + maxVisibleRows
+	if endRow > totalRows {
+		endRow = totalRows
+	}
+
+	var sb strings.Builder
+	title := currentTheme.HelpTitleStyle.Render("🗂  Slide Overview & Grid Sorter")
+	sb.WriteString(title + "\n")
+	sb.WriteString(dimStyle.Render(fmt.Sprintf("%d slides · slide %d/%d selected", totalSlides, cursor+1, totalSlides)) + "\n\n")
+
+	if startRow > 0 {
+		sb.WriteString(dimStyle.Render("  ▲  more slides above") + "\n")
+	}
+
+	for r := startRow; r < endRow; r++ {
+		var rowCards []string
+		for c := 0; c < cols; c++ {
+			idx := r*cols + c
+			if idx >= totalSlides {
+				emptyStyle := lipgloss.NewStyle().Width(cardW + 2)
+				rowCards = append(rowCards, emptyStyle.Render(""))
+				continue
+			}
+
+			slide := d.Slides[idx]
+			isCursor := idx == cursor
+			isCurrent := idx == e.SlideIdx
+
+			// Header line: #N and badges
+			numStr := fmt.Sprintf("#%d", idx+1)
+			if isCursor {
+				numStr = "▶ " + numStr
+			} else {
+				numStr = "  " + numStr
+			}
+			if isCurrent {
+				numStr += " " + currentTheme.ProgressLineFilledStyle.Render("●")
+			}
+
+			// Title line: truncated
+			titleText := slide.Title()
+			maxTitleLen := cardW - 4
+			if maxTitleLen < 8 {
+				maxTitleLen = 8
+			}
+			if len(titleText) > maxTitleLen {
+				titleText = titleText[:maxTitleLen-3] + "..."
+			}
+
+			// Summary line: blks, code, etc.
+			sumText := slide.Summary()
+			maxSumLen := cardW - 4
+			if maxSumLen < 8 {
+				maxSumLen = 8
+			}
+			if len(sumText) > maxSumLen {
+				sumText = sumText[:maxSumLen-3] + "..."
+			}
+
+			var cardContent string
+			if isCursor {
+				cardContent = currentTheme.HelpKeyStyle.Render(numStr) + "\n" +
+					dimBoldStyle.Render(titleText) + "\n" +
+					dimStyle.Render(sumText)
+			} else if isCurrent {
+				cardContent = currentTheme.HelpDescStyle.Render(numStr) + "\n" +
+					currentTheme.TableCellStyle.Render(titleText) + "\n" +
+					dimStyle.Render(sumText)
+			} else {
+				cardContent = dimBoldStyle.Render(numStr) + "\n" +
+					currentTheme.TableCellStyle.Render(titleText) + "\n" +
+					dimStyle.Render(sumText)
+			}
+
+			// Border
+			cardBorder := lipgloss.RoundedBorder()
+			borderColor := lipgloss.Color(currentTheme.DimTrack)
+			if isCursor {
+				borderColor = lipgloss.Color(currentTheme.Laser)
+			} else if isCurrent {
+				borderColor = lipgloss.Color(currentTheme.Success)
+			}
+
+			cStyle := lipgloss.NewStyle().
+				Border(cardBorder).
+				BorderForeground(borderColor).
+				Width(cardW).
+				Height(3).
+				Padding(0, 1)
+
+			rowCards = append(rowCards, cStyle.Render(cardContent))
+		}
+		sb.WriteString(lipgloss.JoinHorizontal(lipgloss.Top, rowCards...) + "\n")
+	}
+
+	if endRow < totalRows {
+		sb.WriteString(dimStyle.Render("  ▼  more slides below") + "\n")
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("←/→/↑/↓ or hjkl: navigate · Enter/Space: jump to slide · Esc/o: close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 // --- Full view ---
 
 func View(d Deck, e Editor, width, height int) string {
@@ -946,6 +1103,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowHelp {
 		return renderHelpModal(width, height)
+	}
+
+	if e.ShowOverview {
+		return renderOverviewModal(d, e, width, height)
 	}
 
 	if e.Mode == ModePrompt {
@@ -1106,7 +1267,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · o grid · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }
