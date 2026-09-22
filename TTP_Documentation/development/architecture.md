@@ -19,6 +19,7 @@ This document provides a comprehensive technical breakdown of **Termdeck (`deck`
 11. [Slide Overview & 2D Grid Sorter Subsystem (`o` / `O`)](#11-slide-overview--2d-grid-sorter-subsystem-o--o)
 12. [Terminal Clipboard Subsystem (OSC 52) & Screen Blanking](#12-terminal-clipboard-subsystem-osc-52--screen-blanking)
 13. [Standalone Offline HTML Export Subsystem (`--export-html` & `E`)](#13-standalone-offline-html-export-subsystem---export-html--e)
+14. [Talk Statistics & Sprint Velocity Subsystem (`S` & `--stats`)](#14-talk-statistics--sprint-velocity-subsystem-s---stats)
 
 ---
 
@@ -622,6 +623,37 @@ flowchart TD
    The active Termdeck theme palette (`Tokyo Night`, `Dracula`, `Catppuccin`, `Nord`, etc.) is injected as CSS variables (`--bg`, `--fg`, `--laser`, `--title`, `--dim`, `--card-bg`), preserving pixel-accurate visual identity across terminal and web.
 5. **Universal Keyboard & Touch Runner**:
    The embedded vanilla JS runtime handles `ArrowRight`, `ArrowLeft`, `Space`, `Enter`, `h`, `l`, `g` (start), `G` (end), `f` (browser fullscreen API), and touch swipe navigation on mobile devices with smooth fade transitions.
+
+---
+
+## 14. Talk Statistics & Sprint Velocity Subsystem (`S` & `--stats`)
+
+To empower technical presenters during lightning talks, conference preparations, and agile sprint reviews, Termdeck includes a real-time presentation intelligence engine:
+
+```mermaid
+flowchart TD
+    Trigger["Stats Trigger\n('S' in ModeNav OR --stats CLI flag)"] --> Engine["internal.CalculateStats(deck, activeSlideIdx)"]
+    Engine --> Words["Word Counter (Whitespace Fields)\nHeadings, Paragraphs, Code, Tables, Callouts, Notes"]
+    Engine --> Pacing["Pacing Estimator\n130 Words/Minute Delivery Benchmark"]
+    Engine --> Velocity["Task Checklist Aggregator\n- [ ] Unfinished vs - [x] Completed\nPercentage & Visual Progress Bar"]
+    Engine --> Density["Element Density Tally\nCode Blocks/Lines, Tables, Callouts, Media"]
+
+    Velocity --> Bar["RenderProgressBar(percent, width, filled, empty)"]
+    Bar --> TUI["renderStatsModal() -> Lipgloss Card"]
+    Bar --> CLI["FormatStatsCLI() -> Terminal Output"]
+```
+
+### Architectural Highlights & Invariants:
+
+1. **Deterministic Pacing Estimation**:
+   Aggregates total word counts across all visible blocks plus private speaker notes. Uses the industry-standard technical talk delivery benchmark of **130 words per minute** ($\approx 2.16$ words per second) to compute precise talk durations down to minutes and seconds (`~7 min 13 sec`).
+2. **Sprint Velocity & Checklist Quantification**:
+   Scans `BlockList` elements for markdown checklist markers (`- [ ]` vs `- [x]`). Dynamically computes sprint completion percentage and renders a themed Unicode progress bar (`[████████░░] N/M (X%)`).
+3. **Dual Interactive & Scriptable Reporting**:
+   - In TUI mode: Pressing `S` toggles a high-contrast Lipgloss card (`renderStatsModal`) with immediate keyboard dismissal (`Esc`, `S`, `q`).
+   - In CLI mode: `deck --stats demo.deck.md` evaluates the deck without launching Bubble Tea or entering the alternate screen buffer, outputting clean ANSI terminal text suited for CI/CD assertions and automated git hooks.
+4. **Slide Context Clamping**:
+   When active slide metrics are reported, `CalculateStats` safely clamps the slide index to `[0, TotalSlides-1]`, guaranteeing zero out-of-bounds panics during live edits or rapid navigation.
 
 
 

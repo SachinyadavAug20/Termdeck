@@ -825,6 +825,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("E"), currentTheme.HelpDescStyle.Render("Export presentation to HTML")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("S"), currentTheme.HelpDescStyle.Render("Presentation statistics & deck metrics")))
 
 	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  LIVE EDITOR") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("i"), currentTheme.HelpDescStyle.Render("Edit focused block")))
@@ -1088,6 +1089,60 @@ func renderOverviewModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderStatsModal(d Deck, e Editor, w, h int) string {
+	modalW := 66
+	if modalW > w-4 {
+		modalW = w - 4
+	}
+	if modalW < 36 {
+		modalW = 36
+	}
+
+	stats := CalculateStats(&d, e.SlideIdx)
+	var sb strings.Builder
+
+	title := currentTheme.HelpTitleStyle.Render("📊 Presentation Statistics & Deck Metrics")
+	sb.WriteString(title + "\n\n")
+
+	sb.WriteString(currentTheme.HelpHeaderStyle.Render("  DECK METRICS") + "\n")
+	durStr := fmt.Sprintf("~%d min %02d sec (130 WPM)", stats.EstDurationMin, stats.EstDurationSec)
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Total Slides:"), currentTheme.TableCellStyle.Render(fmt.Sprintf("%d slides · %d blocks", stats.TotalSlides, stats.TotalBlocks))))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Total Word Count:"), currentTheme.TableCellStyle.Render(fmt.Sprintf("%d words", stats.TotalWords))))
+	if stats.NotesWords > 0 {
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Speaker Notes:"), currentTheme.TableCellStyle.Render(fmt.Sprintf("%d words", stats.NotesWords))))
+	}
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Est. Speaking Time:"), currentTheme.LaserPointerStyle.Render(durStr)))
+
+	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  TECHNICAL DENSITY") + "\n")
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Code Blocks:"), currentTheme.TableCellStyle.Render(fmt.Sprintf("%d blocks (%d code lines)", stats.CodeBlocks, stats.CodeLines))))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Tables & Callouts:"), currentTheme.TableCellStyle.Render(fmt.Sprintf("%d tables · %d callouts", stats.TableBlocks, stats.CalloutBlocks))))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Media & Dividers:"), currentTheme.TableCellStyle.Render(fmt.Sprintf("%d image cards · %d dividers", stats.ImageBlocks, stats.DividerBlocks))))
+
+	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  SPRINT TASK COMPLETION") + "\n")
+	if stats.TaskTotal > 0 {
+		bar := RenderProgressBar(stats.TaskPercent, 14, currentTheme.Success, currentTheme.DimTrack)
+		taskStr := fmt.Sprintf("%s  %d/%d completed (%.1f%%)", bar, stats.TaskCompleted, stats.TaskTotal, stats.TaskPercent)
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Checklist Velocity:"), currentTheme.TableCellStyle.Render(taskStr)))
+	} else {
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Checklist Velocity:"), dimStyle.Render("no task checklists found")))
+	}
+
+	if stats.TotalSlides > 0 {
+		sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  ACTIVE SLIDE") + "\n")
+		slideTitle := stats.CurrentSlideTitle
+		if len(slideTitle) > 34 {
+			slideTitle = slideTitle[:34] + "..."
+		}
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Active Slide:"), currentTheme.TableHeaderStyle.Render(fmt.Sprintf("#%d: %s", stats.CurrentSlideIdx+1, slideTitle))))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", dimBoldStyle.Render("Slide Breakdown:"), currentTheme.TableCellStyle.Render(fmt.Sprintf("%d blocks · %d words", stats.CurrentSlideBlocks, stats.CurrentSlideWords))))
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("Press Esc, S, or q to close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 func renderBlankScreen(w, h int) string {
 	msg := dimStyle.Render("●  presentation paused  ·  press any key to resume")
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
@@ -1115,6 +1170,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowHelp {
 		return renderHelpModal(width, height)
+	}
+
+	if e.ShowStats {
+		return renderStatsModal(d, e, width, height)
 	}
 
 	if e.ShowOverview {
@@ -1279,7 +1338,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · o grid · y yank · E export · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · o grid · y yank · E export · S stats · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

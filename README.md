@@ -31,7 +31,8 @@ deck demo.deck.md
 - [x] Code Yank to Clipboard (`y` / `Y`) with OSC 52 ANSI escape codes and system clipboard fallback
 - [x] Presentation Screen Blackout (`b` / `B`) to refocus audience attention with instant any-key resume
 - [x] Standalone Offline HTML Deck Export (`--export-html` flag and `E` key) with zero dependencies and embedded base64 assets
-- [x] 80 automated unit tests with comprehensive coverage (90.6% in internal/) and zero regressions
+- [x] Talk Statistics & Sprint Velocity Metrics (`S` key and `--stats` CLI flag) with speaking time estimation (130 WPM) and checklist velocity bar
+- [x] 86 automated unit tests with comprehensive coverage (91.0% in internal/) and zero regressions
 
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
@@ -81,7 +82,9 @@ tpp/
 │   ├── export.go        # Standalone HTML export, CSS/JS bundling, base64 images
 │   ├── export_test.go   # HTML export tests, formatting, file output verification
 │   ├── image.go         # Terminal image renderer (ANSI half-blocks)
-│   └── image_test.go    # Path resolution, format probing, card tests
+│   ├── image_test.go    # Path resolution, format probing, card tests
+│   ├── stats.go         # Talk statistics, density metrics, duration estimation
+│   └── stats_test.go    # Metrics calculation, progress bar, CLI format tests
 ├── demo.deck.md         # Sample deck
 ├── git_under_the_hood.deck.md # Deep-dive example presentation
 ├── Makefile             # Developer automation (test, coverage, lint, bench, build)
@@ -111,6 +114,7 @@ deck [options] <file.deck.md>
 #   -t, --theme <name>   Set presentation theme
 #       --list-themes    List all available themes
 #   -w, --watch          Watch file for external changes and auto-reload
+#       --stats          Print presentation statistics and metrics to terminal
 #       --export-html    Export presentation to standalone HTML file
 #   -h, --help           Show help
 #   -v, --version        Show version
@@ -134,6 +138,7 @@ deck [options] <file.deck.md>
 | `y` / `Y` | Yank focused code block or text to clipboard (OSC 52 + system) |
 | `b` / `B` | Blank/blackout presentation screen (any key resumes) |
 | `E` | Export deck to standalone offline HTML presentation |
+| `S` | Talk statistics & sprint deck metrics modal |
 | `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |

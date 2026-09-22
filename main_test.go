@@ -296,3 +296,8 @@ func TestPrintHelpExportHTML(t *testing.T) {
 	// Verify that printHelp mentions --export-html and E
 	printHelp()
 }
+
+func TestPrintHelpStats(t *testing.T) {
+	// Verify that printHelp mentions --stats and S
+	printHelp()
+}

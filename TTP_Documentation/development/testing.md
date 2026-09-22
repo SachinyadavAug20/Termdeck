@@ -23,7 +23,8 @@ tpp/
 │   ├── export_test.go       # HTML export formatting, CSS/JS bundling, file generation
 │   ├── view_test.go         # Syntax highlighting, inline styles, Lipgloss layout
 │   ├── model_test.go        # Parser edge cases, directives, round-trip serialization
-│   └── image_test.go        # Image path resolution, format probing, ASCII cards
+│   ├── image_test.go        # Image path resolution, format probing, ASCII cards
+│   └── stats_test.go        # Talk statistics, progress bar, CLI format tests
 └── Makefile                 # Developer automation
 ```
 
@@ -37,6 +38,7 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestBuildModel`: Tests loading valid decks, non-existent files, and empty files (asserting "no slides found").
 - `TestPrintHelp`: Verifies CLI help message and key controls formatting.
 - `TestPrintHelpExportHTML`: Asserts `--export-html` is documented in CLI help output.
+- `TestPrintHelpStats`: Asserts `--stats` and `S` control are documented in CLI help output.
 - `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
 - `TestModelUpdateTickMsg`: Verifies Bubble Tea model dispatches `TickCmd()` only when timer is enabled, avoiding background polling overhead.
 - `TestModelInitWatchMode`: Asserts `WatchCmd()` is initialized when `-w` / `--watch` CLI flag is set.
@@ -145,6 +147,14 @@ Tests single-file self-contained HTML presentation generation:
 - `TestExportHTMLFile`: Hermetic disk test asserting file creation, `.deck.md` trimming, and base64 asset encoding.
 - `TestEditorExportHTML`: Asserts `editor.ExportHTML()` writes file to expected path with correct status update.
 
+### H. Presentation Statistics & Pacing — `internal/stats_test.go`
+Tests presentation metrics calculation, speaking pacing estimates, and sprint velocity reporting:
+- `TestCalculateStats`: Asserts metrics accuracy, block tallies, word counting, task completion, speaking duration, and index boundary clamping.
+- `TestRenderProgressBar`: Verifies Unicode progress bar formatting at 0%, 50%, 100%, and boundary values.
+- `TestFormatStatsCLI`: Asserts CLI report contains all section headers, values, and handles empty tasks.
+- `TestEditorStatsModalAndKeyNav`: Validates opening modal with `S`, closing with `Esc`/`q`/`S`.
+- `TestRenderStatsModalView`: Asserts modal card styling and full-view rendering.
+
 ---
 
 ## 3. Developer Tooling (`Makefile`)
@@ -181,13 +191,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (80 unit tests):
+Statement coverage across packages (86 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
-| `deck` (root) | 26.5% | Covers model, update loop, flags, live watch loop (excluding `main()` process exit) |
-| `deck/internal` | 90.6% | Exceeds >90% target across all core modules |
-| **Total Project** | **87.2%** | **PASSED** |
+| `deck` (root) | 23.3% | Covers model, update loop, flags, live watch loop (excluding `main()` process exit) |
+| `deck/internal` | 91.0% | Exceeds >90% target across all core modules |
+| **Total Project** | **87.3%** | **PASSED** |
 
 ---
 

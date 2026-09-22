@@ -112,6 +112,7 @@ Options:
   -t, --theme <name>   Set presentation color theme
       --list-themes    List all available color themes
   -w, --watch          Watch deck file for external changes and auto-reload
+      --stats          Print presentation statistics and deck metrics to terminal
       --export-html    Export presentation to standalone HTML file
   -v, --version        Show version information
   -h, --help           Show this help message
@@ -129,6 +130,7 @@ Controls:
   Yank:         y / Y (yank focused code/block to system clipboard)
   Blank Screen: b / B (blank presentation screen, any key resumes)
   Export HTML:  E (export deck to standalone HTML presentation)
+  Stats:        S (presentation statistics & deck metrics)
   Notes:        n (toggle speaker notes overlay)
   Alignment:    Tab / ctrl+a (cycle left/center/right alignment)
   Media:        p (open focused image card in desktop viewer)
@@ -146,6 +148,7 @@ func main() {
 	var watchMode bool
 	var exportHTML bool
 	var exportOutPath string
+	var showStats bool
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -161,6 +164,8 @@ func main() {
 			listThemes = true
 		case arg == "-w" || arg == "--watch":
 			watchMode = true
+		case arg == "--stats":
+			showStats = true
 		case arg == "--export-html":
 			exportHTML = true
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") && !strings.HasSuffix(args[i+1], ".deck.md") && !strings.HasSuffix(args[i+1], ".md") {
@@ -232,6 +237,28 @@ func main() {
 			os.Exit(1)
 		}
 		fmt.Printf("Exported presentation to %s\n", outPath)
+		return
+	}
+
+	if showStats {
+		if len(fileArgs) < 1 {
+			fmt.Fprintln(os.Stderr, "error: missing deck file for --stats")
+			os.Exit(1)
+		}
+		deckFile := fileArgs[0]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
+			os.Exit(1)
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		if cliTheme != "" {
+			d.Theme = cliTheme
+		}
+		theme := internal.ResolveTheme(d.Theme)
+		stats := internal.CalculateStats(&d, 0)
+		fmt.Print(internal.FormatStatsCLI(stats, theme))
 		return
 	}
 

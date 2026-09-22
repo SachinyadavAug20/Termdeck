@@ -66,6 +66,7 @@ type Editor struct {
 	OverviewCursor  int
 	OverviewCols    int
 	ScreenBlank     bool
+	ShowStats       bool
 }
 
 func NewEditor(filePath string) Editor {
@@ -567,6 +568,15 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 	}
 
+	if e.ShowStats {
+		switch key {
+		case "esc", "S", "q", "ctrl+c":
+			e.ShowStats = false
+			return nil
+		}
+		return nil
+	}
+
 	switch key {
 	case "q", "ctrl+c":
 		if e.Dirty && e.FilePath != "" {
@@ -689,6 +699,14 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 	case "E":
 		_, _ = e.ExportHTML(d)
 
+	case "S":
+		e.ShowStats = !e.ShowStats
+		if e.ShowStats {
+			e.Message = "talk statistics (press 'S', 'q', or 'esc' to close)"
+		} else {
+			e.Message = "statistics closed"
+		}
+
 	case "i", "a", "I", "A":
 		e.EnterEdit(d)
 
@@ -782,6 +800,10 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		if e.ShowOverview {
 			e.ShowOverview = false
+			return nil
+		}
+		if e.ShowStats {
+			e.ShowStats = false
 			return nil
 		}
 		e.Message = ""

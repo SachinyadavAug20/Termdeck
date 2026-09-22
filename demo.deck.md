@@ -188,6 +188,7 @@ Full keyboard control designed for efficient presenting:
 - `o` / `O` — slide overview & 2D grid sorter (visual deck map)
 - `y` / `Y` — copy/yank focused code or block to system clipboard (OSC 52)
 - `E` — export deck to standalone offline HTML presentation
+- `S` — talk statistics & sprint deck metrics modal (`--stats` CLI flag)
 - `b` / `B` — blank/blackout presentation screen (any key resumes)
 - `c` / `C` — toggle presentation stopwatch / reset timer
 - `r` / `R` — reload deck file from disk (`-w` flag for auto-watch)
