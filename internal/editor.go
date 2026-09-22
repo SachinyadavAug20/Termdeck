@@ -381,6 +381,8 @@ func (e *Editor) HandleKey(msg tea.KeyMsg, d *Deck) tea.Cmd {
 		return e.handleNav(key, d)
 	case ModeEdit:
 		return e.handleEdit(key, d)
+	case ModePrompt:
+		return e.handlePrompt(key, d)
 	}
 	return nil
 }
@@ -410,6 +412,12 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		e.MoveDown(d)
 	case "up", "k":
 		e.MoveUp(d)
+
+	case "/":
+		e.Mode = ModePrompt
+		e.Draft = ""
+		e.CursorCol = 0
+		e.Message = "jump: enter slide number or search"
 
 	case "g":
 		e.SlideIdx = 0
@@ -604,4 +612,93 @@ func (e *Editor) handleEdit(key string, d *Deck) tea.Cmd {
 	}
 
 	return nil
+}
+
+func (e *Editor) handlePrompt(key string, d *Deck) tea.Cmd {
+	switch key {
+	case "esc", "ctrl+c":
+		e.Mode = ModeNav
+		e.Draft = ""
+		e.Message = ""
+		return nil
+
+	case "enter":
+		query := strings.TrimSpace(e.Draft)
+		e.Mode = ModeNav
+		e.Draft = ""
+		if query == "" {
+			e.Message = ""
+			return nil
+		}
+
+		var slideNum int
+		if n, err := fmt.Sscanf(query, "%d", &slideNum); err == nil && n == 1 {
+			target := slideNum - 1
+			if target < 0 {
+				target = 0
+			}
+			if target >= len(d.Slides) {
+				target = len(d.Slides) - 1
+			}
+			e.SlideIdx = target
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+			e.Message = fmt.Sprintf("jumped to slide %d/%d", target+1, len(d.Slides))
+			return nil
+		}
+
+		lowerQuery := strings.ToLower(query)
+		foundIdx := -1
+		for idx, slide := range d.Slides {
+			title := strings.ToLower(slide.Title())
+			if strings.Contains(title, lowerQuery) {
+				foundIdx = idx
+				break
+			}
+			foundInBlock := false
+			for _, b := range slide.Blocks {
+				if strings.Contains(strings.ToLower(b.Text), lowerQuery) {
+					foundInBlock = true
+					break
+				}
+				for _, l := range b.Lines {
+					if strings.Contains(strings.ToLower(l), lowerQuery) {
+						foundInBlock = true
+						break
+					}
+				}
+				if foundInBlock {
+					break
+				}
+			}
+			if foundInBlock {
+				foundIdx = idx
+				break
+			}
+		}
+
+		if foundIdx != -1 {
+			e.SlideIdx = foundIdx
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+			e.Message = fmt.Sprintf("jumped to slide %d: %s", foundIdx+1, d.Slides[foundIdx].Title())
+		} else {
+			e.Message = fmt.Sprintf("no slide matching %q", query)
+		}
+		return nil
+
+	case "backspace":
+		if len(e.Draft) > 0 {
+			e.Draft = e.Draft[:len(e.Draft)-1]
+			e.CursorCol = len(e.Draft)
+		}
+		return nil
+
+	default:
+		if len(key) == 1 && key[0] >= 32 {
+			e.Draft += key
+			e.CursorCol = len(e.Draft)
+		}
+		return nil
+	}
 }

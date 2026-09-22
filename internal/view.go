@@ -729,6 +729,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(currentTheme.HelpHeaderStyle.Render("  NAVIGATION") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Next slide")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h, Backspace"), currentTheme.HelpDescStyle.Render("Previous slide")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("/"), currentTheme.HelpDescStyle.Render("Jump to slide (number or search)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j"), currentTheme.HelpDescStyle.Render("Move laser pointer down")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↑, k"), currentTheme.HelpDescStyle.Render("Move laser pointer up")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("g / G"), currentTheme.HelpDescStyle.Render("First / Last slide")))
@@ -789,6 +790,63 @@ func renderProgressLine(curSlide, totalSlides, width int) string {
 	return b.String()
 }
 
+func renderJumpModal(d Deck, e Editor, w, h int) string {
+	boxW := 54
+	if boxW > w-4 {
+		boxW = w - 4
+	}
+	if boxW < 32 {
+		boxW = 32
+	}
+
+	var sb strings.Builder
+	title := currentTheme.HelpTitleStyle.Render("🔍 Jump to Slide")
+	sb.WriteString(title + "\n")
+	sb.WriteString(dimStyle.Render("Type slide number (1-"+fmt.Sprintf("%d", len(d.Slides))+") or title search:") + "\n\n")
+
+	cursorDraft := e.Draft + currentTheme.LaserPointerStyle.Render("█")
+	inputLine := currentTheme.TableHeaderStyle.Render("  > ") + cursorDraft
+	sb.WriteString(inputLine + "\n\n")
+
+	// Show matching or nearby slides preview
+	query := strings.ToLower(strings.TrimSpace(e.Draft))
+	var matches []int
+	for idx, slide := range d.Slides {
+		if query == "" {
+			if len(matches) < 6 {
+				matches = append(matches, idx)
+			}
+		} else {
+			numStr := fmt.Sprintf("%d", idx+1)
+			if strings.HasPrefix(numStr, query) || strings.Contains(strings.ToLower(slide.Title()), query) {
+				if len(matches) < 6 {
+					matches = append(matches, idx)
+				}
+			}
+		}
+	}
+
+	for _, idx := range matches {
+		slide := d.Slides[idx]
+		t := slide.Title()
+		if len(t) > 34 {
+			t = t[:34] + "..."
+		}
+		mark := "  "
+		if idx == e.SlideIdx {
+			mark = currentTheme.LaserPointerStyle.Render("▶ ")
+		}
+		num := fmt.Sprintf("%2d. ", idx+1)
+		line := mark + dimBoldStyle.Render(num) + currentTheme.TableCellStyle.Render(t)
+		sb.WriteString(line + "\n")
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("Press Enter to jump · Esc to cancel"))
+
+	card := currentTheme.HelpBoxStyle.Width(boxW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 // --- Full view ---
 
 func View(d Deck, e Editor, width, height int) string {
@@ -807,6 +865,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowHelp {
 		return renderHelpModal(width, height)
+	}
+
+	if e.Mode == ModePrompt {
+		return renderJumpModal(d, e, width, height)
 	}
 
 	notesOverlay := ""
@@ -942,7 +1004,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · z zen · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · z zen · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

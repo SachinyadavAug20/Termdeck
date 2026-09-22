@@ -21,6 +21,7 @@ deck demo.deck.md
 - [x] Native Markdown code diff syntax highlighting (```` ```diff ````) with green additions and red deletions
 - [x] Extended modern developer syntax highlighting (Go, Rust, TypeScript, Python, SQL)
 - [x] Native Markdown Callout & Admonition boxes (`> [!TIP]`, `> [!NOTE]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`, `> quote`) with themed rounded borders
+- [x] Quick Slide Jump modal (`/`) with instant numeric jumping and live slide title search
 
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
@@ -107,6 +108,7 @@ deck [options] <file.deck.md>
 | `←` `h` `PageUp` `Backspace` | Previous slide |
 | `↓` `j` | Move block cursor / laser pointer down |
 | `↑` `k` | Move block cursor / laser pointer up |
+| `/` | Quick Jump to slide (enter slide number or title search) |
 | `?` `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t` `T` `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) |
 | `z` | Toggle distraction-free zen mode (hides status bar) |

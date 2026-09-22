@@ -82,7 +82,7 @@ Options:
 Controls:
   Navigation:   → / l / Space / Enter (next), ← / h / Backspace (prev)
   Pointer:      ↓ / j (down), ↑ / k (up)
-  Jumps:        g (first slide), G (last slide)
+  Jumps:        / (jump to slide by number/search), g (first), G (last)
   Theme:        t / T / f2 (cycle color themes: tokyo-night, dracula, nord, ...)
   Zen Mode:     z (toggle distraction-free zen mode)
   Notes:        n (toggle speaker notes overlay)

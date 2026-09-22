@@ -832,3 +832,83 @@ func TestEditorZenMode(t *testing.T) {
 		t.Errorf("expected ZenMode false after pressing 'z' again")
 	}
 }
+
+func TestEditorQuickJumpPrompt(t *testing.T) {
+	d := sampleDeck()
+	ed := NewEditor("test.deck.md")
+
+	// 1. Pressing '/' enters ModePrompt
+	sendTestKey(&ed, &d, "/")
+	if ed.Mode != ModePrompt {
+		t.Fatalf("expected ModePrompt after '/', got %v", ed.Mode)
+	}
+
+	// 2. Esc cancels ModePrompt
+	sendTestKey(&ed, &d, "esc")
+	if ed.Mode != ModeNav {
+		t.Fatalf("expected ModeNav after esc, got %v", ed.Mode)
+	}
+
+	// 3. Numeric jump: type '2' and enter
+	sendTestKey(&ed, &d, "/")
+	sendTestKey(&ed, &d, "2")
+	if ed.Draft != "2" {
+		t.Errorf("expected draft '2', got %q", ed.Draft)
+	}
+	sendTestKey(&ed, &d, "enter")
+	if ed.Mode != ModeNav {
+		t.Errorf("expected ModeNav after enter")
+	}
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected slideIdx 1 after jumping to slide 2, got %d", ed.SlideIdx)
+	}
+
+	// 4. Clamping out-of-range number
+	sendTestKey(&ed, &d, "/")
+	sendTestKey(&ed, &d, "9")
+	sendTestKey(&ed, &d, "9")
+	sendTestKey(&ed, &d, "enter")
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected slideIdx clamped to 1 (last slide), got %d", ed.SlideIdx)
+	}
+
+	// 5. Backspace in prompt
+	sendTestKey(&ed, &d, "/")
+	sendTestKey(&ed, &d, "1")
+	sendTestKey(&ed, &d, "5")
+	sendTestKey(&ed, &d, "backspace")
+	if ed.Draft != "1" {
+		t.Errorf("expected draft '1' after backspace, got %q", ed.Draft)
+	}
+	sendTestKey(&ed, &d, "enter")
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected slideIdx 0 after jump to slide 1, got %d", ed.SlideIdx)
+	}
+
+	// 6. Title search jump: type "Slide 2"
+	sendTestKey(&ed, &d, "/")
+	for _, ch := range "Slide 2" {
+		sendTestKey(&ed, &d, string(ch))
+	}
+	sendTestKey(&ed, &d, "enter")
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected jump to slide 2 via search, got %d", ed.SlideIdx)
+	}
+
+	// 7. Search no match
+	sendTestKey(&ed, &d, "/")
+	for _, ch := range "nonexistent" {
+		sendTestKey(&ed, &d, string(ch))
+	}
+	sendTestKey(&ed, &d, "enter")
+	if !strings.Contains(ed.Message, "no slide matching") {
+		t.Errorf("expected no match message, got %q", ed.Message)
+	}
+
+	// 8. Empty query enter
+	sendTestKey(&ed, &d, "/")
+	sendTestKey(&ed, &d, "enter")
+	if ed.Mode != ModeNav {
+		t.Errorf("expected ModeNav after empty enter")
+	}
+}

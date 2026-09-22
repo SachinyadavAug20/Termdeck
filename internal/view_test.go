@@ -664,6 +664,30 @@ func TestRenderCallouts(t *testing.T) {
 	}
 }
 
+func TestRenderJumpModal(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Intro Slide"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Architecture"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Benchmarks"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	ed.Mode = ModePrompt
+	ed.Draft = "arch"
+
+	out := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(out, "Jump to Slide") {
+		t.Errorf("expected Jump to Slide modal title: %q", out)
+	}
+	if !strings.Contains(out, "Architecture") {
+		t.Errorf("expected matching slide title 'Architecture': %q", out)
+	}
+	if !strings.Contains(out, "Press Enter to jump") {
+		t.Errorf("expected jump instructions: %q", out)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

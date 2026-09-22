@@ -73,6 +73,24 @@ func (s *Slide) Notes() string {
 	return ""
 }
 
+func (s *Slide) Title() string {
+	for _, b := range s.Blocks {
+		if b.Kind == BlockHeading && strings.TrimSpace(b.Text) != "" {
+			return strings.TrimSpace(b.Text)
+		}
+	}
+	for _, b := range s.Blocks {
+		if b.Kind == BlockParagraph && strings.TrimSpace(b.Text) != "" {
+			txt := strings.TrimSpace(b.Text)
+			if len(txt) > 30 {
+				return txt[:30] + "..."
+			}
+			return txt
+		}
+	}
+	return "Slide"
+}
+
 type Deck struct {
 	Meta    map[string]string
 	Slides  []Slide
