@@ -36,6 +36,7 @@ type Editor struct {
 	Message   string
 	ShowNotes bool
 	ShowHelp  bool
+	ZenMode   bool
 	Theme     string
 }
 
@@ -426,6 +427,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		} else {
 			e.Message = "notes closed"
 		}
+
+	case "z":
+		e.ZenMode = !e.ZenMode
 
 	case "i", "a", "o", "I", "A", "O":
 		e.EnterEdit(d)

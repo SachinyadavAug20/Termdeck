@@ -546,6 +546,42 @@ func TestRenderProgressLine(t *testing.T) {
 	}
 }
 
+func TestViewZenMode(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Zen Title"},
+					{Kind: BlockParagraph, Text: "Clean presentation content."},
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	// Normal view has status line
+	normalOut := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(normalOut, "slide 1/1") || !strings.Contains(normalOut, "help") {
+		t.Errorf("expected normal view to contain status bar, got %q", normalOut)
+	}
+
+	// Zen mode hides status bar but retains slide content and progress line
+	ed.ZenMode = true
+	zenOut := stripANSI(View(d, ed, 80, 24))
+	if strings.Contains(zenOut, "slide 1/1") || strings.Contains(zenOut, "help") {
+		t.Errorf("expected zen mode to omit status bar, got %q", zenOut)
+	}
+	if !strings.Contains(zenOut, "Zen Title") {
+		t.Errorf("expected zen mode to contain slide heading, got %q", zenOut)
+	}
+	if !strings.Contains(zenOut, "Clean presentation content.") {
+		t.Errorf("expected zen mode to contain slide body, got %q", zenOut)
+	}
+	if !strings.Contains(zenOut, "─") {
+		t.Errorf("expected zen mode to retain progress line, got %q", zenOut)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

@@ -84,6 +84,7 @@ Controls:
   Pointer:      ↓ / j (down), ↑ / k (up)
   Jumps:        g (first slide), G (last slide)
   Theme:        t / T / f2 (cycle color themes: tokyo-night, dracula, nord, ...)
+  Zen Mode:     z (toggle distraction-free zen mode)
   Notes:        n (toggle speaker notes overlay)
   Alignment:    Tab / ctrl+a (cycle left/center/right alignment)
   Media:        p (open focused image card in desktop viewer)

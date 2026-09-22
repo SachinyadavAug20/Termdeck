@@ -600,6 +600,7 @@ func renderHelpModal(w, h int) string {
 
 	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  PRESENTATION") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t, T, ctrl+t, f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("z"), currentTheme.HelpDescStyle.Render("Toggle distraction-free zen mode")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
@@ -692,8 +693,11 @@ func View(d Deck, e Editor, width, height int) string {
 	}
 
 	bodyHeight := height - 3
+	if e.ZenMode {
+		bodyHeight = height - 2
+	}
 	if notesHeight > 0 {
-		bodyHeight = height - 3 - notesHeight
+		bodyHeight -= notesHeight
 	}
 	if bodyHeight < 1 {
 		bodyHeight = 1
@@ -741,10 +745,12 @@ func View(d Deck, e Editor, width, height int) string {
 		Render(content)
 
 	status := ""
-	if e.Mode == ModeEdit {
-		status = editStatus(e, width)
-	} else {
-		status = navStatus(d, e, width)
+	if !e.ZenMode {
+		if e.Mode == ModeEdit {
+			status = editStatus(e, width)
+		} else {
+			status = navStatus(d, e, width)
+		}
 	}
 
 	curSlide := e.SlideIdx + 1
@@ -757,8 +763,10 @@ func View(d Deck, e Editor, width, height int) string {
 		sb.WriteString("\n")
 		sb.WriteString(notesOverlay)
 	}
-	sb.WriteString("\n")
-	sb.WriteString(status)
+	if !e.ZenMode {
+		sb.WriteString("\n")
+		sb.WriteString(status)
+	}
 	sb.WriteString("\n")
 	sb.WriteString(progressLine)
 
@@ -799,7 +807,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · z zen · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

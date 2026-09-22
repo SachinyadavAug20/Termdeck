@@ -813,3 +813,22 @@ func TestEditorCycleThemeInEditMode(t *testing.T) {
 		t.Errorf("expected editStatus to contain '^t theme': %q", es)
 	}
 }
+
+func TestEditorZenMode(t *testing.T) {
+	d := sampleDeck()
+	ed := NewEditor("test.deck.md")
+
+	if ed.ZenMode {
+		t.Fatalf("expected ZenMode initially false, got true")
+	}
+
+	sendTestKey(&ed, &d, "z")
+	if !ed.ZenMode {
+		t.Errorf("expected ZenMode true after pressing 'z'")
+	}
+
+	sendTestKey(&ed, &d, "z")
+	if ed.ZenMode {
+		t.Errorf("expected ZenMode false after pressing 'z' again")
+	}
+}

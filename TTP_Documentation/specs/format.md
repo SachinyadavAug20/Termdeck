@@ -153,6 +153,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `↑`, `k` | Move block cursor / laser pointer up |
 | `?`, `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t`, `T`, `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) & auto-save |
+| `z` | Toggle distraction-free zen mode (hides status bar) |
 | `n` | Toggle speaker notes overlay box |
 | `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |

@@ -103,6 +103,7 @@ deck [options] <file.deck.md>
 | `↑` `k` | Move block cursor / laser pointer up |
 | `?` `F1` | Toggle in-app keyboard shortcuts help modal |
 | `t` `T` `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) |
+| `z` | Toggle distraction-free zen mode (hides status bar) |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
