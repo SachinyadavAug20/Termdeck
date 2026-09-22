@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
@@ -1003,5 +1004,52 @@ func TestEditorToggleLineNumbers(t *testing.T) {
 	}
 	if ed.Message != "line numbers: off" {
 		t.Errorf("expected message 'line numbers: off', got %q", ed.Message)
+	}
+}
+
+func TestEditorToggleTimer(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Timer Slide"}}},
+		},
+	}
+	ed := NewEditor("")
+	if ed.ShowTimer {
+		t.Errorf("expected ShowTimer to start false")
+	}
+
+	// Press 'c' to turn on timer
+	cmd := ed.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")}, &d)
+	if !ed.ShowTimer {
+		t.Errorf("expected ShowTimer to be true after 'c'")
+	}
+	if ed.TimerStart.IsZero() {
+		t.Errorf("expected TimerStart to be non-zero")
+	}
+	if cmd == nil {
+		t.Errorf("expected non-nil TickCmd after starting timer")
+	}
+
+	// Press 'c' again to turn off timer
+	cmd = ed.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("c")}, &d)
+	if ed.ShowTimer {
+		t.Errorf("expected ShowTimer to be false after second 'c'")
+	}
+	if cmd != nil {
+		t.Errorf("expected nil cmd when turning timer off")
+	}
+
+	// Press 'C' to reset timer
+	prevStart := ed.TimerStart
+	time.Sleep(10 * time.Millisecond)
+	cmd = ed.HandleKey(tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune("C")}, &d)
+	if !ed.ShowTimer {
+		t.Errorf("expected ShowTimer to be true after 'C'")
+	}
+	if !ed.TimerStart.After(prevStart) {
+		t.Errorf("expected TimerStart to be reset to newer time")
+	}
+	if cmd == nil {
+		t.Errorf("expected non-nil TickCmd after resetting timer")
 	}
 }

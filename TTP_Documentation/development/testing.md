@@ -36,6 +36,7 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestBuildModel`: Tests loading valid decks, non-existent files, and empty files (asserting "no slides found").
 - `TestPrintHelp`: Verifies CLI help message and key controls formatting.
 - `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
+- `TestModelUpdateTickMsg`: Verifies Bubble Tea model dispatches `TickCmd()` only when timer is enabled, avoiding background polling overhead.
 
 ### B. Editor State Machine — `internal/editor_test.go`
 Tests the navigation, editing, jumping, and toggling state machine:
@@ -63,6 +64,7 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorQuickJumpPrompt`: Verifies `/` prompt activation, typing query/numbers, slide jump execution on Enter, and cancellation on Esc.
 - `TestEditorToggleTask`: Validates interactive toggling of task checklists (`- [ ]` $\leftrightarrow$ `- [x]`) with `x` key and auto-save to disk.
 - `TestEditorToggleLineNumbers`: Validates pressing `L` toggles code line numbers mode on and off with status message updates.
+- `TestEditorToggleTimer`: Validates toggling timer on/off with `c`, starting ticker cmd, and resetting timer to 00:00 with `C`.
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
 Tests visual layout, card rendering, and terminal text styling:
@@ -90,6 +92,7 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestRenderListItem`: Verifies styled checkmarks (`✔`), unchecked circles (`○`), and standard bullets (`•`).
 - `TestRenderDivider`: Verifies centered hairline horizontal section dividers (`***`, `___`, `::hr`).
 - `TestCodeLineNumbersView`: Validates code block line numbering rendering, vertical bar separator (`1 │`), and `[L: lines]` status bar badge.
+- `TestTimerView`: Validates presentation stopwatch rendering in status bar (`[⏱ 05:23]` and hour formatting `[⏱ 1:12:04]`).
 - `BenchmarkRenderView`: Measures frames-per-second rendering efficiency.
 
 ### D. Model & Parser — `internal/model_test.go`
@@ -159,13 +162,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (67 unit tests):
+Statement coverage across packages (69 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
-| `deck` (root) | 23.5% | Covers model, update loop, flags (excluding `main()` process exit) |
+| `deck` (root) | 25.0% | Covers model, update loop, flags (excluding `main()` process exit) |
 | `deck/internal` | 91.2% | Exceeds >90% target across all core modules |
-| **Total Project** | **88.1%** | **PASSED** |
+| **Total Project** | **88.2%** | **PASSED** |
 
 ---
 

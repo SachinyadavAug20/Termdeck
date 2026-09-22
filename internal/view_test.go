@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 var reANSI = regexp.MustCompile(`\x1b\[[0-9;]*[a-zA-Z]`)
@@ -791,6 +792,36 @@ func TestCodeLineNumbersView(t *testing.T) {
 	}
 	if !strings.Contains(outWithLines, "[L: lines]") {
 		t.Errorf("expected [L: lines] badge in status bar, got: %q", outWithLines)
+	}
+}
+
+func TestTimerView(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Timer Presentation"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	// Timer disabled
+	out := stripANSI(View(d, ed, 80, 24))
+	if strings.Contains(out, "⏱") {
+		t.Errorf("expected no stopwatch glyph when timer is disabled")
+	}
+
+	// Timer enabled: 5 mins 23 secs ago
+	ed.ShowTimer = true
+	ed.TimerStart = time.Now().Add(-5*time.Minute - 23*time.Second)
+	out = stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(out, "⏱ 05:23") {
+		t.Errorf("expected [⏱ 05:23] in status bar, got: %q", out)
+	}
+
+	// Long presentation: 1 hour 12 mins 4 secs
+	ed.TimerStart = time.Now().Add(-1*time.Hour - 12*time.Minute - 4*time.Second)
+	out = stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(out, "⏱ 1:12:04") {
+		t.Errorf("expected [⏱ 1:12:04] in status bar, got: %q", out)
 	}
 }
 

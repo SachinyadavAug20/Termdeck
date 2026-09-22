@@ -321,6 +321,7 @@ stateDiagram-v2
         Browsing --> Browsing: Toggle Align (Tab / Ctrl+A) -> Auto-Saves
         Browsing --> Browsing: Toggle Task (x) -> Auto-Saves
         Browsing --> Browsing: Toggle Line Numbers (L)
+        Browsing --> Browsing: Toggle Timer (c / C)
         Browsing --> Browsing: Toggle Zen Mode (z)
         Browsing --> Browsing: Cycle Theme (t / T / F2) -> Auto-Saves
         Browsing --> Browsing: Toggle Help Modal (? / F1)
@@ -353,10 +354,11 @@ stateDiagram-v2
 ```
 
 ### Modes & Subsystems:
-1. **ModeNav**: Primary presentation and navigation mode. Supports laser pointer traversal, task toggling (`x`), alignment cycling (`Tab`), theme switching (`t`), and distraction-free Zen mode (`z`).
+1. **ModeNav**: Primary presentation and navigation mode. Supports laser pointer traversal, task toggling (`x`), alignment cycling (`Tab`), theme switching (`t`), line number toggling (`L`), and presentation timer (`c`/`C`).
 2. **ModePrompt**: Quick jump modal triggered by `/`. Captures keystrokes into `e.Draft`, dynamically recalculates target slide from numeric input or fuzzy title matches, and jumps immediately on Enter.
 3. **ModeEdit**: In-place block editing with full cursor control (`home`, `end`, arrow keys). Edits are auto-saved to disk on Enter.
 4. **Distraction-Free Zen Mode (`ZenMode`)**: Toggled via `z`. When active, `View()` skips rendering the top/bottom status lines and shortcut hints, providing a distraction-free screen while maintaining the hairline slide progress line along the bottom.
+5. **Presentation Stopwatch (`ShowTimer`, `TimerStart`)**: Toggled via `c`, reset via `C`. Integrates directly into Bubble Tea's reactive loop through `internal.TickMsg` and `internal.TickCmd()`, updating the displayed duration (`[⏱ MM:SS]`) every second. When disabled, the ticker shuts down immediately, consuming 0 CPU cycles.
 
 ### Undo/Redo Engine:
 - Before any state change (`AddBlock`, `DeleteBlock`, `MoveBlockUp`, `MoveBlockDown`, `AddSlide`, `DeleteSlide`, `ExitEdit`, `ToggleAlign`, `ToggleTask`), the current deck is serialized into Markdown text and pushed onto `e.UndoStack []string`.
@@ -454,7 +456,7 @@ func stripANSI(s string) string {
 $ make test
 ok   deck            coverage: 23.5% of statements (excluding CLI os.Exit)
 ok   deck/internal   coverage: 91.2% of statements
-total statement coverage: 88.1% (67 unit tests)
+total statement coverage: 88.1% (69 unit tests)
 
 $ make bench
 BenchmarkParseDeck-8       387848       3567 ns/op        4678 B/op      24 allocs/op

@@ -7,9 +7,20 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"time"
 
 	tea "github.com/charmbracelet/bubbletea"
 )
+
+// --- Tick messages for presentation timer ---
+
+type TickMsg time.Time
+
+func TickCmd() tea.Cmd {
+	return tea.Tick(time.Second, func(t time.Time) tea.Msg {
+		return TickMsg(t)
+	})
+}
 
 // --- Editor modes ---
 
@@ -38,6 +49,8 @@ type Editor struct {
 	ShowHelp        bool
 	ZenMode         bool
 	ShowLineNumbers bool
+	ShowTimer       bool
+	TimerStart      time.Time
 	Theme           string
 }
 
@@ -488,6 +501,23 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 
 	case "z":
 		e.ZenMode = !e.ZenMode
+
+	case "c":
+		e.ShowTimer = !e.ShowTimer
+		if e.ShowTimer {
+			if e.TimerStart.IsZero() {
+				e.TimerStart = time.Now()
+			}
+			e.Message = "timer: on (press 'C' to reset)"
+			return TickCmd()
+		}
+		e.Message = "timer: off"
+
+	case "C":
+		e.TimerStart = time.Now()
+		e.ShowTimer = true
+		e.Message = "timer: reset to 00:00"
+		return TickCmd()
 
 	case "L":
 		e.ShowLineNumbers = !e.ShowLineNumbers

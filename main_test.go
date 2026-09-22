@@ -5,6 +5,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 
 	"deck/internal"
 	tea "github.com/charmbracelet/bubbletea"
@@ -189,5 +190,23 @@ func TestThemeFlagAndListThemes(t *testing.T) {
 	}
 	if m.editor.Theme != "tokyo-night" {
 		t.Errorf("expected editor.Theme 'tokyo-night', got %q", m.editor.Theme)
+	}
+}
+
+func TestModelUpdateTickMsg(t *testing.T) {
+	m := model{
+		editor: internal.NewEditor("test.deck.md"),
+	}
+	// Timer off: TickMsg returns nil cmd
+	_, cmd := m.Update(internal.TickMsg(time.Now()))
+	if cmd != nil {
+		t.Errorf("expected nil cmd when timer is off")
+	}
+
+	// Timer on: TickMsg returns non-nil cmd to schedule next tick
+	m.editor.ShowTimer = true
+	_, cmd = m.Update(internal.TickMsg(time.Now()))
+	if cmd == nil {
+		t.Errorf("expected non-nil cmd when timer is on")
 	}
 }

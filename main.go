@@ -37,6 +37,11 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if cmd != nil {
 			return m, cmd
 		}
+
+	case internal.TickMsg:
+		if m.editor.ShowTimer {
+			return m, internal.TickCmd()
+		}
 	}
 
 	return m, nil

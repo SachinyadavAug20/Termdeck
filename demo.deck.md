@@ -182,6 +182,7 @@ Full keyboard control designed for efficient presenting:
 
 - `←/→` or `j/k` — next/prev slide or block
 - `/` — quick slide jump (number or live title search)
+- `c` / `C` — toggle presentation stopwatch / reset timer
 - `L` — toggle code block line numbers
 - `x` — toggle task checklist item ([ ] ⇄ [x])
 - `z` — toggle distraction-free zen mode
