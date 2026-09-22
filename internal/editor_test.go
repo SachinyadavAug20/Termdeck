@@ -1234,3 +1234,102 @@ func TestEditorSlideOverview(t *testing.T) {
 		t.Errorf("expected nil cmd from 'q' in overview modal (not quit application)")
 	}
 }
+
+func TestEditorYankAndBlankScreen(t *testing.T) {
+	// 1. Test OSC52Copy formatting
+	osc := OSC52Copy("hello world")
+	if !strings.HasPrefix(osc, "\x1b]52;c;") || !strings.HasSuffix(osc, "\x07") {
+		t.Errorf("unexpected OSC 52 format: %q", osc)
+	}
+
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Slide Title"},
+					{Kind: BlockCode, Lang: "go", Lines: []string{"func main() {", `    println("copied")`, "}"}},
+					{Kind: BlockTable, Lines: []string{"| Col 1 | Col 2 |", "|---|---|", "| A | B |"}},
+					{Kind: BlockCallout, Callout: "tip", Lines: []string{"Tip line 1", "Tip line 2"}},
+					{Kind: BlockParagraph, Text: "A paragraph text"},
+					{Kind: BlockParagraph, Text: ""}, // Empty block
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	// 2. Yank Code block
+	ed.BlockIdx = 1
+	yanked, err := ed.YankBlock(&d)
+	if err != nil {
+		t.Fatalf("unexpected error yanking code block: %v", err)
+	}
+	if !strings.Contains(yanked, "func main()") || !strings.Contains(yanked, "println(\"copied\")") {
+		t.Errorf("unexpected yanked code content: %q", yanked)
+	}
+
+	// 3. Key press 'y' on Code block
+	cmd := sendTestKey(&ed, &d, "y")
+	if cmd == nil {
+		t.Errorf("expected non-nil tea.Cmd emitting OSC 52 sequence on 'y'")
+	}
+	if !strings.Contains(ed.Message, "yanked 3 code lines") {
+		t.Errorf("expected message 'yanked 3 code lines', got %q", ed.Message)
+	}
+
+	// 4. Yank Table block
+	ed.BlockIdx = 2
+	yankedTable, err := ed.YankBlock(&d)
+	if err != nil || !strings.Contains(yankedTable, "| Col 1 | Col 2 |") {
+		t.Errorf("unexpected yanked table: %q", yankedTable)
+	}
+
+	// 5. Yank Callout block
+	ed.BlockIdx = 3
+	yankedCallout, err := ed.YankBlock(&d)
+	if err != nil || !strings.Contains(yankedCallout, "Tip line 1") {
+		t.Errorf("unexpected yanked callout: %q", yankedCallout)
+	}
+
+	// 6. Yank Paragraph block
+	ed.BlockIdx = 4
+	sendTestKey(&ed, &d, "y")
+	if !strings.Contains(ed.Message, "yanked 16 chars") {
+		t.Errorf("expected message 'yanked 16 chars', got %q", ed.Message)
+	}
+
+	// 7. Yank Empty block -> error
+	ed.BlockIdx = 5
+	_, err = ed.YankBlock(&d)
+	if err == nil {
+		t.Errorf("expected error yanking empty block")
+	}
+
+	// 8. Blank screen toggle with 'b'
+	sendTestKey(&ed, &d, "b")
+	if !ed.ScreenBlank {
+		t.Errorf("expected ScreenBlank true after pressing 'b'")
+	}
+	if !strings.Contains(ed.Message, "screen blanked") {
+		t.Errorf("expected 'screen blanked' message, got %q", ed.Message)
+	}
+
+	// 9. Any key resumes screen
+	sendTestKey(&ed, &d, "space")
+	if ed.ScreenBlank {
+		t.Errorf("expected ScreenBlank false after pressing any key to resume")
+	}
+	if ed.Message != "screen resumed" {
+		t.Errorf("expected 'screen resumed' message, got %q", ed.Message)
+	}
+
+	// 10. Blank screen with 'B'
+	sendTestKey(&ed, &d, "B")
+	if !ed.ScreenBlank {
+		t.Errorf("expected ScreenBlank true after pressing 'B'")
+	}
+	sendTestKey(&ed, &d, "enter")
+	if ed.ScreenBlank {
+		t.Errorf("expected ScreenBlank false after pressing enter to resume")
+	}
+}

@@ -183,6 +183,8 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `z` | Toggle distraction-free zen mode (hides status bar) |
 | `c`, `C` | Toggle presentation stopwatch (`c`) / Reset timer to 00:00 (`C`) |
 | `r`, `R` | Reload deck file from disk |
+| `y`, `Y` | Copy focused code/block to clipboard (OSC 52 + system) |
+| `b`, `B` | Blank/blackout presentation screen (any key resumes) |
 | `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay box |

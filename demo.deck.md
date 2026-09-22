@@ -34,6 +34,9 @@ Present technical ideas in a simple, clean, and distraction-free medium:
   curl -sSL https://example.com/deck.sh | bash
   deck slides.deck.md
 
+> [!TIP]
+> Press `y` anytime to copy this code snippet directly to your system clipboard!
+
 ---
 
 ::align left
@@ -183,6 +186,8 @@ Full keyboard control designed for efficient presenting:
 - `←/→` or `j/k` — next/prev slide or block
 - `/` — quick slide jump (number or live title search)
 - `o` / `O` — slide overview & 2D grid sorter (visual deck map)
+- `y` / `Y` — copy/yank focused code or block to system clipboard (OSC 52)
+- `b` / `B` — blank/blackout presentation screen (any key resumes)
 - `c` / `C` — toggle presentation stopwatch / reset timer
 - `r` / `R` — reload deck file from disk (`-w` flag for auto-watch)
 - `L` — toggle code block line numbers

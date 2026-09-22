@@ -123,6 +123,8 @@ deck [options] <file.deck.md>
 | `z` | Toggle distraction-free zen mode (hides status bar) |
 | `c` / `C` | Toggle presentation stopwatch (`c`) / Reset timer to 00:00 (`C`) |
 | `r` / `R` | Reload deck file from disk (manual refresh) |
+| `y` / `Y` | Yank focused code block or text to clipboard (OSC 52 + system) |
+| `b` / `B` | Blank/blackout presentation screen (any key resumes) |
 | `L` | Toggle code block line numbers |
 | `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
@@ -176,7 +178,8 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Quick Slide Jump Modal**: Press `/` to jump instantly by slide number or live fuzzy title search
 - `::notes` speaker notes (hidden from audience canvas; toggleable presenter overlay via `n`)
 - **In-App Help Modal** (`?` / `F1`) detailing all viewer, presenter, and editor controls
-- **Subtle Bottom Progress Line**: sleek, non-intrusive full-width hairline progress line at the bottom of the screen
+- **Code Block & Element Yank (`y` / `Y`)**: Copy focused code snippets, commands, tables, or text directly to system clipboard via ANSI OSC 52 (works over SSH and tmux) and native OS clipboard utilities (`pbcopy`, `wl-copy`, `xclip`, `clip`)
+- **Presentation Screen Blanking (`b` / `B`)**: Temporarily blank/blackout the screen to direct audience focus to the speaker during key verbal explanations; any key instantly resumes the slide
 - **Slide Overview & 2D Grid Sorter**: Press `o` or `O` anytime to open a visual grid map of all slides with titles, block element counts, cursor focus, active slide indicator, and 2D arrow/hjkl navigation
 - **Live File Watch & Hot-Reload**: Start with `-w` or `--watch` to auto-reload on file edits from external editors/IDEs, or press `r` / `R` anytime to reload manually (safeguards protect active in-app edit sessions)
 - **CLI Options**: `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
@@ -186,7 +189,7 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **90.8% statement coverage** in `internal/` with 74 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **90.6% statement coverage** in `internal/` with 76 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

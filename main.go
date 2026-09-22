@@ -125,6 +125,8 @@ Controls:
   Line numbers: L (toggle code block line numbers)
   Timer:        c (toggle presentation timer), C (reset timer)
   Reload:       r / R (reload deck from disk)
+  Yank:         y / Y (yank focused code/block to system clipboard)
+  Blank Screen: b / B (blank presentation screen, any key resumes)
   Notes:        n (toggle speaker notes overlay)
   Alignment:    Tab / ctrl+a (cycle left/center/right alignment)
   Media:        p (open focused image card in desktop viewer)

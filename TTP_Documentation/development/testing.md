@@ -162,13 +162,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (74 unit tests):
+Statement coverage across packages (76 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
 | `deck` (root) | 33.9% | Covers model, update loop, flags, live watch loop (excluding `main()` process exit) |
-| `deck/internal` | 90.8% | Exceeds >90% target across all core modules |
-| **Total Project** | **89.0%** | **PASSED** |
+| `deck/internal` | 90.6% | Exceeds >90% target across all core modules |
+| **Total Project** | **88.9%** | **PASSED** |
 
 ---
 

@@ -560,4 +560,29 @@ flowchart TD
    - Active presentation slide: Rounded border in `currentTheme.Success` with `● ACTIVE` badge.
    - Other slides: Rounded border in `currentTheme.DimTrack`.
 
+---
+
+## 12. Terminal Clipboard Subsystem (OSC 52) & Screen Blanking
+
+For technical presenters sharing commands and code snippets live with peers, Termdeck incorporates native clipboard extraction and screen blanking:
+
+```mermaid
+flowchart TD
+    YankAction["Presenter presses 'y' or 'Y'"] --> FocusedBlock["Inspect Focused Block (e.currentBlock)"]
+    FocusedBlock --> Extract["Extract Clean Text\n- BlockCode: lines joined by newline\n- BlockTable: table markup lines\n- BlockCallout: card content\n- BlockParagraph: paragraph text"]
+    Extract --> OSC52["OSC 52 Base64 ANSI Sequence\n\\x1b]52;c;<base64>\\x07 -> emitted via tea.Printf()"]
+    Extract --> HostTool["Host Clipboard Probe\n(pbcopy / wl-copy / xclip / xsel / clip)"]
+    OSC52 --> UserStatus["Status: yanked N code lines to clipboard"]
+    HostTool --> UserStatus
+```
+
+### Architectural Highlights:
+1. **OSC 52 Terminal Native Clipboard**:
+   Emits `\x1b]52;c;<base64>\x07` through the standard terminal stream. This guarantees that copying snippets works seamlessly across SSH connections, inside remote tmux sessions, and across headless terminal multiplexers without requiring X11 or Wayland forwarding.
+2. **Dual-Dispatch Host Fallback**:
+   In parallel with OSC 52, `CopyToSystemClipboard` dynamically checks for local desktop utilities (`pbcopy` on macOS, `wl-copy` on Wayland, `xclip`/`xsel` on X11, `clip` on Windows) for guaranteed delivery to the host clipboard.
+3. **Screen Blackout / Blanking (`b` / `B`)**:
+   Sets `e.ScreenBlank = true`, rendering `renderBlankScreen()` (`● presentation paused · press any key to resume`). The state machine intercepts any subsequent key press at the top of `handleNav()`, instantaneously un-blanking the screen and resuming the slide without dropped inputs.
+
+
 

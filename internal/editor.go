@@ -1,6 +1,7 @@
 package internal
 
 import (
+	"encoding/base64"
 	"fmt"
 	"os"
 	"os/exec"
@@ -64,6 +65,7 @@ type Editor struct {
 	ShowOverview    bool
 	OverviewCursor  int
 	OverviewCols    int
+	ScreenBlank     bool
 }
 
 func NewEditor(filePath string) Editor {
@@ -502,6 +504,12 @@ func (e *Editor) HandleKey(msg tea.KeyMsg, d *Deck) tea.Cmd {
 }
 
 func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
+	if e.ScreenBlank {
+		e.ScreenBlank = false
+		e.Message = "screen resumed"
+		return nil
+	}
+
 	if e.ShowOverview {
 		cols := e.OverviewCols
 		if cols <= 0 {
@@ -656,6 +664,28 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		e.Message = "slide overview (arrows/hjkl to navigate, enter to jump, esc/o to close)"
 
+	case "b", "B":
+		e.ScreenBlank = !e.ScreenBlank
+		if e.ScreenBlank {
+			e.Message = "screen blanked (press any key to resume)"
+		} else {
+			e.Message = "screen resumed"
+		}
+
+	case "y", "Y":
+		text, err := e.YankBlock(d)
+		if err != nil {
+			e.Message = "yank: " + err.Error()
+			return nil
+		}
+		blk := e.currentBlock(d)
+		if blk != nil && blk.Kind == BlockCode {
+			e.Message = fmt.Sprintf("yanked %d code lines to clipboard", len(blk.Lines))
+		} else {
+			e.Message = fmt.Sprintf("yanked %d chars to clipboard", len(text))
+		}
+		return tea.Printf("%s", OSC52Copy(text))
+
 	case "i", "a", "I", "A":
 		e.EnterEdit(d)
 
@@ -768,6 +798,63 @@ func openFile(path string) error {
 		cmd = exec.Command("xdg-open", path)
 	}
 	return cmd.Start()
+}
+
+// OSC52Copy constructs the terminal OSC 52 sequence for copying text to the host system clipboard.
+func OSC52Copy(text string) string {
+	b64 := base64.StdEncoding.EncodeToString([]byte(text))
+	return fmt.Sprintf("\x1b]52;c;%s\x07", b64)
+}
+
+// CopyToSystemClipboard attempts to dispatch text to standard host clipboard utilities.
+func CopyToSystemClipboard(text string) {
+	var cmd *exec.Cmd
+	switch runtime.GOOS {
+	case "darwin":
+		cmd = exec.Command("pbcopy")
+	case "windows":
+		cmd = exec.Command("clip")
+	default:
+		if _, err := exec.LookPath("wl-copy"); err == nil {
+			cmd = exec.Command("wl-copy")
+		} else if _, err := exec.LookPath("xclip"); err == nil {
+			cmd = exec.Command("xclip", "-selection", "clipboard")
+		} else if _, err := exec.LookPath("xsel"); err == nil {
+			cmd = exec.Command("xsel", "--clipboard", "--input")
+		}
+	}
+	if cmd != nil {
+		cmd.Stdin = strings.NewReader(text)
+		_ = cmd.Start()
+	}
+}
+
+// YankBlock extracts the text/code content of the focused block and dispatches it to the system clipboard.
+func (e *Editor) YankBlock(d *Deck) (string, error) {
+	blk := e.currentBlock(d)
+	if blk == nil {
+		return "", fmt.Errorf("no block selected")
+	}
+	var text string
+	switch blk.Kind {
+	case BlockCode:
+		text = strings.Join(blk.Lines, "\n")
+	case BlockTable:
+		text = strings.Join(blk.Lines, "\n")
+	case BlockCallout:
+		if len(blk.Lines) > 0 {
+			text = strings.Join(blk.Lines, "\n")
+		} else {
+			text = blk.Text
+		}
+	default:
+		text = blk.Text
+	}
+	if strings.TrimSpace(text) == "" {
+		return "", fmt.Errorf("block is empty")
+	}
+	CopyToSystemClipboard(text)
+	return text, nil
 }
 
 func (e *Editor) handleEdit(key string, d *Deck) tea.Cmd {

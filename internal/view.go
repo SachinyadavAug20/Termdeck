@@ -791,7 +791,7 @@ func renderNotesOverlay(notes string, width, maxHeight int) string {
 }
 
 func renderHelpModal(w, h int) string {
-	boxW := 62
+	boxW := 66
 	if boxW > w-4 {
 		boxW = w - 4
 	}
@@ -815,6 +815,8 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  PRESENTATION") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t, T, ctrl+t, f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("z"), currentTheme.HelpDescStyle.Render("Toggle distraction-free zen mode")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("b / B"), currentTheme.HelpDescStyle.Render("Blank presentation screen")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("y / Y"), currentTheme.HelpDescStyle.Render("Copy block to clipboard (OSC 52)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("c / C"), currentTheme.HelpDescStyle.Render("Toggle presentation timer / Reset timer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("r / R"), currentTheme.HelpDescStyle.Render("Reload deck file from disk")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("L"), currentTheme.HelpDescStyle.Render("Toggle code block line numbers")))
@@ -1085,6 +1087,11 @@ func renderOverviewModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderBlankScreen(w, h int) string {
+	msg := dimStyle.Render("●  presentation paused  ·  press any key to resume")
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
+}
+
 // --- Full view ---
 
 func View(d Deck, e Editor, width, height int) string {
@@ -1100,6 +1107,10 @@ func View(d Deck, e Editor, width, height int) string {
 		themeName = d.Theme
 	}
 	SetCurrentTheme(themeName)
+
+	if e.ScreenBlank {
+		return renderBlankScreen(width, height)
+	}
 
 	if e.ShowHelp {
 		return renderHelpModal(width, height)
@@ -1267,7 +1278,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · o grid · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · o grid · y yank · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

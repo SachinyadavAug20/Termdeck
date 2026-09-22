@@ -921,6 +921,40 @@ func TestOverviewModalView(t *testing.T) {
 	}
 }
 
+func TestBlankScreenView(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Normal Presentation Slide"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	ed.ScreenBlank = true
+
+	out := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(out, "presentation paused") || !strings.Contains(out, "press any key to resume") {
+		t.Errorf("expected blank screen placeholder message, got: %s", out)
+	}
+	if strings.Contains(out, "Normal Presentation Slide") {
+		t.Errorf("expected slide content hidden when screen is blanked")
+	}
+
+	// Verify help modal entries
+	help := stripANSI(renderHelpModal(80, 24))
+	if !strings.Contains(help, "y / Y") || !strings.Contains(help, "Copy block to clipboard (OSC 52)") {
+		t.Errorf("expected help modal to document y/Y, got: %s", help)
+	}
+	if !strings.Contains(help, "b / B") || !strings.Contains(help, "Blank presentation screen") {
+		t.Errorf("expected help modal to document b/B, got: %s", help)
+	}
+
+	// Verify navStatus entries
+	ed.ScreenBlank = false
+	nav := stripANSI(navStatus(d, ed, 140))
+	if !strings.Contains(nav, "y yank") || !strings.Contains(nav, "b blank") {
+		t.Errorf("expected navStatus to show y yank and b blank, got: %s", nav)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{
