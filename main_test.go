@@ -307,6 +307,11 @@ func TestPrintHelpAutoplay(t *testing.T) {
 	printHelp()
 }
 
+func TestPrintHelpGraphAndMermaid(t *testing.T) {
+	// Capture printHelp output or invoke it
+	printHelp()
+}
+
 func TestModelAutoplay(t *testing.T) {
 	d := internal.ParseDeck("# Slide 1\n---\n# Slide 2\n")
 	ed := internal.NewEditor("test.deck.md")

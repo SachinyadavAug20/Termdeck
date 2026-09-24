@@ -253,3 +253,89 @@ Speaker notes are isolated from audience view.
 - Laser pointer cursor (`▶`) automatically skips hidden notes
 - Safe for screen shares and projector mirroring
 
+---
+
+::align left
+# Non-Linear Branching & DAG Engine {#branching-hub}
+
+Termdeck transforms static linear slides into an interactive directed graph (DAG).
+Presenters dynamically steer the presentation based on audience choice:
+
+::branch [1] Deep Dive: Core Architecture & Topology -> arch-deepdive
+::branch [2] Deep Dive: Rehearsal & Autoplay Pacing -> autoplay-deepdive
+::branch [3] Deep Dive: Offline HTML & Diagram Exports -> export-deepdive
+
+> [!TIP]
+> Press `1`, `2`, or `3` to take a branch immediately, or press `M` to explore the DAG topology map!
+
+---
+
+::id arch-deepdive
+::align left
+::next conclusion
+# Core Architecture & DAG Topology
+
+Termdeck presentations can converge and fork anywhere:
+
+- **Directives**: `::id <slug>`, `::next <slug>`, `::prev <slug>`
+- **Arrows**: `-> [Label](target)` or `::branch [key] Label -> target`
+- **History Stack**: Press `Backspace` or `H` to return along your path
+- **Convergence**: Slides with `::next` automatically merge branches back
+
+::code lang=text
+  [Overview] ──► [Branch 1: Architecture] ──► [Conclusion]
+             └──► [Branch 2: Autoplay]     ──► [Conclusion]
+
+---
+
+::id autoplay-deepdive
+::align left
+::next conclusion
+# Rehearsal & Autoplay Pacing
+
+Prepare talk pacing with hands-free automated rehearsal:
+
+- Press `A` to toggle auto-advance mode on/off
+- Default 5-second interval or pass `--autoplay [sec]` CLI flag
+- Manual arrow key presses reset the countdown timer
+- Rehearsal loops automatically for unattended booth displays
+
+> [!NOTE]
+> Press `Backspace` to return to the branching hub, or advance to converge to conclusion.
+
+---
+
+::id export-deepdive
+::align left
+::next conclusion
+# Offline HTML & Diagram Exports
+
+Share technical ideas beyond the terminal:
+
+- **HTML Export**: Press `E` or run `deck --export-html demo.deck.md`
+- **Mermaid Export**: Run `deck --mermaid demo.deck.md` for GitHub markdown diagrams
+- **ASCII DAG**: Run `deck --graph demo.deck.md` for terminal topology visualization
+
+::code lang=bash
+  # inspect presentation topology map
+  deck --graph demo.deck.md
+  deck --mermaid demo.deck.md > topology.mmd
+
+---
+
+::id conclusion
+::align left
+# Developer Summary
+
+Simple, clean, terminal-native presentations built by a developer for developers:
+
+- **Directed Graph Presentations** with interactive decision branches (`1-9`, `M`)
+- **Offline HTML Export** with embedded standalone navigation (`E`)
+- **Distraction-Free Zen Mode** (`z`) & Presentation screen blackout (`b`)
+- **Rehearsal Pacing & Auto-advance** (`A`, `-a`) & Talk stopwatch (`c`, `C`)
+- **Live File Watch & Auto-reload** (`-w`, `r`) & Interactive Checklists (`x`)
+- **Zero bloat**, single binary, sub-millisecond per-frame rendering
+
+> [!IMPORTANT]
+> Run `deck --graph demo.deck.md` to view the full presentation topology map!
+

@@ -1,5 +1,20 @@
 # Changelog
 
+## v0.5 — 24 September 2026
+
+### Added
+- **Non-Linear Directed Graph (DAG) Presentation Engine**: Replaces traditional rigid linear slide constraints with a dynamic directed acyclic graph architecture, allowing presenters to fork into deep-dive topic tracks based on audience feedback and converge back to common conclusion slides.
+- **Interactive Decision Branches**: Author presentation forks with directives (`::branch [1] Backend Architecture -> arch`, `::fork [2] Frontend UI -> ui`) or native markdown arrow links (`-> [Concurrency Patterns](concurrency)`, `=> [Memory Optimization](memory)`). Unkeyed branches are automatically assigned sequential numbers (`[1]`, `[2]`, ...).
+- **Direct Numerical Branch Jumping**: Press `1` through `9` during presentation to instantly follow the corresponding branch on the slide without interrupting talk flow. Presenters can also navigate down to any branch card with the laser pointer and hit `Enter` to follow the branch.
+- **Graph Traversal History Backtracking Stack (`History []int`)**: Full back-stack tracking of every slide visited during a non-linear talk. Pressing `Backspace` or `H` pops from the traversal history to return along the presenter's exact path, providing foolproof audience detour navigation.
+- **Interactive Graph Map & DAG Explorer Modal (`M` key)**: Visual terminal topology modal displaying the full presentation structure, active slide marker (`●`), laser cursor selection (`▶`), outgoing branch/convergence edges, and a real-time breadcrumb traversal path (`Path: [01] ──► [02] ──► [04]`). Select any node and press `Enter` to jump instantly.
+- **Edge Convergence & Directives (`::next <slug>`, `::prev <slug>`)**: Allows disparate branches to seamlessly merge back into a shared conclusion or benchmark slide, overriding default linear index progression.
+- **Slide Identifiers & Markdown Header Slugs**: Define target slide identifiers with directives (`::id <slug>`) or standard markdown heading attributes (`# Title {#slug}`). Lookup resolution supports exact IDs, slugs, 1-based slide indices, and case-insensitive title substrings.
+- **Terminal ASCII Topology Map CLI (`--graph`)**: Command-line flag rendering clean, colorized Unicode/ASCII DAG diagrams showing all slides, tags, outgoing edges, and unreachable orphan slide detection directly in the terminal.
+- **Mermaid Diagram Export CLI (`--mermaid`)**: Emits standard GitHub-flavored Mermaid `graph LR` diagram syntax mapping the entire presentation topology for technical documentation, RFCs, and README embeds.
+- **Interactive Offline HTML Branching**: Exported standalone HTML decks render branch fork cards as clickable interactive elements, with full support for numeric shortcuts (`1-9`), back history (`Backspace`), and non-linear `data-next` edge convergence.
+- Expanded test suite to **over 90 automated unit tests** maintaining **90.8% statement coverage** in `deck/internal` with zero regressions and zero lint warnings.
+
 ## v0.4 — 22 September 2026
 
 ### Added

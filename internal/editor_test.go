@@ -1455,3 +1455,157 @@ func TestEditorAutoplay(t *testing.T) {
 		t.Errorf("expected false when deck is nil")
 	}
 }
+
+func TestEditorBranchAndGraphNavigation(t *testing.T) {
+	src := `---
+title: Branch Navigation Deck
+---
+
+# Architecture Overview
+Choose a module to explore:
+
+::branch [1] Storage Engine -> storage
+::branch [2] Network Transport -> network
+
+---
+
+::id storage
+# Storage Engine
+::next conclusion
+LSM tree design.
+
+---
+
+::id network
+# Network Transport
+::next conclusion
+gRPC and multiplexing.
+
+---
+
+::id conclusion
+::prev storage
+# Conclusion
+Summary of all modules.`
+
+	d := ParseDeck(src)
+	ed := NewEditor("")
+
+	// 1. Initial state
+	if ed.SlideIdx != 0 {
+		t.Fatalf("expected initial slide 0, got %d", ed.SlideIdx)
+	}
+
+	// 2. Press '1' to follow branch 1
+	sendTestKey(&ed, &d, "1")
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected jump to slide 1 (storage), got %d", ed.SlideIdx)
+	}
+	if len(ed.History) != 1 || ed.History[0] != 0 {
+		t.Errorf("expected history [0], got %+v", ed.History)
+	}
+	if !strings.Contains(ed.Message, "Storage Engine") {
+		t.Errorf("expected branch message, got %q", ed.Message)
+	}
+
+	// 3. Slide 1 has ::next conclusion -> pressing 'right' should jump to slide 3
+	sendTestKey(&ed, &d, "right")
+	if ed.SlideIdx != 3 {
+		t.Errorf("expected jump to slide 3 (conclusion) via ::next, got %d", ed.SlideIdx)
+	}
+	if len(ed.History) != 2 || ed.History[1] != 1 {
+		t.Errorf("expected history [0, 1], got %+v", ed.History)
+	}
+
+	// 4. Press 'backspace' to pop history -> returns to slide 1
+	sendTestKey(&ed, &d, "backspace")
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected return to slide 1 via backspace, got %d", ed.SlideIdx)
+	}
+	if len(ed.History) != 1 {
+		t.Errorf("expected history len 1, got %+v", ed.History)
+	}
+
+	// 5. Press 'H' to pop history -> returns to slide 0
+	sendTestKey(&ed, &d, "H")
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected return to slide 0 via H, got %d", ed.SlideIdx)
+	}
+	if len(ed.History) != 0 {
+		t.Errorf("expected empty history, got %+v", ed.History)
+	}
+
+	// 6. Enter on focused branch block:
+	// Slide 0 has: block 0 (heading), block 1 (paragraph), block 2 (branch 1), block 3 (branch 2)
+	ed.BlockIdx = 3
+	sendTestKey(&ed, &d, "enter")
+	if ed.SlideIdx != 2 {
+		t.Errorf("expected jump to slide 2 (network) via enter on branch block, got %d", ed.SlideIdx)
+	}
+	if len(ed.History) != 1 || ed.History[0] != 0 {
+		t.Errorf("expected history [0], got %+v", ed.History)
+	}
+
+	// 7. Backtrack again
+	sendTestKey(&ed, &d, "backspace")
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected return to slide 0, got %d", ed.SlideIdx)
+	}
+
+	// 8. Test Graph Map Modal ('M')
+	sendTestKey(&ed, &d, "M")
+	if !ed.ShowGraphMap {
+		t.Errorf("expected ShowGraphMap true after pressing 'M'")
+	}
+	if ed.GraphMapCursor != 0 {
+		t.Errorf("expected GraphMapCursor 0, got %d", ed.GraphMapCursor)
+	}
+
+	// Navigate cursor in graph map
+	sendTestKey(&ed, &d, "j")
+	if ed.GraphMapCursor != 1 {
+		t.Errorf("expected GraphMapCursor 1 after 'j', got %d", ed.GraphMapCursor)
+	}
+	sendTestKey(&ed, &d, "down")
+	if ed.GraphMapCursor != 2 {
+		t.Errorf("expected GraphMapCursor 2 after 'down', got %d", ed.GraphMapCursor)
+	}
+	sendTestKey(&ed, &d, "k")
+	if ed.GraphMapCursor != 1 {
+		t.Errorf("expected GraphMapCursor 1 after 'k', got %d", ed.GraphMapCursor)
+	}
+
+	// Press 'enter' in graph map to jump
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowGraphMap {
+		t.Errorf("expected ShowGraphMap false after enter")
+	}
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected jump to slide 1, got %d", ed.SlideIdx)
+	}
+
+	// Toggle graph map on and dismiss with esc
+	sendTestKey(&ed, &d, "M")
+	if !ed.ShowGraphMap {
+		t.Errorf("expected ShowGraphMap true")
+	}
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowGraphMap {
+		t.Errorf("expected ShowGraphMap false after esc")
+	}
+
+	// 9. Edge cases
+	if ed.FollowBranch("non-existent", &d) {
+		t.Errorf("expected false for non-existent branch target")
+	}
+	if ed.FollowBranch("storage", nil) {
+		t.Errorf("expected false for nil deck")
+	}
+	edEmpty := NewEditor("")
+	if edEmpty.BackHistory(&d) {
+		t.Errorf("expected false when history is empty")
+	}
+	if edEmpty.BackHistory(nil) {
+		t.Errorf("expected false for nil deck")
+	}
+}

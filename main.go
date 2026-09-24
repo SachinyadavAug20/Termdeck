@@ -125,13 +125,17 @@ Options:
       --list-themes    List all available color themes
   -w, --watch          Watch deck file for external changes and auto-reload
   -a, --autoplay [sec] Auto-advance slides every N seconds (default: 5)
+      --graph          Print presentation topology map (ASCII DAG) to terminal
+      --mermaid        Print presentation topology as Mermaid diagram syntax
       --stats          Print presentation statistics and deck metrics to terminal
       --export-html    Export presentation to standalone HTML file
   -v, --version        Show version information
   -h, --help           Show this help message
 
 Controls:
-  Navigation:   → / l / Space / Enter (next), ← / h / Backspace (prev)
+  Navigation:   → / l / Space / Enter (next / advance edge), ← / h (prev)
+  Branching:    1-9 (follow branch option), Backspace / H (backtrack traversal)
+  Graph Map:    M (presentation graph map & DAG explorer)
   Pointer:      ↓ / j (down), ↑ / k (up)
   Jumps:        / (jump to slide by number/search), g (first), G (last)
   Overview:     o / O (slide overview & 2D grid sorter)
@@ -165,6 +169,8 @@ func main() {
 	var showStats bool
 	var autoplayMode bool
 	var autoplaySec int
+	var showGraph bool
+	var showMermaid bool
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -192,6 +198,10 @@ func main() {
 		case strings.HasPrefix(arg, "--autoplay="):
 			autoplayMode = true
 			fmt.Sscanf(strings.TrimPrefix(arg, "--autoplay="), "%d", &autoplaySec)
+		case arg == "--graph":
+			showGraph = true
+		case arg == "--mermaid":
+			showMermaid = true
 		case arg == "--stats":
 			showStats = true
 		case arg == "--export-html":
@@ -287,6 +297,45 @@ func main() {
 		theme := internal.ResolveTheme(d.Theme)
 		stats := internal.CalculateStats(&d, 0)
 		fmt.Print(internal.FormatStatsCLI(stats, theme))
+		return
+	}
+
+	if showGraph {
+		if len(fileArgs) < 1 {
+			fmt.Fprintln(os.Stderr, "error: missing deck file for --graph")
+			os.Exit(1)
+		}
+		deckFile := fileArgs[0]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
+			os.Exit(1)
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		if cliTheme != "" {
+			d.Theme = cliTheme
+		}
+		theme := internal.ResolveTheme(d.Theme)
+		fmt.Print(internal.FormatGraphCLI(d, theme))
+		return
+	}
+
+	if showMermaid {
+		if len(fileArgs) < 1 {
+			fmt.Fprintln(os.Stderr, "error: missing deck file for --mermaid")
+			os.Exit(1)
+		}
+		deckFile := fileArgs[0]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
+			os.Exit(1)
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		g := internal.BuildGraph(d)
+		fmt.Print(g.ToMermaid())
 		return
 	}
 

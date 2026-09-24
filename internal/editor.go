@@ -71,6 +71,9 @@ type Editor struct {
 	AutoplayInterval  int
 	AutoplayCountdown int
 	AutoplayLoop      bool
+	History           []int
+	ShowGraphMap      bool
+	GraphMapCursor    int
 }
 
 func NewEditor(filePath string) Editor {
@@ -161,6 +164,36 @@ func (e *Editor) TickAutoplay(d *Deck) bool {
 		return true
 	} else if e.AutoplayLoop {
 		e.SlideIdx = 0
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		return true
+	}
+	return false
+}
+
+func (e *Editor) FollowBranch(target string, d *Deck) bool {
+	if d == nil {
+		return false
+	}
+	targetIdx := d.FindSlideByID(target)
+	if targetIdx < 0 || targetIdx >= len(d.Slides) {
+		return false
+	}
+	e.History = append(e.History, e.SlideIdx)
+	e.SlideIdx = targetIdx
+	e.BlockIdx = 0
+	e.ClampBlockIdx(d)
+	return true
+}
+
+func (e *Editor) BackHistory(d *Deck) bool {
+	if len(e.History) == 0 {
+		return false
+	}
+	prevIdx := e.History[len(e.History)-1]
+	e.History = e.History[:len(e.History)-1]
+	if d != nil && prevIdx >= 0 && prevIdx < len(d.Slides) {
+		e.SlideIdx = prevIdx
 		e.BlockIdx = 0
 		e.ClampBlockIdx(d)
 		return true
@@ -626,6 +659,50 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 	}
 
+	if e.ShowGraphMap {
+		totalSlides := len(d.Slides)
+		switch key {
+		case "esc", "M", "m":
+			e.ShowGraphMap = false
+			e.Message = ""
+			return nil
+		case "up", "k":
+			if e.GraphMapCursor > 0 {
+				e.GraphMapCursor--
+			}
+			return nil
+		case "down", "j":
+			if e.GraphMapCursor < totalSlides-1 {
+				e.GraphMapCursor++
+			}
+			return nil
+		case "g", "home":
+			e.GraphMapCursor = 0
+			return nil
+		case "G", "end":
+			if totalSlides > 0 {
+				e.GraphMapCursor = totalSlides - 1
+			}
+			return nil
+		case "enter", " ":
+			if e.GraphMapCursor >= 0 && e.GraphMapCursor < totalSlides {
+				if e.GraphMapCursor != e.SlideIdx {
+					e.History = append(e.History, e.SlideIdx)
+					e.SlideIdx = e.GraphMapCursor
+					e.BlockIdx = 0
+					e.ClampBlockIdx(d)
+					e.Message = fmt.Sprintf("jumped to slide %d/%d", e.SlideIdx+1, totalSlides)
+				}
+			}
+			e.ShowGraphMap = false
+			return nil
+		case "q", "ctrl+c":
+			e.ShowGraphMap = false
+			return nil
+		}
+		return nil
+	}
+
 	switch key {
 	case "q", "ctrl+c":
 		if e.Dirty && e.FilePath != "" {
@@ -637,19 +714,96 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		if e.Autoplay {
 			e.AutoplayCountdown = e.AutoplayInterval
 		}
-		if e.SlideIdx < len(d.Slides)-1 {
+		if key == "enter" {
+			blk := e.currentBlock(d)
+			if blk != nil && blk.Kind == BlockBranch && blk.BranchTarget != "" {
+				if e.FollowBranch(blk.BranchTarget, d) {
+					e.Message = fmt.Sprintf("branch [%s] ──► %s", blk.BranchKey, blk.Text)
+					return nil
+				}
+			}
+		}
+		if d != nil && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].NextID != "" {
+			nextIdx := d.FindSlideByID(d.Slides[e.SlideIdx].NextID)
+			if nextIdx >= 0 && nextIdx < len(d.Slides) {
+				e.History = append(e.History, e.SlideIdx)
+				e.SlideIdx = nextIdx
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				return nil
+			}
+		}
+		if d != nil && e.SlideIdx < len(d.Slides)-1 {
 			e.SlideIdx++
 			e.BlockIdx = 0
 			e.ClampBlockIdx(d)
 		}
-	case "left", "h", "pgup", "backspace":
+
+	case "left", "h", "pgup":
 		if e.Autoplay {
 			e.AutoplayCountdown = e.AutoplayInterval
+		}
+		if d != nil && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].PrevID != "" {
+			prevIdx := d.FindSlideByID(d.Slides[e.SlideIdx].PrevID)
+			if prevIdx >= 0 && prevIdx < len(d.Slides) {
+				e.SlideIdx = prevIdx
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				return nil
+			}
 		}
 		if e.SlideIdx > 0 {
 			e.SlideIdx--
 			e.BlockIdx = 0
 			e.ClampBlockIdx(d)
+		}
+
+	case "backspace":
+		if e.Autoplay {
+			e.AutoplayCountdown = e.AutoplayInterval
+		}
+		if e.BackHistory(d) {
+			e.Message = fmt.Sprintf("back to slide %d/%d", e.SlideIdx+1, len(d.Slides))
+			return nil
+		}
+		if d != nil && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].PrevID != "" {
+			prevIdx := d.FindSlideByID(d.Slides[e.SlideIdx].PrevID)
+			if prevIdx >= 0 && prevIdx < len(d.Slides) {
+				e.SlideIdx = prevIdx
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				return nil
+			}
+		}
+		if e.SlideIdx > 0 {
+			e.SlideIdx--
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+		}
+
+	case "H":
+		if e.BackHistory(d) {
+			e.Message = fmt.Sprintf("back to slide %d/%d", e.SlideIdx+1, len(d.Slides))
+		}
+
+	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		if d != nil && e.SlideIdx < len(d.Slides) {
+			branch := d.Slides[e.SlideIdx].FindBranchByKey(key)
+			if branch != nil {
+				if e.FollowBranch(branch.Target, d) {
+					e.Message = fmt.Sprintf("branch [%s] ──► %s", branch.Key, branch.Label)
+					return nil
+				}
+			}
+		}
+
+	case "M":
+		e.ShowGraphMap = !e.ShowGraphMap
+		if e.ShowGraphMap {
+			e.GraphMapCursor = e.SlideIdx
+			e.Message = "presentation graph map (arrows/jk to select, enter to jump, M/esc to close)"
+		} else {
+			e.Message = "graph map closed"
 		}
 
 	case "down", "j":
@@ -858,6 +1012,10 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		if e.ShowOverview {
 			e.ShowOverview = false
+			return nil
+		}
+		if e.ShowGraphMap {
+			e.ShowGraphMap = false
 			return nil
 		}
 		if e.ShowStats {

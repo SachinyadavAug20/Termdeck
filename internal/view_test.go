@@ -983,6 +983,131 @@ func TestAutoplayView(t *testing.T) {
 	}
 }
 
+func TestRenderBranchBlock(t *testing.T) {
+	SetCurrentTheme("termdeck")
+	blk := Block{
+		Kind:         BlockBranch,
+		BranchKey:    "1",
+		Text:         "Storage Architecture",
+		BranchTarget: "storage",
+	}
+
+	rendered := stripANSI(renderBlock(blk, 80, 20, "", false, false, "", 0, false))
+	if !strings.Contains(rendered, "[1]") {
+		t.Errorf("expected '[1]' in rendered branch block, got:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "Storage Architecture") {
+		t.Errorf("expected label in rendered branch block, got:\n%s", rendered)
+	}
+	if !strings.Contains(rendered, "──►") || !strings.Contains(rendered, "#storage") {
+		t.Errorf("expected arrow and target in rendered branch block, got:\n%s", rendered)
+	}
+
+	// Test cursor mark
+	renderedCursor := stripANSI(renderBlock(blk, 80, 20, "", true, false, "", 0, false))
+	if !strings.Contains(renderedCursor, "▶") {
+		t.Errorf("expected cursor pointer '▶' on focused branch card, got:\n%s", renderedCursor)
+	}
+
+	// Test edit mode
+	renderedEdit := renderBlock(blk, 80, 20, "", true, true, "custom edit draft", 0, false)
+	if !strings.Contains(renderedEdit, "custom edit draft") {
+		t.Errorf("expected edit draft in edit mode, got:\n%s", renderedEdit)
+	}
+}
+
+func TestRenderGraphModal(t *testing.T) {
+	SetCurrentTheme("termdeck")
+	src := `---
+title: Graph Deck
+---
+
+# Architecture
+::branch [1] Storage -> storage
+::branch [2] Network -> network
+
+---
+
+::id storage
+# Storage
+::next conclusion
+LSM trees.
+
+---
+
+::id conclusion
+# Conclusion
+Done.`
+
+	d := ParseDeck(src)
+	ed := NewEditor("")
+	ed.ShowGraphMap = true
+
+	modal := stripANSI(renderGraphModal(d, ed, 80, 24))
+	if !strings.Contains(modal, "Presentation Topology Map") {
+		t.Errorf("expected title in graph modal, got:\n%s", modal)
+	}
+	if !strings.Contains(modal, "[01]") || !strings.Contains(modal, "Architecture") {
+		t.Errorf("expected slide 1 in graph modal, got:\n%s", modal)
+	}
+	if !strings.Contains(modal, "[1] ──►") {
+		t.Errorf("expected branch edge in graph modal, got:\n%s", modal)
+	}
+
+	// Test with history breadcrumbs
+	ed.History = []int{0, 1}
+	ed.SlideIdx = 2
+	modalHist := stripANSI(renderGraphModal(d, ed, 80, 24))
+	if !strings.Contains(modalHist, "Path:") || !strings.Contains(modalHist, "[01] ──► [02] ──► [03]") {
+		t.Errorf("expected breadcrumbs in graph modal with history, got:\n%s", modalHist)
+	}
+
+	// Empty deck
+	emptyModal := renderGraphModal(Deck{}, ed, 80, 24)
+	if emptyModal != "" {
+		t.Errorf("expected empty string for empty deck, got:\n%s", emptyModal)
+	}
+}
+
+func TestNavStatusForkAndHistory(t *testing.T) {
+	SetCurrentTheme("termdeck")
+	src := `---
+title: Branch Status Deck
+---
+
+# Slide 1
+::branch [1] Next Part -> part2
+`
+	d := ParseDeck(src)
+	ed := NewEditor("")
+	ed.History = []int{0}
+
+	status := stripANSI(navStatus(d, ed, 120))
+	if !strings.Contains(status, "[fork: 1 paths]") {
+		t.Errorf("expected fork badge in nav status, got:\n%s", status)
+	}
+	if !strings.Contains(status, "[history: 1]") {
+		t.Errorf("expected history badge in nav status, got:\n%s", status)
+	}
+	if !strings.Contains(status, "M map") {
+		t.Errorf("expected 'M map' hint in nav status, got:\n%s", status)
+	}
+}
+
+func TestHelpModalGraphShortcuts(t *testing.T) {
+	SetCurrentTheme("termdeck")
+	help := stripANSI(renderHelpModal(80, 24))
+	if !strings.Contains(help, "1 - 9") {
+		t.Errorf("expected '1 - 9' in help modal, got:\n%s", help)
+	}
+	if !strings.Contains(help, "Backspace / H") {
+		t.Errorf("expected 'Backspace / H' in help modal, got:\n%s", help)
+	}
+	if !strings.Contains(help, "M") || !strings.Contains(help, "graph map") {
+		t.Errorf("expected 'M' graph map in help modal, got:\n%s", help)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

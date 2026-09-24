@@ -522,6 +522,57 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 				b.WriteString("  " + divider)
 			}
 		}
+
+	case BlockBranch:
+		if isEditing {
+			b.WriteString(editStyle.Width(w - 4).Render(editDraft))
+		} else {
+			keyStr := blk.BranchKey
+			if keyStr == "" {
+				keyStr = "→"
+			}
+			badgeStyle := lipgloss.NewStyle().
+				Bold(true).
+				Foreground(lipgloss.Color("#ffffff")).
+				Background(lipgloss.Color(currentTheme.Accent)).
+				Padding(0, 1)
+
+			keyBadge := badgeStyle.Render("[" + keyStr + "]")
+			label := boldStyle.Render(blk.Text)
+			arrow := currentTheme.TableBorderStyle.Render("──►")
+			target := currentTheme.HelpDescStyle.Render("#" + blk.BranchTarget)
+
+			cardContent := fmt.Sprintf("%s %s %s %s", keyBadge, label, arrow, target)
+			cardW := lipgloss.Width(cardContent) + 4
+			if cardW > w-8 {
+				cardW = w - 8
+			}
+			if cardW < 36 {
+				cardW = 36
+			}
+
+			borderCol := currentTheme.Comment
+			if isCursor {
+				borderCol = currentTheme.Accent
+			}
+			branchBox := lipgloss.NewStyle().
+				BorderStyle(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color(borderCol)).
+				Padding(0, 1).
+				Render(cardContent)
+
+			lines := strings.Split(branchBox, "\n")
+			for idx, l := range lines {
+				if idx > 0 {
+					b.WriteString("\n")
+				}
+				if idx == 0 && isCursor {
+					b.WriteString(cursorMark + l)
+				} else {
+					b.WriteString("  " + l)
+				}
+			}
+		}
 	}
 
 	return b.String()
@@ -804,8 +855,11 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString("\n" + dimStyle.Render("Press '?' or 'Esc' to close") + "\n\n")
 
 	sb.WriteString(currentTheme.HelpHeaderStyle.Render("  NAVIGATION") + "\n")
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Next slide")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h, Backspace"), currentTheme.HelpDescStyle.Render("Previous slide")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Next slide / Advance graph edge")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h"), currentTheme.HelpDescStyle.Render("Previous slide")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Backspace / H"), currentTheme.HelpDescStyle.Render("Backtrack along traversal history")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Follow branch option shortcut")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("/"), currentTheme.HelpDescStyle.Render("Jump to slide (number or search)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("o / O"), currentTheme.HelpDescStyle.Render("Slide overview & grid sorter")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j"), currentTheme.HelpDescStyle.Render("Move laser pointer down")))
@@ -1144,6 +1198,141 @@ func renderStatsModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderGraphModal(d Deck, e Editor, w, h int) string {
+	totalSlides := len(d.Slides)
+	if totalSlides == 0 {
+		return ""
+	}
+
+	modalW := w - 6
+	if modalW > 84 {
+		modalW = 84
+	}
+	if modalW < 40 {
+		modalW = 40
+	}
+
+	cursor := e.GraphMapCursor
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor >= totalSlides {
+		cursor = totalSlides - 1
+	}
+
+	g := BuildGraph(d)
+
+	var sb strings.Builder
+	title := currentTheme.HelpTitleStyle.Render("🗺  Presentation Topology Map (DAG)")
+	sb.WriteString(title + "\n")
+
+	// Traversal breadcrumbs
+	if len(e.History) > 0 {
+		var pathParts []string
+		for _, hIdx := range e.History {
+			pathParts = append(pathParts, fmt.Sprintf("[%02d]", hIdx+1))
+		}
+		pathParts = append(pathParts, fmt.Sprintf("[%02d]", e.SlideIdx+1))
+		pathStr := strings.Join(pathParts, " ──► ")
+		sb.WriteString(dimBoldStyle.Render("Path: ") + currentTheme.TableCellStyle.Render(pathStr) + "\n")
+	} else if e.SlideIdx < totalSlides {
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("%d slides · active: [%02d] %s", totalSlides, e.SlideIdx+1, d.Slides[e.SlideIdx].Title())) + "\n")
+	}
+	sb.WriteString("\n")
+
+	// Vertical scrolling calculation
+	maxRows := (h - 10) / 2
+	if maxRows < 3 {
+		maxRows = 3
+	}
+	if maxRows > 12 {
+		maxRows = 12
+	}
+
+	start := 0
+	if cursor >= maxRows {
+		start = cursor - maxRows + 1
+	}
+	end := start + maxRows
+	if end > totalSlides {
+		end = totalSlides
+	}
+
+	if start > 0 {
+		sb.WriteString(dimStyle.Render("  ▲  more slides above") + "\n")
+	}
+
+	for i := start; i < end; i++ {
+		node := g.Nodes[i]
+		isCursor := i == cursor
+		isActive := i == e.SlideIdx
+
+		pointer := "  "
+		if isCursor {
+			pointer = currentTheme.LaserPointerStyle.Render("▶ ")
+		}
+
+		numBadge := fmt.Sprintf("[%02d]", i+1)
+		if isActive {
+			numBadge += " " + currentTheme.ProgressLineFilledStyle.Render("●")
+		}
+
+		t := node.Title
+		maxTLen := modalW - 24
+		if maxTLen < 12 {
+			maxTLen = 12
+		}
+		if len(t) > maxTLen {
+			t = t[:maxTLen-3] + "..."
+		}
+
+		var line string
+		if isCursor {
+			line = pointer + currentTheme.HelpKeyStyle.Render(numBadge) + " " + currentTheme.H1Style.Render(t)
+		} else {
+			line = pointer + dimBoldStyle.Render(numBadge) + " " + currentTheme.TableCellStyle.Render(t)
+		}
+
+		if node.ID != "" {
+			line += " " + currentTheme.HelpDescStyle.Render("#"+node.ID)
+		}
+		sb.WriteString(line + "\n")
+
+		// Render edges / branches for this node
+		if len(node.OutEdges) > 0 {
+			var edgeStrs []string
+			for _, edge := range node.OutEdges {
+				switch edge.Kind {
+				case EdgeBranch:
+					targetName := edge.TargetID
+					if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+						targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+					}
+					edgeStrs = append(edgeStrs, fmt.Sprintf("[%s] ──► %s", edge.Key, targetName))
+				case EdgeNext:
+					targetName := edge.TargetID
+					if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+						targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+					}
+					edgeStrs = append(edgeStrs, fmt.Sprintf("next ──► %s", targetName))
+				}
+			}
+			if len(edgeStrs) > 0 {
+				sb.WriteString("       " + dimStyle.Render(strings.Join(edgeStrs, "  ·  ")) + "\n")
+			}
+		}
+	}
+
+	if end < totalSlides {
+		sb.WriteString(dimStyle.Render("  ▼  more slides below") + "\n")
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("▲/▼ or j/k: select  ·  Enter: jump to slide  ·  M or Esc: close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 func renderBlankScreen(w, h int) string {
 	msg := dimStyle.Render("●  presentation paused  ·  press any key to resume")
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
@@ -1179,6 +1368,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowOverview {
 		return renderOverviewModal(d, e, width, height)
+	}
+
+	if e.ShowGraphMap {
+		return renderGraphModal(d, e, width, height)
 	}
 
 	if e.Mode == ModePrompt {
@@ -1339,10 +1532,19 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Autoplay {
 		left += fmt.Sprintf("  ·  [▶ auto: %ds (%ds)]", e.AutoplayInterval, e.AutoplayCountdown)
 	}
+	if e.SlideIdx < len(d.Slides) {
+		branches := d.Slides[e.SlideIdx].Branches()
+		if len(branches) > 0 {
+			left += fmt.Sprintf("  ·  [fork: %d paths]", len(branches))
+		}
+	}
+	if len(e.History) > 0 {
+		left += fmt.Sprintf("  ·  [history: %d]", len(e.History))
+	}
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · o grid · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · o grid · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

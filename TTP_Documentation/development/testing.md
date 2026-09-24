@@ -19,10 +19,11 @@ This document outlines the testing architecture, developer tooling, coverage met
 tpp/
 ├── main_test.go             # Root CLI & Bubble Tea engine tests
 ├── internal/
-│   ├── editor_test.go       # Navigation, edit mode, undo/redo, block mutations
-│   ├── export_test.go       # HTML export formatting, CSS/JS bundling, file generation
-│   ├── view_test.go         # Syntax highlighting, inline styles, Lipgloss layout
-│   ├── model_test.go        # Parser edge cases, directives, round-trip serialization
+│   ├── editor_test.go       # Navigation, edit mode, undo/redo, block mutations, DAG history
+│   ├── export_test.go       # HTML export formatting, CSS/JS bundling, interactive branching
+│   ├── graph_test.go        # DAG topology construction, Mermaid export, cycle/orphan analysis
+│   ├── view_test.go         # Syntax highlighting, inline styles, DAG modal, Lipgloss layout
+│   ├── model_test.go        # Parser edge cases, branching syntax, round-trip serialization
 │   ├── image_test.go        # Image path resolution, format probing, ASCII cards
 │   └── stats_test.go        # Talk statistics, progress bar, CLI format tests
 └── Makefile                 # Developer automation
@@ -40,6 +41,7 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestPrintHelpExportHTML`: Asserts `--export-html` is documented in CLI help output.
 - `TestPrintHelpStats`: Asserts `--stats` and `S` control are documented in CLI help output.
 - `TestPrintHelpAutoplay`: Asserts `-a` / `--autoplay` and `A` control are documented in CLI help output.
+- `TestPrintHelpGraphAndMermaid`: Asserts `--graph` and `--mermaid` CLI options are documented in help output.
 - `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
 - `TestModelUpdateTickMsg`: Verifies Bubble Tea model dispatches `TickCmd()` only when timer is enabled, avoiding background polling overhead.
 - `TestModelInitWatchMode`: Asserts `WatchCmd()` is initialized when `-w` / `--watch` CLI flag is set.
@@ -79,6 +81,7 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorYankAndBlankScreen`: Asserts `y`/`Y` extracts focused text to OSC 52 sequence and `b`/`B` blanks presentation screen.
 - `TestEditorExportHTMLKeyNav`: Verifies pressing `E` in navigation mode invokes HTML exporter and sets status bar confirmation.
 - `TestEditorAutoplay`: Validates toggling autoplay with `A`, per-second countdown ticking, automatic slide advancing, looping to start, and manual navigation reset.
+- `TestEditorBranchAndGraphNavigation`: Validates numeric branch jumping (`1`..`9`), `enter` on focused branch cards, `Backspace` / `H` history backtracking stack, and `M` graph map modal cursor navigation and jumping.
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
 Tests visual layout, card rendering, and terminal text styling:
@@ -111,6 +114,10 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestOverviewModalView`: Verifies multi-column grid layout, slide cards, cursor highlighting, and badges.
 - `TestBlankScreenView`: Asserts blackout presentation screen rendering with resume prompt.
 - `TestAutoplayView`: Validates status bar `[▶ auto: 8s (4s)]` badge, `A auto` status hint, and help modal documentation.
+- `TestRenderBranchBlock`: Verifies rendering of `BlockBranch` cards with key badge (`[1]`), bold label, arrow (`──►`), target `#id`, and cursor highlighting.
+- `TestRenderGraphModal`: Tests interactive presentation DAG topology map rendering, active slide indicator, and visited path breadcrumbs (`Path: [01] ──► [02]`).
+- `TestNavStatusForkAndHistory`: Verifies `[fork: N paths]`, `[history: N]`, and `M map` badges in the status bar.
+- `TestHelpModalGraphShortcuts`: Asserts `1 - 9`, `Backspace / H`, and `M` shortcuts are documented in help modal.
 - `BenchmarkRenderView`: Measures frames-per-second rendering efficiency.
 
 ### D. Model & Parser — `internal/model_test.go`
@@ -125,6 +132,9 @@ Tests markdown AST parsing and serialization:
 - `TestStandardMarkdownFeatures`: Native Markdown tables, fenced code blocks (```` ```lang ````), and standard images (`![alt](path)`).
 - `TestCalloutBlocks`: Parsing `> [!TIP]`, `> [!NOTE]`, `> [!WARNING]`, `> [!IMPORTANT]`, `> [!CAUTION]`, and quotes.
 - `TestBlockDivider`: Parsing `***`, `___`, and `::hr` into `BlockDivider`.
+- `TestBranchParsingAndModel`: Parsing `::branch`, `::fork`, markdown arrows (`->`, `=>`), `# Title {#slug}`, tags, and branch key lookup.
+- `TestFindSlideByID`: Multi-pass slide lookup by exact ID, title slug, 1-based index, and title substring.
+- `TestBranchSerialization`: Round-trip preservation of `::id`, `::next`, `::prev`, `::tags`, and `::branch`.
 - `BenchmarkParseDeck`: Measures markdown parser throughput.
 
 ### E. Theme Engine — `internal/theme_test.go`
@@ -150,6 +160,7 @@ Tests single-file self-contained HTML presentation generation:
 - `TestExportHTML`: Validates HTML assembly, embedded CSS theme palette variables, block rendering (headings, paragraphs, code blocks, diffs, tables, callouts, task checklists), and embedded vanilla JS runner.
 - `TestExportHTMLFile`: Hermetic disk test asserting file creation, `.deck.md` trimming, and base64 asset encoding.
 - `TestEditorExportHTML`: Asserts `editor.ExportHTML()` writes file to expected path with correct status update.
+- `TestExportHTMLBranching`: Asserts branch cards render with `branch-fork-card`, `data-key`, `data-target`, and `jumpToBranch()` script.
 
 ### H. Presentation Statistics & Pacing — `internal/stats_test.go`
 Tests presentation metrics calculation, speaking pacing estimates, and sprint velocity reporting:
@@ -158,6 +169,13 @@ Tests presentation metrics calculation, speaking pacing estimates, and sprint ve
 - `TestFormatStatsCLI`: Asserts CLI report contains all section headers, values, and handles empty tasks.
 - `TestEditorStatsModalAndKeyNav`: Validates opening modal with `S`, closing with `Esc`/`q`/`S`.
 - `TestRenderStatsModalView`: Asserts modal card styling and full-view rendering.
+
+### I. Directed Graph Topology — `internal/graph_test.go`
+Tests presentation graph construction, traversal analysis, and diagram export:
+- `TestBuildGraphLinear`: Validates sequential edge generation, cycle absence, and full node reachability.
+- `TestBuildGraphBranching`: Tests multi-branch forks, convergence edges (`::next`), Mermaid diagram generation, and ASCII CLI format.
+- `TestGraphCycleAndOrphans`: Validates cycle detection algorithms and unreferenced detached slide detection with warnings.
+- `TestReachableNodesOutOfBounds`: Asserts safety against out-of-bounds start indices.
 
 ---
 

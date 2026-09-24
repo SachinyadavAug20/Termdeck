@@ -81,7 +81,12 @@ func ExportHTML(d Deck, title string) string {
 			}
 		}
 
-		sb.WriteString(fmt.Sprintf("  <section class=\"slide%s%s\" id=\"slide-%d\" data-slide=\"%d\">\n", activeClass, alignClass, sIdx+1, sIdx+1))
+		idAttr := html.EscapeString(slide.ID)
+		slugAttr := html.EscapeString(slide.Slug())
+		nextAttr := html.EscapeString(slide.NextID)
+		prevAttr := html.EscapeString(slide.PrevID)
+		sb.WriteString(fmt.Sprintf("  <section class=\"slide%s%s\" id=\"slide-%d\" data-slide=\"%d\" data-id=\"%s\" data-slug=\"%s\" data-next=\"%s\" data-prev=\"%s\">\n",
+			activeClass, alignClass, sIdx+1, sIdx+1, idAttr, slugAttr, nextAttr, prevAttr))
 
 		visIndices := slide.VisibleBlockIndices()
 		for _, bIdx := range visIndices {
@@ -223,6 +228,16 @@ func renderBlockHTML(blk Block, baseDir string) string {
 
 	case BlockDivider:
 		return "    <hr class=\"deck-divider\">\n"
+
+	case BlockBranch:
+		keyStr := blk.BranchKey
+		if keyStr == "" {
+			keyStr = "→"
+		}
+		target := html.EscapeString(blk.BranchTarget)
+		label := formatInlineHTML(blk.Text)
+		return fmt.Sprintf("    <div class=\"branch-fork-card\" data-key=\"%s\" data-target=\"%s\" onclick=\"jumpToBranch('%s')\"><span class=\"branch-key\">[%s]</span> <span class=\"branch-label\">%s</span> <span class=\"branch-arrow\">&xrarr;</span> <span class=\"branch-target\">#%s</span></div>\n",
+			html.EscapeString(keyStr), target, target, html.EscapeString(keyStr), label, target)
 
 	case BlockImage:
 		// Attempt to read and embed base64 image if exists, or use src path
@@ -435,6 +450,47 @@ func generateDeckCSS(theme Theme) string {
     border: none;
     border-top: 1px solid var(--border);
   }
+  .branch-fork-card {
+    display: inline-flex;
+    align-items: center;
+    gap: 0.75rem;
+    padding: 0.6rem 1.2rem;
+    margin: 0.4rem 0;
+    background: var(--code-bg);
+    border: 1px solid var(--border);
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.15s ease;
+    font-size: 1.05rem;
+    max-width: 680px;
+    text-decoration: none;
+  }
+  .branch-fork-card:hover {
+    border-color: var(--accent);
+    transform: translateX(4px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.25);
+  }
+  .branch-key {
+    background: var(--accent);
+    color: #ffffff;
+    font-weight: 700;
+    padding: 0.15rem 0.45rem;
+    border-radius: 4px;
+    font-family: monospace;
+    font-size: 0.9rem;
+  }
+  .branch-label {
+    font-weight: 600;
+    color: #ffffff;
+  }
+  .branch-arrow {
+    color: #64748b;
+  }
+  .branch-target {
+    color: #94a3b8;
+    font-family: monospace;
+    font-size: 0.85rem;
+  }
   .image-card {
     display: flex;
     flex-direction: column;
@@ -481,6 +537,23 @@ func generateDeckJS(totalSlides int) string {
 	return fmt.Sprintf(`
   let currentSlide = 1;
   const totalSlides = %d;
+  const historyStack = [];
+
+  window.jumpToBranch = function(target) {
+    if (!target) return;
+    target = target.toLowerCase();
+    const slides = document.querySelectorAll('.slide');
+    for (let i = 0; i < slides.length; i++) {
+      const s = slides[i];
+      const sId = (s.getAttribute('data-id') || '').toLowerCase();
+      const sSlug = (s.getAttribute('data-slug') || '').toLowerCase();
+      if (sId === target || sSlug === target || (i + 1).toString() === target) {
+        historyStack.push(currentSlide);
+        updateSlide(i + 1);
+        return;
+      }
+    }
+  };
 
   function updateSlide(n) {
     if (n < 1) n = 1;
@@ -504,20 +577,52 @@ func generateDeckJS(totalSlides int) string {
   }
 
   document.addEventListener('keydown', (e) => {
+    if (e.key >= '1' && e.key <= '9') {
+      const activeSlide = document.querySelector('.slide.active');
+      if (activeSlide) {
+        const btn = activeSlide.querySelector('.branch-fork-card[data-key="' + e.key + '"]');
+        if (btn) {
+          const tgt = btn.getAttribute('data-target');
+          if (tgt) { jumpToBranch(tgt); return; }
+        }
+      }
+    }
+
     switch (e.key) {
       case 'ArrowRight':
       case 'l':
       case ' ':
       case 'Enter':
-      case 'PageDown':
-        updateSlide(currentSlide + 1);
+      case 'PageDown': {
+        const activeSlide = document.querySelector('.slide.active');
+        const nextTarget = activeSlide ? activeSlide.getAttribute('data-next') : null;
+        if (nextTarget) {
+          jumpToBranch(nextTarget);
+        } else {
+          updateSlide(currentSlide + 1);
+        }
+        break;
+      }
+      case 'Backspace':
+      case 'H':
+        if (historyStack.length > 0) {
+          updateSlide(historyStack.pop());
+          break;
+        }
+        updateSlide(currentSlide - 1);
         break;
       case 'ArrowLeft':
       case 'h':
-      case 'Backspace':
-      case 'PageUp':
-        updateSlide(currentSlide - 1);
+      case 'PageUp': {
+        const activeSlide = document.querySelector('.slide.active');
+        const prevTarget = activeSlide ? activeSlide.getAttribute('data-prev') : null;
+        if (prevTarget) {
+          jumpToBranch(prevTarget);
+        } else {
+          updateSlide(currentSlide - 1);
+        }
         break;
+      }
       case 'Home':
       case 'g':
         updateSlide(1);

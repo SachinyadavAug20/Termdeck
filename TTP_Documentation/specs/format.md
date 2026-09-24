@@ -78,7 +78,40 @@ Lines starting with `::` — special instructions for the viewer.
 | `::code` | `::code lang=X` | Code block (until next `::` or `---`) |
 | `::image` | `::image src=X` | Image card (or `::image filename.png`) |
 | `::hr` | `::hr` | Horizontal divider hairline within slide (also `***`, `___`) |
+| `::id` | `::id <slug>` | Custom slide identifier (also `# Title {#slug}`) |
+| `::next` | `::next <slug>` | Override forward transition to converge branches |
+| `::prev` | `::prev <slug>` | Override backward transition |
+| `::branch` | `::branch [key] label -> target` | Interactive decision branch fork (also `::fork`, `-> [Label](target)`) |
+| `::tags` | `::tags backend,perf` | Slide classification tags for topology and search |
 | `::notes` | `::notes` | Speaker notes (hidden in presentation) |
+
+### Non-Linear Branching & Directed Graph (DAG)
+
+Termdeck supports non-linear presentation topologies. Instead of rigid $1 \to 2 \to 3$ sequence, slides can branch dynamically based on audience interaction:
+
+#### Decision Branches
+Author forks using directives or native markdown arrows:
+```markdown
+::branch [1] Deep Dive: Core Architecture -> arch-deepdive
+::branch [2] Deep Dive: Performance Pacing -> perf-deepdive
+-> [Concurrency Patterns](concurrency)
+=> [Memory Optimizations](memory)
+```
+- **Keys**: `[1]`, `[2]`, ... or unkeyed (auto-assigned `1`, `2`, ...).
+- **Navigation**: Pressing `1`..`9` on the keyboard follows the corresponding branch immediately. Presenters can also navigate down to any branch card with the laser pointer (`▶`) and press `Enter`.
+- **Backtracking**: Pressing `Backspace` or `H` pops from `History []int` to reverse along the presenter's exact path.
+
+#### Slide Identifiers & Convergence
+```markdown
+# Storage Engine {#storage}
+::next conclusion
+::tags backend,storage
+
+LSM tree design...
+```
+- `::id <slug>` or `{#slug}`: Sets slide identifier. Target resolution matches exact IDs, slugs, 1-based slide numbers, or title substrings.
+- `::next <slug>`: When advancing with `→` / `Space` / `Enter`, jumps directly to the target slide, allowing multiple deep dives to converge cleanly into a shared conclusion.
+- `::prev <slug>`: When going back with `←` / `h`, jumps to the specified previous slide.
 
 ### Horizontal Dividers
 
@@ -172,8 +205,11 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 
 | Key | Action |
 |-----|--------|
-| `→`, `l`, `Space`, `Enter`, `PageDown` | Next slide |
-| `←`, `h`, `PageUp`, `Backspace` | Previous slide |
+| `→`, `l`, `Space`, `Enter`, `PageDown` | Next slide / advance directed edge |
+| `←`, `h`, `PageUp` | Previous slide |
+| `1` – `9` | Jump directly along numbered branch option |
+| `Backspace`, `H` | Backtrack along visited graph traversal history |
+| `M` | Open presentation graph map & DAG explorer modal |
 | `↓`, `j` | Move block cursor / laser pointer down |
 | `↑`, `k` | Move block cursor / laser pointer up |
 | `/` | Quick Jump to slide (by number or title search) |

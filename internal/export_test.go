@@ -210,3 +210,47 @@ func TestEditorExportHTML(t *testing.T) {
 	}
 	_ = os.Remove("deck.html") // Clean up generated file
 }
+
+func TestExportHTMLBranching(t *testing.T) {
+	src := `---
+title: Branch Export Deck
+---
+
+::id overview
+::next summary
+# Overview
+Choose a topic:
+::branch [1] Deep Dive Storage -> storage
+::branch [2] Networking Layer -> network
+
+---
+
+::id storage
+# Storage Engine
+Details.
+
+---
+
+::id summary
+# Summary
+End.`
+
+	d := ParseDeck(src)
+	htmlStr := ExportHTML(d, "")
+
+	if !strings.Contains(htmlStr, "branch-fork-card") {
+		t.Errorf("expected 'branch-fork-card' in exported HTML, got:\n%s", htmlStr)
+	}
+	if !strings.Contains(htmlStr, "data-key=\"1\"") || !strings.Contains(htmlStr, "data-target=\"storage\"") {
+		t.Errorf("expected branch data attributes in exported HTML, got:\n%s", htmlStr)
+	}
+	if !strings.Contains(htmlStr, "Deep Dive Storage") {
+		t.Errorf("expected branch label in exported HTML, got:\n%s", htmlStr)
+	}
+	if !strings.Contains(htmlStr, "data-id=\"overview\"") || !strings.Contains(htmlStr, "data-next=\"summary\"") {
+		t.Errorf("expected slide data attributes in exported HTML, got:\n%s", htmlStr)
+	}
+	if !strings.Contains(htmlStr, "jumpToBranch") {
+		t.Errorf("expected 'jumpToBranch' in script of exported HTML, got:\n%s", htmlStr)
+	}
+}

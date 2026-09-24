@@ -16,6 +16,19 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 24 September 2026
+- [x] **Non-Linear Directed Graph (DAG) Presentation Engine**: transform linear slides into dynamic, interactive branching graphs
+- [x] **Interactive Decision Branches**: author forks with `::branch [key] label -> target` or markdown arrows `-> [Label](target)`
+- [x] **Instant Branch Jump Shortcuts**: press `1`..`9` anytime during presentation to follow a branch, or hit `Enter` on a focused branch card
+- [x] **Graph Traversal History Stack**: backtrack along your visited path without losing context using `Backspace` or `H`
+- [x] **Interactive Graph Map & DAG Explorer (`M`)**: visual terminal topology modal with breadcrumb path tracking, edge arrows, and Enter-to-jump
+- [x] **Convergence & Non-Linear Edge Control**: `::next <slug>` and `::prev <slug>` directives to converge disparate branches back to a common conclusion
+- [x] **Slide Identifiers & Markdown Header Slugs**: define custom slide targets via `::id <slug>` or standard markdown `# Title {#slug}`
+- [x] **ASCII Topology Map CLI (`--graph`)**: render clean, styled ASCII DAG diagrams of slide connections directly in the terminal
+- [x] **Mermaid Diagram Export CLI (`--mermaid`)**: emit standard `graph LR` diagram syntax for GitHub markdown documentation
+- [x] **Interactive Offline HTML Branching**: exported standalone HTML decks feature clickable branch cards, keyboard shortcuts (`1-9`, `Backspace`), and DAG history tracking
+- [x] **90+ Automated Unit Tests** maintaining $\ge 90\%$ statement coverage in `internal/` with zero external runtime dependencies
+
 #### 22 September 2026
 - [x] Distraction-free Zen Mode (`z`) for clean presentations and video demos
 - [x] Native Markdown code diff syntax highlighting (```` ```diff ````) with green additions and red deletions
@@ -82,6 +95,8 @@ tpp/
 │   ├── editor_test.go   # Navigation, keyboard dispatch, edit mode tests
 │   ├── export.go        # Standalone HTML export, CSS/JS bundling, base64 images
 │   ├── export_test.go   # HTML export tests, formatting, file output verification
+│   ├── graph.go         # Directed Graph (DAG) topology, Mermaid export, ASCII map
+│   ├── graph_test.go    # Graph builder, cycle detection, orphan analysis tests
 │   ├── image.go         # Terminal image renderer (ANSI half-blocks)
 │   ├── image_test.go    # Path resolution, format probing, card tests
 │   ├── stats.go         # Talk statistics, density metrics, duration estimation
@@ -116,6 +131,8 @@ deck [options] <file.deck.md>
 #       --list-themes    List all available themes
 #   -w, --watch          Watch file for external changes and auto-reload
 #   -a, --autoplay <sec> Auto-advance slides every N seconds (default: 5)
+#       --graph          Print presentation topology map (ASCII DAG) to terminal
+#       --mermaid        Print presentation topology as Mermaid diagram syntax
 #       --stats          Print presentation statistics and metrics to terminal
 #       --export-html    Export presentation to standalone HTML file
 #   -h, --help           Show help
@@ -126,8 +143,11 @@ deck [options] <file.deck.md>
 
 | Key | Action |
 |-----|--------|
-| `→` `l` `Space` `Enter` `PageDown` | Next slide |
-| `←` `h` `PageUp` `Backspace` | Previous slide |
+| `→` `l` `Space` `Enter` `PageDown` | Next slide / advance directed edge |
+| `←` `h` `PageUp` | Previous slide |
+| `1` – `9` | Jump directly along numbered branch / fork option |
+| `Backspace` `H` | Backtrack along visited graph traversal history |
+| `M` | Open interactive presentation graph map & DAG explorer modal |
 | `↓` `j` | Move block cursor / laser pointer down |
 | `↑` `k` | Move block cursor / laser pointer up |
 | `/` | Quick Jump to slide (enter slide number or title search) |
@@ -150,7 +170,7 @@ deck [options] <file.deck.md>
 | `G` | Last slide |
 | `g` | First slide |
 | `q` `Ctrl+C` | Quit (auto-saves any unsaved changes) |
-| `Esc` | Close help modal / clear message status |
+| `Esc` | Close help modal / clear message status / close modals |
 
 ## Keys — Editor
 
@@ -198,15 +218,20 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Code Block & Element Yank (`y` / `Y`)**: Copy focused code snippets, commands, tables, or text directly to system clipboard via ANSI OSC 52 (works over SSH and tmux) and native OS clipboard utilities (`pbcopy`, `wl-copy`, `xclip`, `clip`)
 - **Presentation Screen Blanking (`b` / `B`)**: Temporarily blank/blackout the screen to direct audience focus to the speaker during key verbal explanations; any key instantly resumes the slide
 - **Slide Overview & 2D Grid Sorter**: Press `o` or `O` anytime to open a visual grid map of all slides with titles, block element counts, cursor focus, active slide indicator, and 2D arrow/hjkl navigation
+- **Non-Linear Directed Graph (DAG) Engine**: Break free from rigid linear slides! Author interactive decision forks (`::branch [key] label -> target` or `-> [label](target)`), direct numerical jumping (`1`–`9`), back-stack traversal (`Backspace` / `H`), convergence (`::next <slug>`), and interactive topology explorer modal (`M`)
+- **ASCII DAG & Mermaid Diagrams**: Inspect deck topology directly in your terminal with `deck --graph <deck.md>` or export Mermaid syntax for GitHub with `deck --mermaid <deck.md>`
+- **Standalone Offline HTML Export**: Press `E` or pass `--export-html` to generate a self-contained single-file HTML presentation with embedded CSS, base64 images, and interactive JavaScript navigation
+- **Presentation Statistics & Deck Metrics**: Press `S` or pass `--stats` for talk duration estimates (130 WPM), code density metrics, block counts, and sprint task checklist velocity
+- **Rehearsal & Autoplay Mode**: Press `A` or pass `-a, --autoplay [sec]` for automated rehearsal pacing with countdown timer, loop restart, and manual override protection
 - **Live File Watch & Hot-Reload**: Start with `-w` or `--watch` to auto-reload on file edits from external editors/IDEs, or press `r` / `R` anytime to reload manually (safeguards protect active in-app edit sessions)
-- **CLI Options**: `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
+- **CLI Options**: `--graph`, `--mermaid`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **90.6% statement coverage** in `internal/` with 76 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **90.8% statement coverage** in `internal/` with over 90 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

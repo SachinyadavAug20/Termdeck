@@ -595,6 +595,214 @@ func TestSlideSummary(t *testing.T) {
 	}
 }
 
+func TestBranchParsingAndModel(t *testing.T) {
+	src := `---
+title: Branching Deck
+---
+
+# Architecture Overview {#arch-overview}
+::next summary
+::prev intro
+::tags arch,backend
+
+Choose your deep dive:
+::branch [1] Backend Storage Engine -> backend-storage
+::fork [2] Frontend Reactive UI -> frontend-ui
+-> [Concurrency Patterns](concurrency)
+=> [Memory Optimizations](memory)
+-> [5] Profiling Tips -> profiling
+[6] Distributed Tracing -> tracing
+
+---
+
+::id backend-storage
+# Backend Storage Engine
+Details on LSM trees.
+
+---
+
+::id summary
+# Conclusion
+Wrap up.`
+
+	deck := ParseDeck(src)
+	if len(deck.Slides) != 3 {
+		t.Fatalf("expected 3 slides, got %d", len(deck.Slides))
+	}
+
+	s1 := deck.Slides[0]
+	if s1.ID != "arch-overview" {
+		t.Errorf("expected ID 'arch-overview', got %q", s1.ID)
+	}
+	if s1.NextID != "summary" {
+		t.Errorf("expected NextID 'summary', got %q", s1.NextID)
+	}
+	if s1.PrevID != "intro" {
+		t.Errorf("expected PrevID 'intro', got %q", s1.PrevID)
+	}
+	if len(s1.Tags) != 2 || s1.Tags[0] != "arch" || s1.Tags[1] != "backend" {
+		t.Errorf("unexpected tags: %+v", s1.Tags)
+	}
+
+	branches := s1.Branches()
+	if len(branches) != 6 {
+		t.Fatalf("expected 6 branches, got %d: %+v", len(branches), branches)
+	}
+
+	if branches[0].Key != "1" || branches[0].Target != "backend-storage" || branches[0].Label != "Backend Storage Engine" {
+		t.Errorf("unexpected branch 0: %+v", branches[0])
+	}
+	if branches[1].Key != "2" || branches[1].Target != "frontend-ui" || branches[1].Label != "Frontend Reactive UI" {
+		t.Errorf("unexpected branch 1: %+v", branches[1])
+	}
+	if branches[2].Target != "concurrency" || branches[2].Label != "Concurrency Patterns" {
+		t.Errorf("unexpected branch 2: %+v", branches[2])
+	}
+	if branches[3].Target != "memory" || branches[3].Label != "Memory Optimizations" {
+		t.Errorf("unexpected branch 3: %+v", branches[3])
+	}
+	if branches[4].Key != "5" || branches[4].Target != "profiling" {
+		t.Errorf("unexpected branch 4: %+v", branches[4])
+	}
+	if branches[5].Key != "6" || branches[5].Target != "tracing" {
+		t.Errorf("unexpected branch 5: %+v", branches[5])
+	}
+
+	// Test FindBranchByKey
+	b1 := s1.FindBranchByKey("1")
+	if b1 == nil || b1.Target != "backend-storage" {
+		t.Errorf("FindBranchByKey('1') failed: %+v", b1)
+	}
+	bMissing := s1.FindBranchByKey("99")
+	if bMissing != nil {
+		t.Errorf("expected nil for missing key, got %+v", bMissing)
+	}
+
+	// Test Summary contains 'fork'
+	if !strings.Contains(s1.Summary(), "fork") {
+		t.Errorf("expected summary to contain 'fork', got %q", s1.Summary())
+	}
+
+	// Test Slug
+	if s1.Slug() != "arch-overview" {
+		t.Errorf("expected slug 'arch-overview', got %q", s1.Slug())
+	}
+	s2 := deck.Slides[1]
+	if s2.Slug() != "backend-storage" {
+		t.Errorf("expected slug 'backend-storage', got %q", s2.Slug())
+	}
+	s3 := deck.Slides[2]
+	if s3.Slug() != "summary" {
+		t.Errorf("expected slug 'summary', got %q", s3.Slug())
+	}
+}
+
+func TestFindSlideByID(t *testing.T) {
+	src := `---
+title: Graph Deck
+---
+
+# Intro Slide
+Welcome.
+
+---
+
+::id deep-dive
+# Deep Dive
+Technical details.
+
+---
+
+# Performance Benchmarks {#benchmarks}
+Speed matters.
+`
+	deck := ParseDeck(src)
+	if !deck.HasBranches() {
+		// Even though it has no branches, let's test FindSlideByID
+	}
+
+	// 1. Exact ID
+	if idx := deck.FindSlideByID("deep-dive"); idx != 1 {
+		t.Errorf("expected index 1 for 'deep-dive', got %d", idx)
+	}
+	if idx := deck.FindSlideByID("benchmarks"); idx != 2 {
+		t.Errorf("expected index 2 for 'benchmarks', got %d", idx)
+	}
+
+	// 2. Numeric 1-based index string
+	if idx := deck.FindSlideByID("1"); idx != 0 {
+		t.Errorf("expected index 0 for '1', got %d", idx)
+	}
+	if idx := deck.FindSlideByID("3"); idx != 2 {
+		t.Errorf("expected index 2 for '3', got %d", idx)
+	}
+
+	// 3. Title substring
+	if idx := deck.FindSlideByID("bench"); idx != 2 {
+		t.Errorf("expected index 2 for 'bench', got %d", idx)
+	}
+	if idx := deck.FindSlideByID("Intro"); idx != 0 {
+		t.Errorf("expected index 0 for 'Intro', got %d", idx)
+	}
+
+	// 4. Missing or invalid
+	if idx := deck.FindSlideByID("non-existent"); idx != -1 {
+		t.Errorf("expected -1, got %d", idx)
+	}
+	if idx := deck.FindSlideByID(""); idx != -1 {
+		t.Errorf("expected -1, got %d", idx)
+	}
+	if idx := deck.FindSlideByID("999"); idx != -1 {
+		t.Errorf("expected -1 for out-of-bounds number, got %d", idx)
+	}
+}
+
+func TestBranchSerialization(t *testing.T) {
+	src := `---
+title: Branch Deck
+---
+
+::id intro
+::next conclusion
+::prev start
+::tags overview,arch
+# Welcome to Graph
+
+::branch [1] Deep Dive -> dive
+::branch [2] Live Demo -> demo
+`
+	deck := ParseDeck(src)
+	serialized := SerializeDeck(deck)
+	reparsed := ParseDeck(serialized)
+
+	if len(reparsed.Slides) != 1 {
+		t.Fatalf("expected 1 slide, got %d", len(reparsed.Slides))
+	}
+	s := reparsed.Slides[0]
+	if s.ID != "intro" {
+		t.Errorf("expected ID 'intro', got %q", s.ID)
+	}
+	if s.NextID != "conclusion" {
+		t.Errorf("expected NextID 'conclusion', got %q", s.NextID)
+	}
+	if s.PrevID != "start" {
+		t.Errorf("expected PrevID 'start', got %q", s.PrevID)
+	}
+	if len(s.Tags) != 2 || s.Tags[0] != "overview" || s.Tags[1] != "arch" {
+		t.Errorf("unexpected tags: %+v", s.Tags)
+	}
+	branches := s.Branches()
+	if len(branches) != 2 {
+		t.Fatalf("expected 2 branches, got %d", len(branches))
+	}
+	if branches[0].Key != "1" || branches[0].Target != "dive" {
+		t.Errorf("unexpected branch 0: %+v", branches[0])
+	}
+	if branches[1].Key != "2" || branches[1].Target != "demo" {
+		t.Errorf("unexpected branch 1: %+v", branches[1])
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

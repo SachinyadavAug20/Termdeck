@@ -3,10 +3,14 @@ package internal
 import (
 	"fmt"
 	"regexp"
+	"strconv"
 	"strings"
 )
 
-var reMarkdownImage = regexp.MustCompile(`^!\[(.*?)\]\((.*?)\)$`)
+var (
+	reMarkdownImage = regexp.MustCompile(`^!\[(.*?)\]\((.*?)\)$`)
+	reMarkdownLink  = regexp.MustCompile(`^\[(.*?)\]\((.*?)\)$`)
+)
 
 // --- Block types ---
 
@@ -22,18 +26,21 @@ const (
 	BlockTable
 	BlockCallout
 	BlockDivider
+	BlockBranch
 )
 
 type Block struct {
-	Kind      BlockKind
-	Level     int
-	Text      string
-	Lang      string
-	Lines     []string
-	Src       string
-	Directive string
-	Raw       string
-	Callout   string
+	Kind         BlockKind
+	Level        int
+	Text         string
+	Lang         string
+	Lines        []string
+	Src          string
+	Directive    string
+	Raw          string
+	Callout      string
+	BranchKey    string
+	BranchTarget string
 }
 
 // --- Slide & Deck ---
@@ -46,7 +53,17 @@ const (
 	AlignRight  AlignKind = "right"
 )
 
+type Branch struct {
+	Key    string
+	Label  string
+	Target string
+}
+
 type Slide struct {
+	ID     string
+	NextID string
+	PrevID string
+	Tags   []string
 	Blocks []Block
 	Align  AlignKind
 }
@@ -92,6 +109,39 @@ func (s *Slide) Title() string {
 	return "Slide"
 }
 
+func (s *Slide) Branches() []Branch {
+	var list []Branch
+	for _, b := range s.Blocks {
+		if b.Kind == BlockBranch {
+			list = append(list, Branch{
+				Key:    b.BranchKey,
+				Label:  b.Text,
+				Target: b.BranchTarget,
+			})
+		}
+	}
+	return list
+}
+
+func (s *Slide) Slug() string {
+	if s.ID != "" {
+		return s.ID
+	}
+	t := strings.ToLower(strings.TrimSpace(s.Title()))
+	t = strings.ReplaceAll(t, " ", "-")
+	var clean []rune
+	for _, r := range t {
+		if (r >= 'a' && r <= 'z') || (r >= '0' && r <= '9') || r == '-' || r == '_' {
+			clean = append(clean, r)
+		}
+	}
+	slug := string(clean)
+	if slug == "" {
+		slug = "slide"
+	}
+	return slug
+}
+
 func (s *Slide) Summary() string {
 	var kinds []string
 	hasCode := false
@@ -99,6 +149,7 @@ func (s *Slide) Summary() string {
 	hasTable := false
 	hasCallout := false
 	hasTask := false
+	hasBranch := false
 
 	for _, b := range s.Blocks {
 		switch b.Kind {
@@ -110,6 +161,8 @@ func (s *Slide) Summary() string {
 			hasTable = true
 		case BlockCallout:
 			hasCallout = true
+		case BlockBranch:
+			hasBranch = true
 		case BlockList:
 			trimmed := strings.TrimSpace(b.Text)
 			if strings.HasPrefix(trimmed, "- [ ]") || strings.HasPrefix(trimmed, "- [x]") {
@@ -139,10 +192,23 @@ func (s *Slide) Summary() string {
 	if hasTask {
 		kinds = append(kinds, "task")
 	}
+	if hasBranch {
+		kinds = append(kinds, "fork")
+	}
 	if len(kinds) > 0 {
 		summary += " · " + strings.Join(kinds, ",")
 	}
 	return summary
+}
+
+func (s *Slide) FindBranchByKey(key string) *Branch {
+	keyLower := strings.ToLower(strings.TrimSpace(key))
+	for _, b := range s.Branches() {
+		if strings.ToLower(b.Key) == keyLower {
+			return &b
+		}
+	}
+	return nil
 }
 
 type Deck struct {
@@ -151,6 +217,55 @@ type Deck struct {
 	BaseDir string
 	Align   AlignKind
 	Theme   string
+}
+
+func (d *Deck) FindSlideByID(target string) int {
+	target = strings.TrimSpace(target)
+	if target == "" {
+		return -1
+	}
+
+	targetLower := strings.ToLower(target)
+
+	// 1. Exact match on Slide.ID (case-insensitive)
+	for i := range d.Slides {
+		if d.Slides[i].ID != "" && strings.ToLower(d.Slides[i].ID) == targetLower {
+			return i
+		}
+	}
+
+	// 2. Exact match on Slide.Slug() (case-insensitive)
+	for i := range d.Slides {
+		if strings.ToLower(d.Slides[i].Slug()) == targetLower {
+			return i
+		}
+	}
+
+	// 3. Numeric 1-based index (e.g. "3" -> index 2)
+	var num int
+	if n, err := fmt.Sscanf(target, "%d", &num); err == nil && n == 1 {
+		if num >= 1 && num <= len(d.Slides) {
+			return num - 1
+		}
+	}
+
+	// 4. Case-insensitive substring match on Slide.Title()
+	for i := range d.Slides {
+		if strings.Contains(strings.ToLower(d.Slides[i].Title()), targetLower) {
+			return i
+		}
+	}
+
+	return -1
+}
+
+func (d *Deck) HasBranches() bool {
+	for i := range d.Slides {
+		if len(d.Slides[i].Branches()) > 0 || d.Slides[i].NextID != "" {
+			return true
+		}
+	}
+	return false
 }
 
 // --- Parsing ---
@@ -219,6 +334,12 @@ func ParseDeck(src string) Deck {
 func parseSlide(lines []string) Slide {
 	var blocks []Block
 	var slideAlign AlignKind
+	var slideID string
+	var nextID string
+	var prevID string
+	var tags []string
+	branchCount := 0
+
 	inCode := false
 	codeLang := ""
 	var codeLines []string
@@ -390,6 +511,39 @@ func parseSlide(lines []string) Slide {
 			}
 
 			key, val := ParseDirective(trimmed)
+			if key == "id" || key == "slug" {
+				slideID = strings.TrimSpace(val)
+				continue
+			} else if key == "next" {
+				nextID = strings.TrimSpace(val)
+				continue
+			} else if key == "prev" {
+				prevID = strings.TrimSpace(val)
+				continue
+			} else if key == "tags" {
+				for _, t := range strings.Split(val, ",") {
+					if s := strings.TrimSpace(t); s != "" {
+						tags = append(tags, s)
+					}
+				}
+				continue
+			} else if key == "branch" || key == "fork" {
+				if k, label, target, ok := parseBranchLine(line); ok {
+					if k == "" {
+						branchCount++
+						k = strconv.Itoa(branchCount)
+					}
+					blocks = append(blocks, Block{
+						Kind:         BlockBranch,
+						Text:         label,
+						BranchKey:    k,
+						BranchTarget: target,
+						Raw:          line,
+					})
+					continue
+				}
+			}
+
 			if key == "align" {
 				val = strings.ToLower(strings.TrimSpace(val))
 				if val == "left" || val == "center" || val == "right" {
@@ -482,6 +636,14 @@ func parseSlide(lines []string) Slide {
 				}
 			}
 			text := strings.TrimSpace(trimmed[level:])
+			if idx := strings.Index(text, "{#"); idx != -1 && strings.HasSuffix(text, "}") {
+				slugPart := strings.TrimSuffix(text[idx+2:], "}")
+				slugPart = strings.TrimSpace(slugPart)
+				if slideID == "" && slugPart != "" {
+					slideID = slugPart
+				}
+				text = strings.TrimSpace(text[:idx])
+			}
 			blocks = append(blocks, Block{Kind: BlockHeading, Level: level, Text: text, Raw: line})
 			continue
 		}
@@ -502,6 +664,22 @@ func parseSlide(lines []string) Slide {
 			continue
 		}
 
+		// 6. Branch / Fork links: "-> [1] Deep Dive -> arch" or "-> [Deep Dive](arch)"
+		if k, label, target, ok := parseBranchLine(line); ok {
+			if k == "" {
+				branchCount++
+				k = strconv.Itoa(branchCount)
+			}
+			blocks = append(blocks, Block{
+				Kind:         BlockBranch,
+				Text:         label,
+				BranchKey:    k,
+				BranchTarget: target,
+				Raw:          line,
+			})
+			continue
+		}
+
 		blocks = append(blocks, Block{Kind: BlockParagraph, Text: trimmed, Raw: line})
 	}
 
@@ -518,7 +696,14 @@ func parseSlide(lines []string) Slide {
 		flushCallout()
 	}
 
-	return Slide{Blocks: blocks, Align: slideAlign}
+	return Slide{
+		ID:     slideID,
+		NextID: nextID,
+		PrevID: prevID,
+		Tags:   tags,
+		Blocks: blocks,
+		Align:  slideAlign,
+	}
 }
 
 func ParseDirective(line string) (key, value string) {
@@ -539,6 +724,113 @@ func ParseDirective(line string) (key, value string) {
 		key = content
 	}
 	return key, value
+}
+
+func parseBranchLine(line string) (key, label, target string, ok bool) {
+	trimmed := strings.TrimSpace(line)
+	if trimmed == "" {
+		return "", "", "", false
+	}
+
+	if strings.HasPrefix(trimmed, "::branch") || strings.HasPrefix(trimmed, "::fork") {
+		rest := ""
+		if strings.HasPrefix(trimmed, "::branch") {
+			rest = strings.TrimSpace(trimmed[len("::branch"):])
+		} else {
+			rest = strings.TrimSpace(trimmed[len("::fork"):])
+		}
+		return parseBranchContent(rest)
+	}
+
+	if strings.HasPrefix(trimmed, "->") || strings.HasPrefix(trimmed, "=>") {
+		rest := strings.TrimSpace(trimmed[2:])
+		return parseBranchContent(rest)
+	}
+
+	if strings.HasPrefix(trimmed, "↳") || strings.HasPrefix(trimmed, "↪") {
+		r := []rune(trimmed)
+		rest := strings.TrimSpace(string(r[1:]))
+		return parseBranchContent(rest)
+	}
+
+	if strings.HasPrefix(trimmed, "[") {
+		closeIdx := strings.Index(trimmed, "]")
+		if closeIdx > 1 && len(trimmed) > closeIdx+1 {
+			k := trimmed[1:closeIdx]
+			after := strings.TrimSpace(trimmed[closeIdx+1:])
+			// [1] -> label -> target
+			if strings.HasPrefix(after, "->") || strings.HasPrefix(after, "=>") {
+				rest := strings.TrimSpace(after[2:])
+				_, l, tgt, valid := parseBranchContent(rest)
+				if valid {
+					return k, l, tgt, true
+				}
+			}
+			// [1] label -> target or [1] [label](target)
+			if strings.Contains(after, "->") || strings.Contains(after, "=>") || (strings.HasPrefix(after, "[") && strings.Contains(after, "](")) {
+				_, l, tgt, valid := parseBranchContent(after)
+				if valid {
+					return k, l, tgt, true
+				}
+			}
+		}
+	}
+
+	return "", "", "", false
+}
+
+func parseBranchContent(content string) (key, label, target string, ok bool) {
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return "", "", "", false
+	}
+
+	// Extract [key] prefix if present: e.g. "[1] Deep Dive -> arch"
+	if strings.HasPrefix(content, "[") {
+		closeBracket := strings.Index(content, "]")
+		if closeBracket != -1 {
+			afterBracket := strings.TrimSpace(content[closeBracket+1:])
+			if !strings.HasPrefix(afterBracket, "(") {
+				key = strings.TrimSpace(content[1:closeBracket])
+				content = afterBracket
+			}
+		}
+	}
+
+	// Check for markdown link: [label](target)
+	if m := reMarkdownLink.FindStringSubmatch(content); len(m) == 3 {
+		label = strings.TrimSpace(m[1])
+		target = strings.TrimSpace(m[2])
+		return key, label, target, true
+	}
+
+	// Check for "->" or "=>" separator: label -> target
+	sep := ""
+	if strings.Contains(content, "->") {
+		sep = "->"
+	} else if strings.Contains(content, "=>") {
+		sep = "=>"
+	}
+
+	if sep != "" {
+		parts := strings.SplitN(content, sep, 2)
+		label = strings.TrimSpace(parts[0])
+		target = strings.TrimSpace(parts[1])
+		target = strings.TrimPrefix(target, "(")
+		target = strings.TrimSuffix(target, ")")
+		target = strings.TrimSpace(target)
+		if label == "" {
+			label = target
+		}
+		return key, label, target, true
+	}
+
+	// If single token without spaces, treat as target
+	if content != "" && !strings.Contains(content, " ") {
+		return key, content, content, true
+	}
+
+	return "", "", "", false
 }
 
 // --- Serialization ---
@@ -568,6 +860,18 @@ func SerializeDeck(d Deck) string {
 	for i, slide := range d.Slides {
 		if i > 0 {
 			b.WriteString("\n---\n\n")
+		}
+		if slide.ID != "" {
+			fmt.Fprintf(&b, "::id %s\n", slide.ID)
+		}
+		if slide.NextID != "" {
+			fmt.Fprintf(&b, "::next %s\n", slide.NextID)
+		}
+		if slide.PrevID != "" {
+			fmt.Fprintf(&b, "::prev %s\n", slide.PrevID)
+		}
+		if len(slide.Tags) > 0 {
+			fmt.Fprintf(&b, "::tags %s\n", strings.Join(slide.Tags, ", "))
 		}
 		if slide.Align != "" && slide.Align != d.Align {
 			fmt.Fprintf(&b, "::align %s\n", slide.Align)
@@ -642,6 +946,11 @@ func SerializeBlock(blk Block) string {
 		return b.String()
 	case BlockDivider:
 		return "***"
+	case BlockBranch:
+		if blk.BranchKey != "" {
+			return fmt.Sprintf("::branch [%s] %s -> %s", blk.BranchKey, blk.Text, blk.BranchTarget)
+		}
+		return fmt.Sprintf("::branch %s -> %s", blk.Text, blk.BranchTarget)
 	default:
 		return blk.Text
 	}
