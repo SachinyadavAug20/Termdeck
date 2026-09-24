@@ -958,6 +958,31 @@ func TestBlankScreenView(t *testing.T) {
 	}
 }
 
+func TestAutoplayView(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Autoplay Demo"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	ed.Autoplay = true
+	ed.AutoplayInterval = 8
+	ed.AutoplayCountdown = 4
+
+	nav := stripANSI(navStatus(d, ed, 160))
+	if !strings.Contains(nav, "[▶ auto: 8s (4s)]") {
+		t.Errorf("expected navStatus to contain [▶ auto: 8s (4s)], got: %s", nav)
+	}
+	if !strings.Contains(nav, "A auto") {
+		t.Errorf("expected navStatus to contain 'A auto', got: %s", nav)
+	}
+
+	help := stripANSI(renderHelpModal(80, 24))
+	if !strings.Contains(help, "A") || !strings.Contains(help, "Toggle auto-advance") {
+		t.Errorf("expected help modal to document 'A' auto-advance, got: %s", help)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

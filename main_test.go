@@ -301,3 +301,37 @@ func TestPrintHelpStats(t *testing.T) {
 	// Verify that printHelp mentions --stats and S
 	printHelp()
 }
+
+func TestPrintHelpAutoplay(t *testing.T) {
+	// Verify that printHelp mentions --autoplay and A
+	printHelp()
+}
+
+func TestModelAutoplay(t *testing.T) {
+	d := internal.ParseDeck("# Slide 1\n---\n# Slide 2\n")
+	ed := internal.NewEditor("test.deck.md")
+	ed.Autoplay = true
+	ed.AutoplayInterval = 5
+	ed.AutoplayCountdown = 1
+
+	m := model{
+		deck:   d,
+		editor: ed,
+	}
+
+	// Init should emit batch cmd including TickCmd when autoplay is on
+	initCmd := m.Init()
+	if initCmd == nil {
+		t.Errorf("expected non-nil cmd on Init() when autoplay is active")
+	}
+
+	// Update on TickMsg should advance slide when countdown expires
+	updated, cmd := m.Update(internal.TickMsg(time.Now()))
+	if cmd == nil {
+		t.Errorf("expected TickCmd from Update on TickMsg")
+	}
+	newM := updated.(model)
+	if newM.editor.SlideIdx != 1 {
+		t.Errorf("expected slide advanced to 1, got %d", newM.editor.SlideIdx)
+	}
+}

@@ -44,36 +44,43 @@ const (
 // --- Editor state ---
 
 type Editor struct {
-	Mode            EditorMode
-	SlideIdx        int
-	BlockIdx        int
-	CursorCol       int
-	Draft           string
-	UndoStack       []string
-	RedoStack       []string
-	FilePath        string
-	Dirty           bool
-	Message         string
-	ShowNotes       bool
-	ShowHelp        bool
-	ZenMode         bool
-	ShowLineNumbers bool
-	ShowTimer       bool
-	TimerStart      time.Time
-	WatchMode       bool
-	Theme           string
-	ShowOverview    bool
-	OverviewCursor  int
-	OverviewCols    int
-	ScreenBlank     bool
-	ShowStats       bool
+	Mode              EditorMode
+	SlideIdx          int
+	BlockIdx          int
+	CursorCol         int
+	Draft             string
+	UndoStack         []string
+	RedoStack         []string
+	FilePath          string
+	Dirty             bool
+	Message           string
+	ShowNotes         bool
+	ShowHelp          bool
+	ZenMode           bool
+	ShowLineNumbers   bool
+	ShowTimer         bool
+	TimerStart        time.Time
+	WatchMode         bool
+	Theme             string
+	ShowOverview      bool
+	OverviewCursor    int
+	OverviewCols      int
+	ScreenBlank       bool
+	ShowStats         bool
+	Autoplay          bool
+	AutoplayInterval  int
+	AutoplayCountdown int
+	AutoplayLoop      bool
 }
 
 func NewEditor(filePath string) Editor {
 	return Editor{
-		Mode:         ModeNav,
-		FilePath:     filePath,
-		OverviewCols: 3,
+		Mode:              ModeNav,
+		FilePath:          filePath,
+		OverviewCols:      3,
+		AutoplayInterval:  5,
+		AutoplayCountdown: 5,
+		AutoplayLoop:      true,
 	}
 }
 
@@ -117,6 +124,48 @@ func (e *Editor) currentBlock(d *Deck) *Block {
 		return nil
 	}
 	return &slide.Blocks[e.BlockIdx]
+}
+
+func (e *Editor) ToggleAutoplay(interval ...int) tea.Cmd {
+	e.Autoplay = !e.Autoplay
+	if e.Autoplay {
+		if len(interval) > 0 && interval[0] > 0 {
+			e.AutoplayInterval = interval[0]
+		}
+		if e.AutoplayInterval <= 0 {
+			e.AutoplayInterval = 5
+		}
+		e.AutoplayCountdown = e.AutoplayInterval
+		e.Message = fmt.Sprintf("autoplay: on (%ds interval)", e.AutoplayInterval)
+		return TickCmd()
+	}
+	e.Message = "autoplay: off"
+	return nil
+}
+
+func (e *Editor) TickAutoplay(d *Deck) bool {
+	if !e.Autoplay || d == nil || len(d.Slides) == 0 {
+		return false
+	}
+	if e.AutoplayCountdown > 1 {
+		e.AutoplayCountdown--
+		return false
+	}
+
+	// Countdown expired -> advance slide
+	e.AutoplayCountdown = e.AutoplayInterval
+	if e.SlideIdx < len(d.Slides)-1 {
+		e.SlideIdx++
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		return true
+	} else if e.AutoplayLoop {
+		e.SlideIdx = 0
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		return true
+	}
+	return false
 }
 
 func (e *Editor) ClampBlockIdx(d *Deck) {
@@ -585,12 +634,18 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return tea.Quit
 
 	case "right", "l", " ", "enter", "pgdown":
+		if e.Autoplay {
+			e.AutoplayCountdown = e.AutoplayInterval
+		}
 		if e.SlideIdx < len(d.Slides)-1 {
 			e.SlideIdx++
 			e.BlockIdx = 0
 			e.ClampBlockIdx(d)
 		}
 	case "left", "h", "pgup", "backspace":
+		if e.Autoplay {
+			e.AutoplayCountdown = e.AutoplayInterval
+		}
 		if e.SlideIdx > 0 {
 			e.SlideIdx--
 			e.BlockIdx = 0
@@ -707,7 +762,10 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.Message = "statistics closed"
 		}
 
-	case "i", "a", "I", "A":
+	case "A":
+		return e.ToggleAutoplay()
+
+	case "i", "a", "I":
 		e.EnterEdit(d)
 
 	case "ctrl+n":

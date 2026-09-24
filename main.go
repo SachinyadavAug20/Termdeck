@@ -23,8 +23,15 @@ type model struct {
 }
 
 func (m model) Init() tea.Cmd {
+	var cmds []tea.Cmd
 	if m.editor.WatchMode {
-		return internal.WatchCmd()
+		cmds = append(cmds, internal.WatchCmd())
+	}
+	if m.editor.ShowTimer || m.editor.Autoplay {
+		cmds = append(cmds, internal.TickCmd())
+	}
+	if len(cmds) > 0 {
+		return tea.Batch(cmds...)
 	}
 	return nil
 }
@@ -46,9 +53,14 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 
 	case internal.TickMsg:
-		if m.editor.ShowTimer {
-			return m, internal.TickCmd()
+		var cmd tea.Cmd
+		if m.editor.ShowTimer || m.editor.Autoplay {
+			if m.editor.Autoplay {
+				m.editor.TickAutoplay(&m.deck)
+			}
+			cmd = internal.TickCmd()
 		}
+		return m, cmd
 
 	case internal.WatchMsg:
 		if m.editor.WatchMode && m.editor.FilePath != "" {
@@ -112,6 +124,7 @@ Options:
   -t, --theme <name>   Set presentation color theme
       --list-themes    List all available color themes
   -w, --watch          Watch deck file for external changes and auto-reload
+  -a, --autoplay [sec] Auto-advance slides every N seconds (default: 5)
       --stats          Print presentation statistics and deck metrics to terminal
       --export-html    Export presentation to standalone HTML file
   -v, --version        Show version information
@@ -126,6 +139,7 @@ Controls:
   Zen Mode:     z (toggle distraction-free zen mode)
   Line numbers: L (toggle code block line numbers)
   Timer:        c (toggle presentation timer), C (reset timer)
+  Auto-play:    A (toggle auto-advance / rehearsal pacing)
   Reload:       r / R (reload deck from disk)
   Yank:         y / Y (yank focused code/block to system clipboard)
   Blank Screen: b / B (blank presentation screen, any key resumes)
@@ -149,6 +163,8 @@ func main() {
 	var exportHTML bool
 	var exportOutPath string
 	var showStats bool
+	var autoplayMode bool
+	var autoplaySec int
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -164,6 +180,18 @@ func main() {
 			listThemes = true
 		case arg == "-w" || arg == "--watch":
 			watchMode = true
+		case arg == "-a" || arg == "--autoplay":
+			autoplayMode = true
+			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") && !strings.HasSuffix(args[i+1], ".deck.md") && !strings.HasSuffix(args[i+1], ".md") {
+				var sec int
+				if n, _ := fmt.Sscanf(args[i+1], "%d", &sec); n == 1 && sec > 0 {
+					i++
+					autoplaySec = sec
+				}
+			}
+		case strings.HasPrefix(arg, "--autoplay="):
+			autoplayMode = true
+			fmt.Sscanf(strings.TrimPrefix(arg, "--autoplay="), "%d", &autoplaySec)
 		case arg == "--stats":
 			showStats = true
 		case arg == "--export-html":
@@ -287,6 +315,15 @@ func main() {
 		}
 		m.editor.SlideIdx = idx
 		m.editor.ClampBlockIdx(&m.deck)
+	}
+
+	if autoplayMode {
+		m.editor.Autoplay = true
+		if autoplaySec <= 0 {
+			autoplaySec = 5
+		}
+		m.editor.AutoplayInterval = autoplaySec
+		m.editor.AutoplayCountdown = autoplaySec
 	}
 
 	p := tea.NewProgram(m, tea.WithAltScreen())

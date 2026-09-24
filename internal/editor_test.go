@@ -372,7 +372,7 @@ func TestEditorHandleKeyNav(t *testing.T) {
 	// 12. Entering edit mode
 	ed.SlideIdx = 0
 	ed.BlockIdx = 0
-	for _, k := range []string{"i", "a", "I", "A"} {
+	for _, k := range []string{"i", "a", "I"} {
 		ed.Mode = ModeNav
 		sendTestKey(&ed, &d, k)
 		if ed.Mode != ModeEdit {
@@ -1353,5 +1353,105 @@ func TestEditorExportHTMLKeyNav(t *testing.T) {
 	expectedHTML := filepath.Join(tmpDir, "export_key.html")
 	if _, err := os.Stat(expectedHTML); err != nil {
 		t.Errorf("expected exported html file %q to exist", expectedHTML)
+	}
+}
+
+func TestEditorAutoplay(t *testing.T) {
+	d := ParseDeck("# Slide 1\nContent 1\n---\n# Slide 2\nContent 2\n---\n# Slide 3\nContent 3\n")
+	ed := NewEditor("test.deck.md")
+
+	// 1. Initial state
+	if ed.Autoplay {
+		t.Fatalf("expected Autoplay initially false")
+	}
+
+	// 2. Press 'A' to toggle autoplay on
+	cmd := sendTestKey(&ed, &d, "A")
+	if !ed.Autoplay {
+		t.Fatalf("expected Autoplay true after pressing 'A'")
+	}
+	if cmd == nil {
+		t.Errorf("expected non-nil TickCmd when enabling autoplay")
+	}
+	if !strings.Contains(ed.Message, "autoplay: on") {
+		t.Errorf("expected 'autoplay: on' message, got %q", ed.Message)
+	}
+	if ed.AutoplayCountdown != ed.AutoplayInterval {
+		t.Errorf("expected countdown %d, got %d", ed.AutoplayInterval, ed.AutoplayCountdown)
+	}
+
+	// 3. Tick countdown without expiring
+	ed.AutoplayCountdown = 3
+	advanced := ed.TickAutoplay(&d)
+	if advanced {
+		t.Errorf("expected slide not advanced when countdown > 1")
+	}
+	if ed.AutoplayCountdown != 2 {
+		t.Errorf("expected countdown 2, got %d", ed.AutoplayCountdown)
+	}
+
+	// 4. Tick countdown expiring -> advance slide
+	ed.AutoplayCountdown = 1
+	ed.SlideIdx = 0
+	advanced = ed.TickAutoplay(&d)
+	if !advanced {
+		t.Errorf("expected slide advanced when countdown expired")
+	}
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected slide index 1, got %d", ed.SlideIdx)
+	}
+	if ed.AutoplayCountdown != ed.AutoplayInterval {
+		t.Errorf("expected countdown reset to interval, got %d", ed.AutoplayCountdown)
+	}
+
+	// 5. Expiring on last slide loops to start
+	ed.SlideIdx = 2
+	ed.AutoplayCountdown = 1
+	advanced = ed.TickAutoplay(&d)
+	if !advanced {
+		t.Errorf("expected slide to loop to start")
+	}
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected slide index 0 after loop, got %d", ed.SlideIdx)
+	}
+
+	// 6. Manual navigation resets countdown
+	ed.AutoplayCountdown = 1
+	sendTestKey(&ed, &d, "right")
+	if ed.AutoplayCountdown != ed.AutoplayInterval {
+		t.Errorf("expected countdown reset after manual 'right', got %d", ed.AutoplayCountdown)
+	}
+
+	ed.AutoplayCountdown = 1
+	sendTestKey(&ed, &d, "left")
+	if ed.AutoplayCountdown != ed.AutoplayInterval {
+		t.Errorf("expected countdown reset after manual 'left', got %d", ed.AutoplayCountdown)
+	}
+
+	// 7. Toggle with custom interval
+	ed.Autoplay = false
+	ed.ToggleAutoplay(10)
+	if !ed.Autoplay || ed.AutoplayInterval != 10 {
+		t.Errorf("expected autoplay 10s interval, got %d", ed.AutoplayInterval)
+	}
+
+	// 8. Press 'A' to toggle off
+	cmdOff := sendTestKey(&ed, &d, "A")
+	if ed.Autoplay {
+		t.Errorf("expected Autoplay false after pressing 'A' again")
+	}
+	if cmdOff != nil {
+		t.Errorf("expected nil cmd when disabling autoplay")
+	}
+	if ed.Message != "autoplay: off" {
+		t.Errorf("expected 'autoplay: off' message, got %q", ed.Message)
+	}
+
+	// 9. TickAutoplay when disabled or nil deck returns false
+	if ed.TickAutoplay(&d) {
+		t.Errorf("expected false when autoplay disabled")
+	}
+	if ed.TickAutoplay(nil) {
+		t.Errorf("expected false when deck is nil")
 	}
 }

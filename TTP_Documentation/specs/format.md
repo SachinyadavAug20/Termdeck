@@ -182,6 +182,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `t`, `T`, `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) & auto-save |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
 | `c`, `C` | Toggle presentation stopwatch (`c`) / Reset timer to 00:00 (`C`) |
+| `A` | Toggle auto-advance slides & rehearsal pacing |
 | `r`, `R` | Reload deck file from disk |
 | `y`, `Y` | Copy focused code/block to clipboard (OSC 52 + system) |
 | `b`, `B` | Blank/blackout presentation screen (any key resumes) |

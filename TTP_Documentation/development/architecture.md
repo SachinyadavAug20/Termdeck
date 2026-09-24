@@ -20,6 +20,7 @@ This document provides a comprehensive technical breakdown of **Termdeck (`deck`
 12. [Terminal Clipboard Subsystem (OSC 52) & Screen Blanking](#12-terminal-clipboard-subsystem-osc-52--screen-blanking)
 13. [Standalone Offline HTML Export Subsystem (`--export-html` & `E`)](#13-standalone-offline-html-export-subsystem---export-html--e)
 14. [Talk Statistics & Sprint Velocity Subsystem (`S` & `--stats`)](#14-talk-statistics--sprint-velocity-subsystem-s---stats)
+15. [Auto-Advance & Rehearsal Pacing Subsystem (`A` & `--autoplay`)](#15-auto-advance--rehearsal-pacing-subsystem-a---autoplay)
 
 ---
 
@@ -654,6 +655,41 @@ flowchart TD
    - In CLI mode: `deck --stats demo.deck.md` evaluates the deck without launching Bubble Tea or entering the alternate screen buffer, outputting clean ANSI terminal text suited for CI/CD assertions and automated git hooks.
 4. **Slide Context Clamping**:
    When active slide metrics are reported, `CalculateStats` safely clamps the slide index to `[0, TotalSlides-1]`, guaranteeing zero out-of-bounds panics during live edits or rapid navigation.
+
+---
+
+## 15. Auto-Advance & Rehearsal Pacing Subsystem (`A` & `--autoplay`)
+
+For lightning talks, Ignite/PechaKucha rehearsals, hackathon kiosk displays, and hands-free conference prep, Termdeck provides an autonomous slide sequencing loop:
+
+```mermaid
+flowchart TD
+    Trigger["Autoplay Trigger\n('A' in ModeNav OR -a / --autoplay <sec> CLI flag)"] --> State["e.Autoplay = true\ne.AutoplayInterval = N\ne.AutoplayCountdown = N"]
+    State --> TickLoop["TickCmd() -> tea.Tick(1*time.Second)"]
+    TickLoop --> TickMsg["Update(TickMsg)"]
+    TickMsg --> TickMethod["e.TickAutoplay(&deck)"]
+    TickMethod --> Check{"Countdown > 1?"}
+    Check -->|Yes| Decrement["Countdown--\nStatus Badge: [▶ auto: Ns (Xs)]"]
+    Check -->|No| Advance{"SlideIdx < TotalSlides-1?"}
+    Advance -->|Yes| NextSlide["SlideIdx++\nClampBlockIdx()\nCountdown = Interval"]
+    Advance -->|No (End)| LoopCheck{"AutoplayLoop?"}
+    LoopCheck -->|Yes| Wrap["SlideIdx = 0\nClampBlockIdx()\nCountdown = Interval"]
+    LoopCheck -->|No| Halt["Autoplay = false"]
+    Decrement --> Reschedule["Reschedule TickCmd()"]
+    NextSlide --> Reschedule
+    Wrap --> Reschedule
+```
+
+### Architectural Highlights & Invariants:
+
+1. **Speaker Speaking Window Protection**:
+   If a presenter is asked a question or manually navigates backward or forward (`left`, `right`, `space`, `enter`), `handleNav` immediately resets `e.AutoplayCountdown = e.AutoplayInterval`. The presenter is granted their full allotted window on the current slide without unexpected early advancement.
+2. **PechaKucha & Ignite Talk Compliance**:
+   Presenters can set precise intervals (e.g. `deck -a 20 deck.md` for 20-second PechaKucha slides or `deck -a 15 deck.md` for 15-second Ignite talks) to practice strict speaking rhythm with live per-second countdown feedback (`[▶ auto: 20s (14s)]`).
+3. **Continuous Kiosk Looping**:
+   When reaching the final slide, `TickAutoplay` seamlessly cycles back to slide 0, enabling unattended hackathon and booth presentations to run forever without human intervention.
+4. **Instant Toggle Control**:
+   Pressing `A` at any point instantly toggles autoplay on or off, cleanly transitioning back to manual presenter control.
 
 
 

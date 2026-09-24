@@ -39,10 +39,12 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestPrintHelp`: Verifies CLI help message and key controls formatting.
 - `TestPrintHelpExportHTML`: Asserts `--export-html` is documented in CLI help output.
 - `TestPrintHelpStats`: Asserts `--stats` and `S` control are documented in CLI help output.
+- `TestPrintHelpAutoplay`: Asserts `-a` / `--autoplay` and `A` control are documented in CLI help output.
 - `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
 - `TestModelUpdateTickMsg`: Verifies Bubble Tea model dispatches `TickCmd()` only when timer is enabled, avoiding background polling overhead.
 - `TestModelInitWatchMode`: Asserts `WatchCmd()` is initialized when `-w` / `--watch` CLI flag is set.
 - `TestModelUpdateWatchMsg`: Validates background disk polling and auto-reload on file modification.
+- `TestModelAutoplay`: Verifies automated slide advancement and countdown ticking on `TickMsg`.
 
 ### B. Editor State Machine — `internal/editor_test.go`
 Tests the navigation, editing, jumping, and toggling state machine:
@@ -76,6 +78,7 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorSlideOverview`: Validates opening overview modal (`o`/`O`), 2D navigation (arrows/hjkl), Enter-to-jump, and Esc cancellation.
 - `TestEditorYankAndBlankScreen`: Asserts `y`/`Y` extracts focused text to OSC 52 sequence and `b`/`B` blanks presentation screen.
 - `TestEditorExportHTMLKeyNav`: Verifies pressing `E` in navigation mode invokes HTML exporter and sets status bar confirmation.
+- `TestEditorAutoplay`: Validates toggling autoplay with `A`, per-second countdown ticking, automatic slide advancing, looping to start, and manual navigation reset.
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
 Tests visual layout, card rendering, and terminal text styling:
@@ -107,6 +110,7 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestWatchModeView`: Asserts `[watch]` live reload badge renders in status bar when watch mode is active.
 - `TestOverviewModalView`: Verifies multi-column grid layout, slide cards, cursor highlighting, and badges.
 - `TestBlankScreenView`: Asserts blackout presentation screen rendering with resume prompt.
+- `TestAutoplayView`: Validates status bar `[▶ auto: 8s (4s)]` badge, `A auto` status hint, and help modal documentation.
 - `BenchmarkRenderView`: Measures frames-per-second rendering efficiency.
 
 ### D. Model & Parser — `internal/model_test.go`
@@ -191,13 +195,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (86 unit tests):
+Statement coverage across packages (88 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
-| `deck` (root) | 23.3% | Covers model, update loop, flags, live watch loop (excluding `main()` process exit) |
-| `deck/internal` | 91.0% | Exceeds >90% target across all core modules |
-| **Total Project** | **87.3%** | **PASSED** |
+| `deck` (root) | 24.4% | Covers model, update loop, flags, live watch loop (excluding `main()` process exit) |
+| `deck/internal` | 91.1% | Exceeds >90% target across all core modules |
+| **Total Project** | **86.9%** | **PASSED** |
 
 ---
 

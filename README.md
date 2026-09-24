@@ -32,7 +32,8 @@ deck demo.deck.md
 - [x] Presentation Screen Blackout (`b` / `B`) to refocus audience attention with instant any-key resume
 - [x] Standalone Offline HTML Deck Export (`--export-html` flag and `E` key) with zero dependencies and embedded base64 assets
 - [x] Talk Statistics & Sprint Velocity Metrics (`S` key and `--stats` CLI flag) with speaking time estimation (130 WPM) and checklist velocity bar
-- [x] 86 automated unit tests with comprehensive coverage (91.0% in internal/) and zero regressions
+- [x] Auto-Advance & Rehearsal Pacing Mode (`A` key and `-a, --autoplay <sec>` flag) with live countdown badge (`[▶ auto: 5s (3s)]`), loop restart, and manual nav pause protection
+- [x] 88 automated unit tests with comprehensive coverage (91.1% in internal/) and zero regressions
 
 #### 20 September 2026
 - [x] Dynamic Theme Engine (9 curated palettes + custom hex) with live cycling (`t`/`T`/`F2`)
@@ -114,6 +115,7 @@ deck [options] <file.deck.md>
 #   -t, --theme <name>   Set presentation theme
 #       --list-themes    List all available themes
 #   -w, --watch          Watch file for external changes and auto-reload
+#   -a, --autoplay <sec> Auto-advance slides every N seconds (default: 5)
 #       --stats          Print presentation statistics and metrics to terminal
 #       --export-html    Export presentation to standalone HTML file
 #   -h, --help           Show help
@@ -134,6 +136,7 @@ deck [options] <file.deck.md>
 | `t` `T` `F2` | Cycle color theme (`tokyo-night`, `dracula`, `nord`, etc.) |
 | `z` | Toggle distraction-free zen mode (hides status bar) |
 | `c` / `C` | Toggle presentation stopwatch (`c`) / Reset timer to 00:00 (`C`) |
+| `A` | Toggle auto-advance slides & rehearsal pacing |
 | `r` / `R` | Reload deck file from disk (manual refresh) |
 | `y` / `Y` | Yank focused code block or text to clipboard (OSC 52 + system) |
 | `b` / `B` | Blank/blackout presentation screen (any key resumes) |
