@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.6 — 24 September 2026
+
+### Added
+- **Live Terminal Code Runner (`internal/runner.go`)**: Direct in-presentation code block execution for developer demos, live technical talks, and interactive workshops.
+  - Supports `bash`, `sh`, `zsh`, `python` / `python3`, `go`, `node` / `nodejs` / `js`, and `ruby`.
+  - Non-blocking execution via Bubble Tea background commands (`tea.Cmd`) with `context.WithTimeout` (5s default) to guarantee the presenter interface never hangs.
+  - Automatic indentation stripping (`dedent()`) so indented script blocks inside markdown parse and execute properly without Python indentation errors.
+  - Language whitelisting (`IsExecutableLanguage`) prevents accidental execution of structural displays (diffs, text diagrams, YAML, JSON, SQL).
+  - Terminal output overlay card (`renderRunnerCard`) rendering exit status badges (`✔ exit 0` / `✖ exit 1`), elapsed execution time (`142ms`), stdout/stderr separation, and truncation protection (16KB / 300 lines limit).
+  - Keystrokes: `X` or `ctrl+x` to run focused code block; `x` runs code if focused on a code block or toggles tasks on list items; `Esc` dismisses output; `y` / `Y` yanks execution output to system clipboard.
+- **Element Zoom & Focus Mode (`f` / `F`)**: Full terminal viewport maximization for deep-dive inspection of wide ASCII diagrams, intricate code algorithms, or dense tables.
+  - Features dynamic line numbering with gutter padding.
+  - Vertical scrolling (`j`/`k` or arrow keys) for code blocks and diagrams taller than terminal viewport.
+  - Seamless integrated live execution (`X` or `x`) directly inside Focus Mode with sticky output drawer.
+  - Press `Esc`, `f`, or `F` to return smoothly to normal slide view.
+- **Automated CI/CD Code Snippet Testing (`--test-code`)**: Headless CLI tool that executes every runnable code block across all slides in a deck and returns exit code 0 on full success or 1 if any snippet fails.
+  - Displays formatted pass/fail summary (`FormatTestCodeCLI`) with execution timing for every slide and block.
+  - Supports `eval=false`, `no-eval`, `no_run`, and `noexec` flags on code blocks (e.g. ```` ```bash no-eval ```` or `::code lang=bash eval=false`) to mark illustrative or destructive commands that should not be auto-run.
+- **Direct Slide Execution CLI (`--run-slide <N>`)**: Allows running the code block on slide N directly from shell scripts, terminal pipelines, or automation jobs without opening the TUI.
+- **Non-Linear DAG Traversal Breadcrumb Tracking**: Real-time journey path tracking rendered both in the status bar (`[01:intro] ──► [15:hub] ──► [19:runner] (step 3)`) and in the graph topology explorer modal (`M`), providing instant spatial orientation during complex branching presentations.
+- **Shortest Path Graph Traversal (`DeckGraph.ShortestPath`)**: Breadth-first search (BFS) path finding between any two slides in the deck graph topology.
+- **Interactive Offline HTML Live Runner Simulation**: Exported standalone HTML decks now render code blocks with `.code-header`, language badges, a Run button (`▶ Run`), and an interactive output drawer simulating live terminal output with keyboard shortcuts (`X`, `f`).
+- Expanded automated test suite to **105 tests** maintaining **90.0% statement coverage** in `deck/internal` with zero regressions and zero lint warnings.
+
 ## v0.5 — 24 September 2026
 
 ### Added

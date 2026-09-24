@@ -736,5 +736,62 @@ flowchart TD
 6. **Sub-Millisecond Graph Traversal Invariant**:
    Graph construction (`BuildGraph`) runs in $O(V + E)$ time, consuming under $20\mu\text{s}$ for typical 30-slide presentations. Total memory overhead for graph nodes and edges is $<4\text{KB}$, preserving Termdeck's ultra-lightweight footprint.
 
+---
+
+## 17. Live Code Runner Subprocess Execution & Zoom Focus Subsystems (`X`, `f`, `--test-code`)
+
+Presentations for developers often require demonstrating live code execution without toggling between terminal windows, losing presentation state, or risking terminal hangs:
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Presenter
+    participant Editor as Editor State Machine
+    participant Tea as Bubble Tea Event Loop
+    participant Runner as Subprocess Runner (internal/runner.go)
+    participant View as Terminal Renderer (internal/view.go)
+
+    Presenter->>Editor: Press X / ctrl+x / x on BlockCode
+    Editor->>Editor: e.RunningCode = true, e.ShowRunner = false
+    Editor->>Tea: Return ExecCodeCmd(blk, 5s timeout)
+    Tea->>View: Render running indicator banner ("[▶ running bash code...]")
+    
+    par Async Subprocess
+        Tea->>Runner: ExecuteBlock(blk, timeout)
+        Runner->>Runner: dedent() code lines
+        Runner->>Runner: exec.CommandContext(ctx, "bash", "-c", code)
+        Runner-->>Tea: Emit ExecFinishedMsg(ExecResult)
+    end
+
+    Tea->>Editor: Process ExecFinishedMsg
+    Editor->>Editor: e.RunningCode = false, e.ShowRunner = true
+    Editor->>Editor: e.RunnerResult = res
+    Tea->>View: Render runner output drawer card (renderRunnerCard)
+    View-->>Presenter: Display exit code badge, elapsed time, stdout/stderr
+    
+    alt Focus Mode Zoom
+        Presenter->>Editor: Press f / F
+        Editor->>Editor: e.FocusMode = !e.FocusMode
+        Editor->>View: renderFocusMode(d, e, w, h)
+        View-->>Presenter: Render full-viewport zoom with line numbers & j/k scrolling
+    end
+```
+
+### Architectural Highlights & Invariants:
+
+1. **Non-Blocking Reactive Execution**:
+   Code is executed asynchronously through Bubble Tea commands (`tea.Cmd`). The TUI continues responding to window resize and status refreshes while the subprocess runs.
+2. **Context Timeout Safeguard (`context.WithTimeout`)**:
+   Subprocesses are strictly capped by context timeouts (default 5.0s, configurable up to 30.0s in CI mode). If a command hangs or waits for stdin, Go terminates the process group cleanly with `signal: killed`, preventing presentation freeze.
+3. **Common Indentation Stripping (`dedent`)**:
+   Scripts indented inside Markdown fences or YAML structures have common leading whitespace automatically calculated and stripped before invocation. This eliminates Python `IndentationError` when executing indented script bodies.
+4. **Buffer Truncation & Memory Invariant**:
+   Subprocess standard output and error buffers are capped at **16 KB** and **300 lines**. Runaway loops or verbose outputs are truncated safely with a formatted `... [output truncated: N lines, M bytes limit] ...` footer.
+5. **CI/CD Automated Code Testing (`--test-code`)**:
+   Developers can add `deck --test-code demo.deck.md` to GitHub Actions and pre-commit hooks to ensure all slide snippets compile and run without runtime errors. Snippets flagged with `eval=false` or `no-eval` are skipped safely.
+6. **Element Zoom & Focus Mode (`f` / `F`)**:
+   When active, `renderFocusMode` bypasses normal slide centering and padding, dedicating 100% of terminal dimensions to the focused block with dynamic line numbers, horizontal rule frames, and vertical scrolling (`FocusScroll`).
+
+
 
 

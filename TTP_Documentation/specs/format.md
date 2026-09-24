@@ -132,8 +132,31 @@ Sets the text alignment for the slide. Supported values: `left`, `center`, `righ
   def hello():
       print("world")
 ```
+Or standard markdown syntax:
+````markdown
+```bash
+echo "Hello from Termdeck runner"
+```
+````
 
 Standard Markdown code fences (```` ```lang ````) and `::code` blocks are natively supported with syntax highlighting for Go, Python, TypeScript, Rust, Shell, SQL, and `diff`/`patch` (with green additions and red deletions). Content between code fences is rendered as a bordered code block with language labeling and dynamic box sizing.
+
+##### Live Code Execution & Disabling Eval
+Executable languages (`bash`, `sh`, `zsh`, `python`, `go`, `node`, `ruby`) can be run live during presentations with `X`, `ctrl+x`, or `x`. Terminal output is displayed in an attached output drawer with exit code badges and execution duration.
+
+To mark illustrative, non-runnable, or destructive snippets that should **not** execute during `--test-code` CI runs or interactive presentations, append `eval=false`, `no-eval`, `no_run`, or `noexec`:
+````markdown
+```bash no-eval
+rm -rf /tmp/scratch-build-cache
+```
+````
+Or with directives:
+```markdown
+::code lang=python eval=false
+```
+
+##### Element Zoom & Focus Mode (`f` / `F`)
+Press `f` or `F` while focused on any code block, diagram, or table to expand it to the full terminal canvas. Focus Mode provides vertical scrolling (`j`/`k`/arrow keys), line numbers, and integrated live code execution (`X` or `x`). Press `Esc` or `f` to exit Focus Mode.
 
 #### `::image` / Standard Markdown Images
 
@@ -210,8 +233,10 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `1` – `9` | Jump directly along numbered branch option |
 | `Backspace`, `H` | Backtrack along visited graph traversal history |
 | `M` | Open presentation graph map & DAG explorer modal |
-| `↓`, `j` | Move block cursor / laser pointer down |
-| `↑`, `k` | Move block cursor / laser pointer up |
+| `X`, `Ctrl+X` | Run focused code block live in background & show output card |
+| `f`, `F` | Toggle Element Zoom & Focus Mode (full-viewport view with `j`/`k` scroll) |
+| `↓`, `j` | Move block cursor / laser pointer down (or scroll in Focus Mode) |
+| `↑`, `k` | Move block cursor / laser pointer up (or scroll in Focus Mode) |
 | `/` | Quick Jump to slide (by number or title search) |
 | `o`, `O` | Slide Overview & 2D Grid Sorter (navigate cards, Enter to jump) |
 | `?`, `F1` | Toggle in-app keyboard shortcuts help modal |
@@ -220,19 +245,19 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `c`, `C` | Toggle presentation stopwatch (`c`) / Reset timer to 00:00 (`C`) |
 | `A` | Toggle auto-advance slides & rehearsal pacing |
 | `r`, `R` | Reload deck file from disk |
-| `y`, `Y` | Copy focused code/block to clipboard (OSC 52 + system) |
+| `y`, `Y` | Copy focused code/block or runner execution output to clipboard |
 | `b`, `B` | Blank/blackout presentation screen (any key resumes) |
 | `E` | Export deck to standalone HTML presentation |
 | `S` | Talk statistics & sprint deck metrics modal |
 | `L` | Toggle code block line numbers |
-| `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
+| `x` | Run focused code block live (or toggle task checklist `[ ]` ⇄ `[x]`) |
 | `n` | Toggle speaker notes overlay box |
 | `Tab`, `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
 | `g`, `Home` | First slide |
 | `G`, `End` | Last slide |
 | `q`, `Ctrl+C` | Quit (auto-saves any unsaved changes) |
-| `Esc` | Close help modal / clear message status |
+| `Esc` | Dismiss runner card / exit focus mode / close modals / clear status |
 
 ## Example
 

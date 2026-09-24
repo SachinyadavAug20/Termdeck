@@ -143,12 +143,18 @@ These speaker notes must NOT be rendered on audience slides.
 		t.Errorf("speaker notes leaked into audience HTML canvas!")
 	}
 
-	// 10. Navigation script
+	// 10. Navigation script and runner
 	if !strings.Contains(htmlOut, "const totalSlides = 3;") {
 		t.Errorf("expected JS totalSlides = 3")
 	}
 	if !strings.Contains(htmlOut, "updateSlide(currentSlide + 1);") {
 		t.Errorf("expected JS keyboard handler")
+	}
+	if !strings.Contains(htmlOut, "code-run-btn") || !strings.Contains(htmlOut, "runCodeSnippet") {
+		t.Errorf("expected code runner button and JS function in HTML export")
+	}
+	if !strings.Contains(htmlOut, "X: run") {
+		t.Errorf("expected 'X: run' shortcut in HTML status bar")
 	}
 }
 

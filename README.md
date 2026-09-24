@@ -17,6 +17,11 @@ deck demo.deck.md
 ## Project Status
 
 #### 24 September 2026
+- [x] **Live Terminal Code Runner (`X` / `ctrl+x`)**: execute focused code blocks (bash, sh, zsh, python, go, node, ruby) live during presentations with output card, green/red exit badges, and stdout/stderr capture
+- [x] **Element Zoom & Focus Mode (`f` / `F`)**: maximize code snippets, architecture diagrams, and tables to full terminal viewport with dynamic line numbers, vertical scrolling (`j`/`k`), and integrated live execution
+- [x] **CI/CD Automated Code Snippet Verification (`--test-code`)**: test and validate all executable code blocks across the presentation with execution time metrics and pass/fail summary
+- [x] **Direct Slide Code Execution CLI (`--run-slide <N>`)**: run code blocks on slide N directly from shell scripts or automation hooks
+- [x] **Non-Linear DAG Traversal Breadcrumb Tracking**: real-time journey path breadcrumbs (`[01:intro] ──► [15:hub] ──► [19:runner]`) in status bar and topology explorer
 - [x] **Non-Linear Directed Graph (DAG) Presentation Engine**: transform linear slides into dynamic, interactive branching graphs
 - [x] **Interactive Decision Branches**: author forks with `::branch [key] label -> target` or markdown arrows `-> [Label](target)`
 - [x] **Instant Branch Jump Shortcuts**: press `1`..`9` anytime during presentation to follow a branch, or hit `Enter` on a focused branch card
@@ -27,7 +32,7 @@ deck demo.deck.md
 - [x] **ASCII Topology Map CLI (`--graph`)**: render clean, styled ASCII DAG diagrams of slide connections directly in the terminal
 - [x] **Mermaid Diagram Export CLI (`--mermaid`)**: emit standard `graph LR` diagram syntax for GitHub markdown documentation
 - [x] **Interactive Offline HTML Branching**: exported standalone HTML decks feature clickable branch cards, keyboard shortcuts (`1-9`, `Backspace`), and DAG history tracking
-- [x] **90+ Automated Unit Tests** maintaining $\ge 90\%$ statement coverage in `internal/` with zero external runtime dependencies
+- [x] **105 Automated Unit Tests** maintaining $\ge 90.0\%$ statement coverage in `internal/` with zero external runtime dependencies
 
 #### 22 September 2026
 - [x] Distraction-free Zen Mode (`z`) for clean presentations and video demos
@@ -97,6 +102,8 @@ tpp/
 │   ├── export_test.go   # HTML export tests, formatting, file output verification
 │   ├── graph.go         # Directed Graph (DAG) topology, Mermaid export, ASCII map
 │   ├── graph_test.go    # Graph builder, cycle detection, orphan analysis tests
+│   ├── runner.go        # Subprocess live code executor (bash, python, go, etc.)
+│   ├── runner_test.go   # Subprocess timeouts, dedent, CI code test assertions
 │   ├── image.go         # Terminal image renderer (ANSI half-blocks)
 │   ├── image_test.go    # Path resolution, format probing, card tests
 │   ├── stats.go         # Talk statistics, density metrics, duration estimation
@@ -133,6 +140,8 @@ deck [options] <file.deck.md>
 #   -a, --autoplay <sec> Auto-advance slides every N seconds (default: 5)
 #       --graph          Print presentation topology map (ASCII DAG) to terminal
 #       --mermaid        Print presentation topology as Mermaid diagram syntax
+#       --test-code      Execute all runnable code blocks and assert zero errors (CI/CD)
+#       --run-slide <N>  Execute code block on slide N directly in terminal
 #       --stats          Print presentation statistics and metrics to terminal
 #       --export-html    Export presentation to standalone HTML file
 #   -h, --help           Show help
@@ -148,8 +157,10 @@ deck [options] <file.deck.md>
 | `1` – `9` | Jump directly along numbered branch / fork option |
 | `Backspace` `H` | Backtrack along visited graph traversal history |
 | `M` | Open interactive presentation graph map & DAG explorer modal |
-| `↓` `j` | Move block cursor / laser pointer down |
-| `↑` `k` | Move block cursor / laser pointer up |
+| `X` `Ctrl+X` | Run focused code block live in background & show output card |
+| `f` / `F` | Toggle Element Zoom & Focus Mode (full-viewport view with `j`/`k` scroll) |
+| `↓` `j` | Move block cursor / laser pointer down (or scroll in Focus Mode) |
+| `↑` `k` | Move block cursor / laser pointer up (or scroll in Focus Mode) |
 | `/` | Quick Jump to slide (enter slide number or title search) |
 | `o` / `O` | Slide Overview & 2D Grid Sorter (navigate cards, Enter to jump) |
 | `?` `F1` | Toggle in-app keyboard shortcuts help modal |
@@ -158,19 +169,19 @@ deck [options] <file.deck.md>
 | `c` / `C` | Toggle presentation stopwatch (`c`) / Reset timer to 00:00 (`C`) |
 | `A` | Toggle auto-advance slides & rehearsal pacing |
 | `r` / `R` | Reload deck file from disk (manual refresh) |
-| `y` / `Y` | Yank focused code block or text to clipboard (OSC 52 + system) |
+| `y` / `Y` | Yank focused code block, text, or runner output to clipboard |
 | `b` / `B` | Blank/blackout presentation screen (any key resumes) |
 | `E` | Export deck to standalone offline HTML presentation |
 | `S` | Talk statistics & sprint deck metrics modal |
 | `L` | Toggle code block line numbers |
-| `x` | Toggle task checklist item (`[ ]` ⇄ `[x]`) & auto-save |
+| `x` | Run focused code block live (or toggle task checklist `[ ]` ⇄ `[x]`) |
 | `n` | Toggle speaker notes overlay (hidden from audience by default) |
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
 | `G` | Last slide |
 | `g` | First slide |
 | `q` `Ctrl+C` | Quit (auto-saves any unsaved changes) |
-| `Esc` | Close help modal / clear message status / close modals |
+| `Esc` | Dismiss runner card / exit focus mode / close modals / clear status |
 
 ## Keys — Editor
 
@@ -218,20 +229,25 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Code Block & Element Yank (`y` / `Y`)**: Copy focused code snippets, commands, tables, or text directly to system clipboard via ANSI OSC 52 (works over SSH and tmux) and native OS clipboard utilities (`pbcopy`, `wl-copy`, `xclip`, `clip`)
 - **Presentation Screen Blanking (`b` / `B`)**: Temporarily blank/blackout the screen to direct audience focus to the speaker during key verbal explanations; any key instantly resumes the slide
 - **Slide Overview & 2D Grid Sorter**: Press `o` or `O` anytime to open a visual grid map of all slides with titles, block element counts, cursor focus, active slide indicator, and 2D arrow/hjkl navigation
+- **Live Terminal Code Runner**: Run focused shell commands, Go programs, Python scripts, Node.js, and Ruby code directly during presentations by pressing `X`, `ctrl+x`, or `x`. Terminal output is displayed in a framed card with colored exit code badges, execution time, and stdout/stderr capture. Close with `Esc` or yank output with `y`.
+- **Element Zoom & Focus Mode**: Press `f` or `F` on any block to zoom into full-viewport focus. Ideal for large architecture diagrams, complex SQL queries, and multi-line code blocks. Supports vertical scrolling with `j`/`k`, dynamic line numbers, and live code execution inside focus view.
+- **CI/CD Automated Code Testing (`--test-code`)**: Validate all executable code snippets across the deck in headless CI mode (`deck --test-code demo.deck.md`), returning exit code 0 if all snippets execute cleanly and non-zero on failure.
+- **Direct Slide Execution CLI (`--run-slide <N>`)**: Run code blocks from slide N directly in the shell without entering the TUI.
+- **Non-Linear DAG Traversal Breadcrumb Tracking**: Real-time journey breadcrumbs (`[01:intro] ──► [15:hub] ──► [19:runner]`) in the status bar and topology explorer modal, ensuring audiences and speakers never lose orientation during branching talks.
 - **Non-Linear Directed Graph (DAG) Engine**: Break free from rigid linear slides! Author interactive decision forks (`::branch [key] label -> target` or `-> [label](target)`), direct numerical jumping (`1`–`9`), back-stack traversal (`Backspace` / `H`), convergence (`::next <slug>`), and interactive topology explorer modal (`M`)
 - **ASCII DAG & Mermaid Diagrams**: Inspect deck topology directly in your terminal with `deck --graph <deck.md>` or export Mermaid syntax for GitHub with `deck --mermaid <deck.md>`
 - **Standalone Offline HTML Export**: Press `E` or pass `--export-html` to generate a self-contained single-file HTML presentation with embedded CSS, base64 images, and interactive JavaScript navigation
 - **Presentation Statistics & Deck Metrics**: Press `S` or pass `--stats` for talk duration estimates (130 WPM), code density metrics, block counts, and sprint task checklist velocity
 - **Rehearsal & Autoplay Mode**: Press `A` or pass `-a, --autoplay [sec]` for automated rehearsal pacing with countdown timer, loop restart, and manual override protection
 - **Live File Watch & Hot-Reload**: Start with `-w` or `--watch` to auto-reload on file edits from external editors/IDEs, or press `r` / `R` anytime to reload manually (safeguards protect active in-app edit sessions)
-- **CLI Options**: `--graph`, `--mermaid`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
+- **CLI Options**: `--graph`, `--mermaid`, `--test-code`, `--run-slide <N>`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **90.8% statement coverage** in `internal/` with over 90 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **90.0% statement coverage** in `internal/` with 105 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

@@ -1609,3 +1609,178 @@ Summary of all modules.`
 		t.Errorf("expected false for nil deck")
 	}
 }
+
+func TestEditorFocusModeAndLiveRunner(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Slide With Code"},
+					{Kind: BlockCode, Lang: "sh", Text: "echo 'running from editor'"},
+					{Kind: BlockList, Text: "- [ ] A task to toggle"},
+				},
+			},
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Slide Without Code"},
+					{Kind: BlockParagraph, Text: "Just text"},
+				},
+			},
+		},
+	}
+
+	ed := NewEditor("")
+
+	// 1. Test RunFocusedCode on Slide 1
+	ed.SlideIdx = 0
+	ed.BlockIdx = 1 // Focused on BlockCode
+	cmd := ed.RunFocusedCode(&d)
+	if cmd == nil {
+		t.Fatalf("expected non-nil cmd from RunFocusedCode")
+	}
+	if !ed.RunningCode {
+		t.Fatalf("expected RunningCode true")
+	}
+	// Execute cmd
+	msg := cmd()
+	execMsg, ok := msg.(ExecFinishedMsg)
+	if !ok {
+		t.Fatalf("expected ExecFinishedMsg, got %T", msg)
+	}
+	if !strings.Contains(execMsg.Result.Stdout, "running from editor") {
+		t.Fatalf("unexpected stdout: %s", execMsg.Result.Stdout)
+	}
+
+	// 2. Test RunFocusedCode on slide without code
+	ed.SlideIdx = 1
+	ed.BlockIdx = 0
+	nilCmd := ed.RunFocusedCode(&d)
+	if nilCmd != nil {
+		t.Fatalf("expected nil cmd when no code block exists")
+	}
+	if !strings.Contains(ed.Message, "no code block") {
+		t.Fatalf("unexpected message: %s", ed.Message)
+	}
+
+	// 3. Test keyboard shortcuts: 'X' and 'ctrl+x'
+	ed.SlideIdx = 0
+	ed.BlockIdx = 1
+	cmdX := sendTestKey(&ed, &d, "X")
+	if cmdX == nil {
+		t.Fatalf("expected non-nil cmd on 'X'")
+	}
+
+	cmdCtrlX := sendTestKey(&ed, &d, "ctrl+x")
+	if cmdCtrlX == nil {
+		t.Fatalf("expected non-nil cmd on 'ctrl+x'")
+	}
+
+	// 4. Test 'x' key: on BlockCode it runs code, on BlockList it toggles task
+	ed.BlockIdx = 1 // Code block
+	cmdXKey := sendTestKey(&ed, &d, "x")
+	if cmdXKey == nil {
+		t.Fatalf("expected 'x' on BlockCode to return exec cmd")
+	}
+
+	ed.BlockIdx = 2 // Task list item
+	cmdTask := sendTestKey(&ed, &d, "x")
+	if cmdTask != nil {
+		t.Fatalf("expected 'x' on task item to return nil cmd")
+	}
+	if !strings.Contains(d.Slides[0].Blocks[2].Text, "[x]") {
+		t.Fatalf("expected task toggled to [x], got: %s", d.Slides[0].Blocks[2].Text)
+	}
+
+	// 5. Test Runner result display and dismissal
+	ed.ShowRunner = true
+	ed.RunnerResult = &execMsg.Result
+
+	// Pressing 'y' when runner is visible yanks runner output
+	yankCmd := sendTestKey(&ed, &d, "y")
+	if yankCmd == nil {
+		t.Fatalf("expected non-nil yankCmd")
+	}
+	if !strings.Contains(ed.Message, "yanked") {
+		t.Fatalf("expected yank message, got: %s", ed.Message)
+	}
+
+	// Pressing 'esc' dismisses runner
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowRunner {
+		t.Fatalf("expected ShowRunner false after esc")
+	}
+	if ed.Message != "runner closed" {
+		t.Fatalf("unexpected message: %s", ed.Message)
+	}
+
+	// DismissRunner method directly
+	ed.ShowRunner = true
+	ed.DismissRunner()
+	if ed.ShowRunner {
+		t.Fatalf("expected ShowRunner false after DismissRunner()")
+	}
+
+	// Switching slides clears ShowRunner
+	ed.ShowRunner = true
+	sendTestKey(&ed, &d, "right")
+	if ed.ShowRunner {
+		t.Fatalf("expected ShowRunner false after right")
+	}
+
+	// 6. Test Focus Mode ('f' / 'F')
+	ed.SlideIdx = 0
+	ed.BlockIdx = 1
+	sendTestKey(&ed, &d, "f")
+	if !ed.FocusMode {
+		t.Fatalf("expected FocusMode true after 'f'")
+	}
+
+	// Test scrolling inside FocusMode
+	sendTestKey(&ed, &d, "j")
+	if ed.FocusScroll != 1 {
+		t.Fatalf("expected FocusScroll 1 after 'j', got %d", ed.FocusScroll)
+	}
+	sendTestKey(&ed, &d, "k")
+	if ed.FocusScroll != 0 {
+		t.Fatalf("expected FocusScroll 0 after 'k', got %d", ed.FocusScroll)
+	}
+	sendTestKey(&ed, &d, "G")
+	if ed.FocusScroll != 100 {
+		t.Fatalf("expected FocusScroll 100 after 'G', got %d", ed.FocusScroll)
+	}
+	sendTestKey(&ed, &d, "g")
+	if ed.FocusScroll != 0 {
+		t.Fatalf("expected FocusScroll 0 after 'g', got %d", ed.FocusScroll)
+	}
+
+	// Toggle line numbers and theme in FocusMode
+	sendTestKey(&ed, &d, "L")
+	if !ed.ShowLineNumbers {
+		t.Fatalf("expected ShowLineNumbers true")
+	}
+	sendTestKey(&ed, &d, "t")
+	if ed.Theme == "" {
+		t.Fatalf("expected theme cycled in FocusMode")
+	}
+
+	// Run code from FocusMode
+	focusRunCmd := sendTestKey(&ed, &d, "X")
+	if focusRunCmd == nil {
+		t.Fatalf("expected non-nil cmd from 'X' in FocusMode")
+	}
+
+	// Exit FocusMode via 'f' or 'esc'
+	sendTestKey(&ed, &d, "f")
+	if ed.FocusMode {
+		t.Fatalf("expected FocusMode false after 'f'")
+	}
+
+	ed.ToggleFocusMode(&d)
+	if !ed.FocusMode {
+		t.Fatalf("expected FocusMode true after ToggleFocusMode")
+	}
+	sendTestKey(&ed, &d, "esc")
+	if ed.FocusMode {
+		t.Fatalf("expected FocusMode false after 'esc'")
+	}
+}

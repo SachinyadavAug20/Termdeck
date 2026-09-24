@@ -105,7 +105,7 @@ func ExportHTML(d Deck, title string) string {
 	// Status bar
 	sb.WriteString("<div class=\"status-bar\">\n")
 	sb.WriteString(fmt.Sprintf("  <div class=\"status-left\"><strong>Termdeck</strong> &middot; <span id=\"slide-counter\">1 / %d</span></div>\n", len(d.Slides)))
-	sb.WriteString("  <div class=\"status-right\"><span>&larr; / &rarr; or Space: navigate &middot; f: fullscreen</span></div>\n")
+	sb.WriteString("  <div class=\"status-right\"><span>&larr; / &rarr; navigate &middot; 1-9: branch &middot; Backspace: back &middot; f: fullscreen &middot; X: run</span></div>\n")
 	sb.WriteString("</div>\n")
 
 	// Embedded Navigation Script
@@ -133,14 +133,16 @@ func renderBlockHTML(blk Block, baseDir string) string {
 
 	case BlockCode:
 		langBadge := ""
+		langText := "code"
 		if blk.Lang != "" {
 			langBadge = fmt.Sprintf(" data-lang=\"%s\"", html.EscapeString(blk.Lang))
+			langText = blk.Lang
 		}
 		var codeEscaped []string
 		for _, line := range blk.Lines {
 			codeEscaped = append(codeEscaped, html.EscapeString(line))
 		}
-		return fmt.Sprintf("    <div class=\"code-block\"%s><pre><code>%s</code></pre></div>\n", langBadge, strings.Join(codeEscaped, "\n"))
+		return fmt.Sprintf("    <div class=\"code-block\"%s><div class=\"code-header\"><span class=\"code-lang\">%s</span><button class=\"code-run-btn\" onclick=\"runCodeSnippet(this)\">▶ Run</button></div><pre><code>%s</code></pre><div class=\"code-output\" style=\"display:none;\"></div></div>\n", langBadge, html.EscapeString(langText), strings.Join(codeEscaped, "\n"))
 
 	case BlockTable:
 		var sb strings.Builder
@@ -358,15 +360,43 @@ func generateDeckCSS(theme Theme) string {
     border-radius: 8px;
     overflow: hidden;
   }
-  .code-block[data-lang]::before {
-    content: attr(data-lang);
-    position: absolute;
-    top: 6px;
-    right: 12px;
-    font-size: 0.75rem;
-    color: #64748b;
+  .code-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 0.35rem 0.85rem;
+    background: rgba(255, 255, 255, 0.04);
+    border-bottom: 1px solid var(--border);
+    font-size: 0.8rem;
+  }
+  .code-lang {
+    color: var(--accent);
+    font-weight: 700;
     text-transform: uppercase;
     font-family: monospace;
+    letter-spacing: 0.05em;
+  }
+  .code-run-btn {
+    background: var(--accent);
+    color: #ffffff;
+    border: none;
+    border-radius: 4px;
+    padding: 0.2rem 0.6rem;
+    font-size: 0.75rem;
+    cursor: pointer;
+    font-weight: 700;
+    transition: opacity 0.15s ease;
+  }
+  .code-run-btn:hover { opacity: 0.85; }
+  .code-output {
+    margin: 0 1rem 1rem 1rem;
+    padding: 0.6rem 0.85rem;
+    background: rgba(0, 0, 0, 0.45);
+    border-left: 3px solid var(--accent);
+    border-radius: 4px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.85rem;
+    color: #a7f3d0;
   }
   pre {
     padding: 1rem 1.25rem;
@@ -632,14 +662,39 @@ func generateDeckJS(totalSlides int) string {
         updateSlide(totalSlides);
         break;
       case 'f':
+      case 'F':
         if (!document.fullscreenElement) {
           document.documentElement.requestFullscreen().catch(() => {});
         } else {
           document.exitFullscreen().catch(() => {});
         }
         break;
+      case 'X': {
+        const activeSlide = document.querySelector('.slide.active');
+        if (activeSlide) {
+          const runBtn = activeSlide.querySelector('.code-run-btn');
+          if (runBtn) runCodeSnippet(runBtn);
+        }
+        break;
+      }
     }
   });
+
+  window.runCodeSnippet = function(btn) {
+    const parent = btn.closest('.code-block');
+    if (!parent) return;
+    const out = parent.querySelector('.code-output');
+    if (!out) return;
+    if (out.style.display === 'none') {
+      const lang = parent.getAttribute('data-lang') || 'code';
+      out.textContent = '⚡ [' + lang + '] live run complete (exit 0 · simulated output)';
+      out.style.display = 'block';
+      btn.textContent = '✖ Close';
+    } else {
+      out.style.display = 'none';
+      btn.textContent = '▶ Run';
+    }
+  };
 
   // Touch swipe support
   let touchStartX = 0;

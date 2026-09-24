@@ -340,3 +340,42 @@ func TestModelAutoplay(t *testing.T) {
 		t.Errorf("expected slide advanced to 1, got %d", newM.editor.SlideIdx)
 	}
 }
+
+func TestModelExecFinishedMsg(t *testing.T) {
+	d := internal.ParseDeck("# Slide 1\n```sh\necho 'hello'\n```\n")
+	ed := internal.NewEditor("test.deck.md")
+	ed.RunningCode = true
+
+	m := model{
+		deck:   d,
+		editor: ed,
+	}
+
+	execMsg := internal.ExecFinishedMsg{
+		Result: internal.ExecResult{
+			Language: "sh",
+			ExitCode: 0,
+			Duration: 5 * time.Millisecond,
+			Stdout:   "hello\n",
+		},
+	}
+
+	updated, cmd := m.Update(execMsg)
+	if cmd != nil {
+		t.Errorf("expected nil cmd on ExecFinishedMsg")
+	}
+	newM := updated.(model)
+	if newM.editor.RunningCode {
+		t.Errorf("expected RunningCode false")
+	}
+	if !newM.editor.ShowRunner {
+		t.Errorf("expected ShowRunner true")
+	}
+	if newM.editor.RunnerResult == nil || newM.editor.RunnerResult.ExitCode != 0 {
+		t.Errorf("unexpected runner result: %+v", newM.editor.RunnerResult)
+	}
+}
+
+func TestPrintHelpLiveRunnerAndFocus(t *testing.T) {
+	printHelp()
+}

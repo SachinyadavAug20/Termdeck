@@ -41,6 +41,7 @@ type Block struct {
 	Callout      string
 	BranchKey    string
 	BranchTarget string
+	NoEval       bool
 }
 
 // --- Slide & Deck ---
@@ -331,6 +332,29 @@ func ParseDeck(src string) Deck {
 	return Deck{Meta: meta, Slides: slides, Align: deckAlign, Theme: deckTheme}
 }
 
+func parseCodeLangAndFlags(s string) (string, bool) {
+	s = strings.TrimSpace(s)
+	noEval := false
+	lower := strings.ToLower(s)
+	if strings.Contains(lower, "no-eval") || strings.Contains(lower, "eval=false") || strings.Contains(lower, "run=false") || strings.Contains(lower, "no_run") || strings.Contains(lower, "ignore") || strings.Contains(lower, "noexec") {
+		noEval = true
+	}
+
+	lang := s
+	if strings.HasPrefix(lower, "lang=") {
+		parts := strings.Fields(s)
+		lang = strings.TrimPrefix(parts[0], "lang=")
+		lang = strings.TrimPrefix(lang, "LANG=")
+	} else {
+		parts := strings.Fields(s)
+		if len(parts) > 0 {
+			lang = parts[0]
+		}
+	}
+	lang = strings.Trim(lang, `"',;`)
+	return lang, noEval
+}
+
 func parseSlide(lines []string) Slide {
 	var blocks []Block
 	var slideAlign AlignKind
@@ -342,6 +366,7 @@ func parseSlide(lines []string) Slide {
 
 	inCode := false
 	codeLang := ""
+	codeNoEval := false
 	var codeLines []string
 
 	inNotes := false
@@ -355,12 +380,15 @@ func parseSlide(lines []string) Slide {
 
 	flushCode := func() {
 		blocks = append(blocks, Block{
-			Kind:  BlockCode,
-			Lang:  codeLang,
-			Lines: codeLines,
+			Kind:   BlockCode,
+			Lang:   codeLang,
+			Lines:  codeLines,
+			Text:   strings.Join(codeLines, "\n"),
+			NoEval: codeNoEval,
 		})
 		codeLines = nil
 		codeLang = ""
+		codeNoEval = false
 	}
 
 	flushNotes := func() {
@@ -470,7 +498,7 @@ func parseSlide(lines []string) Slide {
 				inCallout = false
 			}
 			inCode = true
-			codeLang = strings.TrimSpace(strings.TrimPrefix(trimmed, "```"))
+			codeLang, codeNoEval = parseCodeLangAndFlags(strings.TrimPrefix(trimmed, "```"))
 			continue
 		}
 
@@ -501,7 +529,7 @@ func parseSlide(lines []string) Slide {
 			if strings.HasPrefix(trimmed, "::code") {
 				inCode = true
 				_, val := ParseDirective(trimmed)
-				codeLang = val
+				codeLang, codeNoEval = parseCodeLangAndFlags(val)
 				continue
 			}
 
@@ -897,7 +925,11 @@ func SerializeBlock(blk Block) string {
 		return blk.Text
 	case BlockCode:
 		var b strings.Builder
-		fmt.Fprintf(&b, "::code lang=%s\n", blk.Lang)
+		if blk.NoEval {
+			fmt.Fprintf(&b, "::code lang=%s eval=false\n", blk.Lang)
+		} else {
+			fmt.Fprintf(&b, "::code lang=%s\n", blk.Lang)
+		}
 		for _, line := range blk.Lines {
 			b.WriteString(line)
 			b.WriteString("\n")

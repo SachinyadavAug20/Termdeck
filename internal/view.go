@@ -820,8 +820,218 @@ func renderSlide(slide Slide, w, h int, baseDir string, e Editor) string {
 		if rendered != "" {
 			lines = append(lines, rendered)
 		}
+		if isCursor && e.RunningCode {
+			lines = append(lines, renderRunningBanner(blk.Lang, w))
+		}
+	}
+	if e.ShowRunner && e.RunnerResult != nil && !e.FocusMode {
+		lines = append(lines, renderRunnerCard(e.RunnerResult, w))
 	}
 	return strings.Join(lines, "\n\n")
+}
+
+func renderRunningBanner(lang string, w int) string {
+	if lang == "" {
+		lang = "code"
+	}
+	txt := fmt.Sprintf("⚡ Executing [%s] snippet live in background...", lang)
+	return lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(currentTheme.Accent)).
+		Padding(0, 1).
+		Render("  " + txt)
+}
+
+func renderRunnerCard(res *ExecResult, w int) string {
+	if res == nil {
+		return ""
+	}
+	cardW := w - 8
+	if cardW > 78 {
+		cardW = 78
+	}
+	if cardW < 36 {
+		cardW = 36
+	}
+
+	lang := res.Language
+	if lang == "" {
+		lang = "sh"
+	}
+
+	var badge string
+	var borderCol string
+	if res.ExitCode == 0 && res.Error == "" {
+		badge = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#000000")).
+			Background(lipgloss.Color(currentTheme.Success)).
+			Padding(0, 1).
+			Render(fmt.Sprintf("✔ EXIT 0 · %v · %s", res.Duration.Round(time.Millisecond), lang))
+		borderCol = currentTheme.Success
+	} else {
+		badge = lipgloss.NewStyle().
+			Bold(true).
+			Foreground(lipgloss.Color("#FFFFFF")).
+			Background(lipgloss.Color(currentTheme.Laser)).
+			Padding(0, 1).
+			Render(fmt.Sprintf("✖ EXIT %d · %v · %s", res.ExitCode, res.Duration.Round(time.Millisecond), lang))
+		borderCol = currentTheme.Laser
+	}
+
+	header := fmt.Sprintf("⚡ Live Terminal Runner  %s", badge)
+
+	var sb strings.Builder
+	sb.WriteString(header + "\n\n")
+
+	hasOutput := false
+	if strings.TrimSpace(res.Stdout) != "" {
+		hasOutput = true
+		stdoutLines := strings.Split(res.Stdout, "\n")
+		for _, l := range stdoutLines {
+			sb.WriteString(currentTheme.TableCellStyle.Render(l) + "\n")
+		}
+	}
+
+	if strings.TrimSpace(res.Stderr) != "" {
+		hasOutput = true
+		if res.Stdout != "" {
+			sb.WriteString("\n")
+		}
+		sb.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(currentTheme.Warning)).Render("Stderr:") + "\n")
+		stderrLines := strings.Split(res.Stderr, "\n")
+		for _, l := range stderrLines {
+			sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Warning)).Render(l) + "\n")
+		}
+	}
+
+	if res.Error != "" && !strings.Contains(res.Stderr, res.Error) {
+		hasOutput = true
+		sb.WriteString(lipgloss.NewStyle().Foreground(lipgloss.Color(currentTheme.Laser)).Render("Error: "+res.Error) + "\n")
+	}
+
+	if !hasOutput {
+		sb.WriteString(dimStyle.Render("(process completed with no output)") + "\n")
+	}
+
+	footer := dimStyle.Render("Esc / X: dismiss  ·  y: yank output  ·  X: re-run")
+	sb.WriteString("\n" + footer)
+
+	card := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(borderCol)).
+		Padding(0, 1).
+		Width(cardW).
+		Render(sb.String())
+
+	return card
+}
+
+func renderFocusMode(d Deck, e Editor, w, h int) string {
+	if len(d.Slides) == 0 || e.SlideIdx >= len(d.Slides) {
+		return ""
+	}
+	slide := d.Slides[e.SlideIdx]
+	blkIdx := e.BlockIdx
+	if blkIdx < 0 || blkIdx >= len(slide.Blocks) {
+		blkIdx = 0
+	}
+	blk := slide.Blocks[blkIdx]
+
+	boxW := w - 4
+	if boxW > 88 {
+		boxW = 88
+	}
+	if boxW < 40 {
+		boxW = 40
+	}
+
+	boxH := h - 4
+	if boxH < 12 {
+		boxH = 12
+	}
+
+	var sb strings.Builder
+
+	kindName := "block"
+	switch blk.Kind {
+	case BlockCode:
+		lang := blk.Lang
+		if lang == "" {
+			lang = "sh"
+		}
+		kindName = fmt.Sprintf("Code: %s", lang)
+	case BlockHeading:
+		kindName = fmt.Sprintf("Heading H%d", blk.Level)
+	case BlockTable:
+		kindName = "Table"
+	case BlockCallout:
+		kindName = fmt.Sprintf("Card: %s", blk.Callout)
+	case BlockBranch:
+		kindName = fmt.Sprintf("Branch Fork -> #%s", blk.BranchTarget)
+	case BlockImage:
+		kindName = "Image"
+	case BlockList:
+		kindName = "List"
+	default:
+		kindName = "Paragraph"
+	}
+
+	title := currentTheme.HelpTitleStyle.Render("🔍 ZOOM FOCUS MODE")
+	meta := dimBoldStyle.Render(fmt.Sprintf("Slide %02d/%02d · Block %d/%d (%s)", e.SlideIdx+1, len(d.Slides), blkIdx+1, len(slide.Blocks), kindName))
+	hints := dimStyle.Render("j/k: scroll · f/Esc: normal view · X: run · y: yank")
+
+	sb.WriteString(title + "  ·  " + meta + "\n")
+	sb.WriteString(currentTheme.TableBorderStyle.Render(strings.Repeat("─", boxW-4)) + "\n\n")
+
+	renderedBlock := renderBlock(blk, boxW-4, boxH, d.BaseDir, false, false, "", 0, true)
+	blockLines := strings.Split(renderedBlock, "\n")
+
+	startLine := e.FocusScroll
+	if startLine >= len(blockLines) {
+		startLine = len(blockLines) - 1
+	}
+	if startLine < 0 {
+		startLine = 0
+	}
+
+	maxVisibleLines := boxH - 6
+	if maxVisibleLines < 4 {
+		maxVisibleLines = 4
+	}
+	endLine := startLine + maxVisibleLines
+	if endLine > len(blockLines) {
+		endLine = len(blockLines)
+	}
+
+	if startLine > 0 {
+		sb.WriteString(dimStyle.Render("  ▲  more content above") + "\n")
+	}
+
+	for i := startLine; i < endLine; i++ {
+		sb.WriteString(blockLines[i] + "\n")
+	}
+
+	if endLine < len(blockLines) {
+		sb.WriteString(dimStyle.Render("  ▼  more content below") + "\n")
+	}
+
+	if e.RunningCode {
+		sb.WriteString("\n" + renderRunningBanner(blk.Lang, boxW-4) + "\n")
+	} else if e.ShowRunner && e.RunnerResult != nil {
+		sb.WriteString("\n" + renderRunnerCard(e.RunnerResult, boxW-4) + "\n")
+	}
+
+	sb.WriteString("\n" + hints)
+
+	card := lipgloss.NewStyle().
+		BorderStyle(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(currentTheme.Accent)).
+		Padding(1, 2).
+		Width(boxW).
+		Render(sb.String())
+
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
 func renderNotesOverlay(notes string, width, maxHeight int) string {
@@ -873,8 +1083,9 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("y / Y"), currentTheme.HelpDescStyle.Render("Copy block to clipboard (OSC 52)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("c / C"), currentTheme.HelpDescStyle.Render("Toggle presentation timer / Reset timer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("r / R"), currentTheme.HelpDescStyle.Render("Reload deck file from disk")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("L"), currentTheme.HelpDescStyle.Render("Toggle code block line numbers")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("x"), currentTheme.HelpDescStyle.Render("Toggle task item ([ ] ⇄ [x]) & auto-save")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("f / F"), currentTheme.HelpDescStyle.Render("Toggle element zoom & focus mode")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("X / ctrl+x"), currentTheme.HelpDescStyle.Render("Execute focused code block in terminal runner")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("x"), currentTheme.HelpDescStyle.Render("Run code (on code block) / Toggle task item")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
@@ -1358,6 +1569,10 @@ func View(d Deck, e Editor, width, height int) string {
 		return renderBlankScreen(width, height)
 	}
 
+	if e.FocusMode {
+		return renderFocusMode(d, e, width, height)
+	}
+
 	if e.ShowHelp {
 		return renderHelpModal(width, height)
 	}
@@ -1532,19 +1747,37 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Autoplay {
 		left += fmt.Sprintf("  ·  [▶ auto: %ds (%ds)]", e.AutoplayInterval, e.AutoplayCountdown)
 	}
+	if e.RunningCode {
+		left += "  ·  [⚡ running code...]"
+	}
+	if e.ShowRunner && e.RunnerResult != nil {
+		left += fmt.Sprintf("  ·  [run: exit %d]", e.RunnerResult.ExitCode)
+	}
+	if e.FocusMode {
+		left += "  ·  [zoom: on]"
+	}
 	if e.SlideIdx < len(d.Slides) {
 		branches := d.Slides[e.SlideIdx].Branches()
 		if len(branches) > 0 {
-			left += fmt.Sprintf("  ·  [fork: %d paths]", len(branches))
+			bs := BranchSummary(d.Slides[e.SlideIdx])
+			if bs != "" {
+				left += fmt.Sprintf("  ·  [fork: %d paths · %s]", len(branches), bs)
+			} else {
+				left += fmt.Sprintf("  ·  [fork: %d paths]", len(branches))
+			}
 		}
 	}
 	if len(e.History) > 0 {
 		left += fmt.Sprintf("  ·  [history: %d]", len(e.History))
+		trail := BreadcrumbTrail(e.History, e.SlideIdx, d)
+		if trail != "" {
+			left += "  ·  [path: " + trail + "]"
+		}
 	}
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · M map · o grid · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

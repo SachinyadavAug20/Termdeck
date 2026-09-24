@@ -969,7 +969,7 @@ func TestAutoplayView(t *testing.T) {
 	ed.AutoplayInterval = 8
 	ed.AutoplayCountdown = 4
 
-	nav := stripANSI(navStatus(d, ed, 160))
+	nav := stripANSI(navStatus(d, ed, 240))
 	if !strings.Contains(nav, "[▶ auto: 8s (4s)]") {
 		t.Errorf("expected navStatus to contain [▶ auto: 8s (4s)], got: %s", nav)
 	}
@@ -1082,8 +1082,8 @@ title: Branch Status Deck
 	ed := NewEditor("")
 	ed.History = []int{0}
 
-	status := stripANSI(navStatus(d, ed, 120))
-	if !strings.Contains(status, "[fork: 1 paths]") {
+	status := stripANSI(navStatus(d, ed, 240))
+	if !strings.Contains(status, "[fork: 1 paths") || !strings.Contains(status, "Next Part") {
 		t.Errorf("expected fork badge in nav status, got:\n%s", status)
 	}
 	if !strings.Contains(status, "[history: 1]") {
@@ -1105,6 +1105,162 @@ func TestHelpModalGraphShortcuts(t *testing.T) {
 	}
 	if !strings.Contains(help, "M") || !strings.Contains(help, "graph map") {
 		t.Errorf("expected 'M' graph map in help modal, got:\n%s", help)
+	}
+	if !strings.Contains(help, "f / F") {
+		t.Errorf("expected 'f / F' in help modal, got:\n%s", help)
+	}
+	if !strings.Contains(help, "X / ctrl+x") {
+		t.Errorf("expected 'X / ctrl+x' in help modal, got:\n%s", help)
+	}
+}
+
+func TestRenderRunnerCardAndView(t *testing.T) {
+	SetCurrentTheme("tokyo-night")
+
+	// Nil result
+	if s := renderRunnerCard(nil, 80); s != "" {
+		t.Fatalf("expected empty string for nil result, got %q", s)
+	}
+
+	// Success result
+	resSuccess := &ExecResult{
+		Language: "bash",
+		ExitCode: 0,
+		Duration: 12 * time.Millisecond,
+		Stdout:   "All systems operational",
+	}
+	cardSuccess := stripANSI(renderRunnerCard(resSuccess, 80))
+	if !strings.Contains(cardSuccess, "EXIT 0") || !strings.Contains(cardSuccess, "All systems operational") {
+		t.Fatalf("unexpected success card: %s", cardSuccess)
+	}
+
+	// Failure result with stderr
+	resFail := &ExecResult{
+		Language: "python",
+		ExitCode: 1,
+		Duration: 25 * time.Millisecond,
+		Stderr:   "NameError: name 'x' is not defined",
+		Error:    "exit status 1",
+	}
+	cardFail := stripANSI(renderRunnerCard(resFail, 80))
+	if !strings.Contains(cardFail, "EXIT 1") || !strings.Contains(cardFail, "NameError") {
+		t.Fatalf("unexpected failure card: %s", cardFail)
+	}
+
+	// Running banner
+	banner := stripANSI(renderRunningBanner("go", 80))
+	if !strings.Contains(banner, "Executing [go]") {
+		t.Fatalf("unexpected banner: %s", banner)
+	}
+
+	// View with runner active
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Live Run Demo"},
+					{Kind: BlockCode, Lang: "sh", Text: "echo 'hello'"},
+				},
+			},
+		},
+	}
+	ed := NewEditor("")
+	ed.ShowRunner = true
+	ed.RunnerResult = resSuccess
+
+	viewStr := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewStr, "Live Terminal Runner") || !strings.Contains(viewStr, "All systems operational") {
+		t.Fatalf("expected runner card in View, got:\n%s", viewStr)
+	}
+
+	// View with code running
+	ed.ShowRunner = false
+	ed.RunningCode = true
+	ed.BlockIdx = 1
+	viewRunning := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewRunning, "Executing [sh]") {
+		t.Fatalf("expected running banner in View, got:\n%s", viewRunning)
+	}
+}
+
+func TestRenderFocusModeView(t *testing.T) {
+	SetCurrentTheme("dracula")
+
+	ed := NewEditor("")
+
+	// Empty deck
+	if s := renderFocusMode(Deck{}, ed, 80, 24); s != "" {
+		t.Fatalf("expected empty focus view for empty deck, got %q", s)
+	}
+
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Focus Demo"},
+					{Kind: BlockCode, Lang: "go", Lines: []string{"func main() {", `    println("focus mode")`, "}"}},
+					{Kind: BlockTable, Text: "| A | B |\n|---|---|\n| 1 | 2 |"},
+					{Kind: BlockCallout, Callout: "note", Text: "Note card"},
+					{Kind: BlockBranch, BranchKey: "1", Text: "Next", BranchTarget: "target"},
+				},
+			},
+		},
+	}
+
+	ed.SlideIdx = 0
+	ed.BlockIdx = 1 // Focused on code block
+	ed.FocusMode = true
+
+	focusView := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(focusView, "ZOOM FOCUS MODE") || !strings.Contains(focusView, "Code: go") {
+		t.Fatalf("expected focus mode header in View, got:\n%s", focusView)
+	}
+	if !strings.Contains(focusView, "println(\"focus mode\")") {
+		t.Fatalf("expected focused block body in View, got:\n%s", focusView)
+	}
+
+	// Test scrolling in focus mode
+	ed.FocusScroll = 2
+	scrollFocus := stripANSI(renderFocusMode(d, ed, 80, 20))
+	if !strings.Contains(scrollFocus, "more content above") {
+		t.Fatalf("expected scroll up indicator, got:\n%s", scrollFocus)
+	}
+
+	// Test focus mode on table
+	ed.BlockIdx = 2
+	tableFocus := stripANSI(renderFocusMode(d, ed, 80, 24))
+	if !strings.Contains(tableFocus, "Table") {
+		t.Fatalf("expected Table kind in focus view, got:\n%s", tableFocus)
+	}
+
+	// Test focus mode on callout
+	ed.BlockIdx = 3
+	calloutFocus := stripANSI(renderFocusMode(d, ed, 80, 24))
+	if !strings.Contains(calloutFocus, "Card: note") {
+		t.Fatalf("expected Card: note kind in focus view, got:\n%s", calloutFocus)
+	}
+
+	// Test focus mode on branch
+	ed.BlockIdx = 4
+	branchFocus := stripANSI(renderFocusMode(d, ed, 80, 24))
+	if !strings.Contains(branchFocus, "Branch Fork") {
+		t.Fatalf("expected Branch Fork kind in focus view, got:\n%s", branchFocus)
+	}
+
+	// Focus mode with runner card attached
+	ed.BlockIdx = 1
+	ed.ShowRunner = true
+	ed.RunnerResult = &ExecResult{Language: "go", ExitCode: 0, Stdout: "focus runner result"}
+	focusWithRunner := stripANSI(renderFocusMode(d, ed, 80, 30))
+	if !strings.Contains(focusWithRunner, "focus runner result") {
+		t.Fatalf("expected runner output inside focus mode, got:\n%s", focusWithRunner)
+	}
+
+	// Nav status with focus and running code
+	ed.RunningCode = true
+	nav := stripANSI(navStatus(d, ed, 240))
+	if !strings.Contains(nav, "running code") || !strings.Contains(nav, "zoom: on") {
+		t.Fatalf("expected navStatus badges for running code and zoom, got:\n%s", nav)
 	}
 }
 

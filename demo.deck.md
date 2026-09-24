@@ -14,7 +14,7 @@ A terminal-native presentation format designed by developers, for developers.
 - present from any ssh session or tmux pane
 - zero dependencies — just a single binary
 
-::code lang=bash
+::code lang=bash eval=false
   # run demo deck
   deck demo.deck.md
 
@@ -30,7 +30,7 @@ Present technical ideas in a simple, clean, and distraction-free medium:
 - works over **SSH**, in **tmux**, anywhere
 - switch between editing and presenting instantly
 
-::code lang=bash
+::code lang=bash eval=false
   curl -sSL https://example.com/deck.sh | bash
   deck slides.deck.md
 
@@ -95,7 +95,7 @@ Highlight crucial technical insights, warnings, and architectural decisions:
 
 Native syntax highlighting for modern backend and systems languages (press `L` to toggle line numbers):
 
-::code lang=go
+::code lang=go eval=false
   // Concurrent worker pool
   func worker(ctx context.Context, jobs <-chan Job) {
       for job := range jobs {
@@ -103,7 +103,7 @@ Native syntax highlighting for modern backend and systems languages (press `L` t
       }
   }
 
-::code lang=bash
+::code lang=bash eval=false
   # automated deployment pipeline
   git pull origin main && make test && make build
 
@@ -264,9 +264,10 @@ Presenters dynamically steer the presentation based on audience choice:
 ::branch [1] Deep Dive: Core Architecture & Topology -> arch-deepdive
 ::branch [2] Deep Dive: Rehearsal & Autoplay Pacing -> autoplay-deepdive
 ::branch [3] Deep Dive: Offline HTML & Diagram Exports -> export-deepdive
+::branch [4] Deep Dive: Live Code Runner & Zoom Focus -> runner-deepdive
 
 > [!TIP]
-> Press `1`, `2`, or `3` to take a branch immediately, or press `M` to explore the DAG topology map!
+> Press `1`, `2`, `3`, or `4` to take a branch immediately, or press `M` to explore the DAG topology map!
 
 ---
 
@@ -316,10 +317,39 @@ Share technical ideas beyond the terminal:
 - **Mermaid Export**: Run `deck --mermaid demo.deck.md` for GitHub markdown diagrams
 - **ASCII DAG**: Run `deck --graph demo.deck.md` for terminal topology visualization
 
-::code lang=bash
+::code lang=bash eval=false
   # inspect presentation topology map
   deck --graph demo.deck.md
   deck --mermaid demo.deck.md > topology.mmd
+
+---
+
+::id runner-deepdive
+::align left
+::next conclusion
+# Live Code Runner & Zoom Focus Mode
+
+Termdeck lets developers execute live code directly during presentations:
+
+- **Live Runner**: Press `X` or `ctrl+x` (or `x` on a code block) to execute
+- **Ephemeral Output**: Exit code, elapsed time, stdout/stderr rendered in runner card
+- **Element Zoom**: Press `f` or `F` to maximize focused code, table, or diagram to full screen!
+- **CI/CD Verification**: Run `deck --test-code demo.deck.md` to verify all slide code snippets
+
+```bash
+# Live bash execution test
+uname -s -m
+echo "Termdeck presentation engine: 100% operational"
+```
+
+```python
+# Verified live calculation
+import math
+print(f"Verified live prime count up to 50: {len([p for p in range(2, 50) if all(p%d!=0 for d in range(2, int(p**0.5)+1))])}")
+```
+
+> [!TIP]
+> Focus on either code block above and press `X` to run, or press `f` to enter Zoom Focus mode!
 
 ---
 
@@ -330,6 +360,8 @@ Share technical ideas beyond the terminal:
 Simple, clean, terminal-native presentations built by a developer for developers:
 
 - **Directed Graph Presentations** with interactive decision branches (`1-9`, `M`)
+- **Live Terminal Code Runner** (`X`, `ctrl+x`, `--test-code`) for running code live
+- **Zoom Focus Mode** (`f`, `F`) to maximize code/tables/diagrams distraction-free
 - **Offline HTML Export** with embedded standalone navigation (`E`)
 - **Distraction-Free Zen Mode** (`z`) & Presentation screen blackout (`b`)
 - **Rehearsal Pacing & Auto-advance** (`A`, `-a`) & Talk stopwatch (`c`, `C`)

@@ -341,3 +341,111 @@ func FormatGraphCLI(d Deck, theme Theme) string {
 
 	return b.String()
 }
+
+// ShortestPath computes the sequence of slide indices representing the shortest path from 'from' to 'to' in the DAG using BFS.
+// Returns nil if no path exists or indices are invalid.
+func (g *DeckGraph) ShortestPath(from, to int) []int {
+	if from < 0 || from >= len(g.Nodes) || to < 0 || to >= len(g.Nodes) {
+		return nil
+	}
+	if from == to {
+		return []int{from}
+	}
+
+	queue := []int{from}
+	parent := make(map[int]int)
+	visited := make(map[int]bool)
+	visited[from] = true
+
+	found := false
+	for len(queue) > 0 {
+		curr := queue[0]
+		queue = queue[1:]
+
+		if curr == to {
+			found = true
+			break
+		}
+
+		for _, edge := range g.Nodes[curr].OutEdges {
+			target := edge.ToIndex
+			if target >= 0 && target < len(g.Nodes) && !visited[target] {
+				visited[target] = true
+				parent[target] = curr
+				queue = append(queue, target)
+			}
+		}
+	}
+
+	if !found {
+		return nil
+	}
+
+	var path []int
+	curr := to
+	for curr != from {
+		path = append([]int{curr}, path...)
+		curr = parent[curr]
+	}
+	path = append([]int{from}, path...)
+	return path
+}
+
+// BreadcrumbTrail builds a compact breadcrumb representation of the path traversed so far.
+func BreadcrumbTrail(history []int, current int, d Deck) string {
+	if len(d.Slides) == 0 {
+		return ""
+	}
+	var sequence []int
+	sequence = append(sequence, history...)
+	sequence = append(sequence, current)
+
+	if len(sequence) == 0 {
+		return ""
+	}
+
+	maxItems := 4
+	var parts []string
+	startIdx := 0
+	if len(sequence) > maxItems {
+		startIdx = len(sequence) - maxItems
+		parts = append(parts, "...")
+	}
+
+	for _, idx := range sequence[startIdx:] {
+		if idx >= 0 && idx < len(d.Slides) {
+			s := d.Slides[idx]
+			name := s.ID
+			if name == "" {
+				name = s.Slug()
+			}
+			if len(name) > 10 {
+				name = name[:10]
+			}
+			parts = append(parts, fmt.Sprintf("[%02d:%s]", idx+1, name))
+		}
+	}
+
+	return strings.Join(parts, " ──► ")
+}
+
+// BranchSummary formats the available branch options on a slide for fast status display.
+func BranchSummary(slide Slide) string {
+	branches := slide.Branches()
+	if len(branches) == 0 {
+		return ""
+	}
+	var items []string
+	for _, b := range branches {
+		key := b.Key
+		if key == "" {
+			key = "→"
+		}
+		label := b.Label
+		if len(label) > 12 {
+			label = label[:12]
+		}
+		items = append(items, fmt.Sprintf("[%s] %s", key, label))
+	}
+	return strings.Join(items, "  ")
+}

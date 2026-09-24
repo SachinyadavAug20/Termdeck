@@ -204,3 +204,83 @@ func TestReachableNodesOutOfBounds(t *testing.T) {
 		t.Errorf("expected nil for out-of-bounds, got %+v", r)
 	}
 }
+
+func TestShortestPathAndBreadcrumbs(t *testing.T) {
+	src := `---
+title: Path Test
+---
+
+::id intro
+# Intro
+::branch [1] Opt A -> deep-a
+::branch [2] Opt B -> deep-b
+
+---
+
+::id deep-a
+# Deep A
+::next summary
+
+---
+
+::id deep-b
+# Deep B
+::next summary
+
+---
+
+::id summary
+# Summary
+`
+	deck := ParseDeck(src)
+	g := BuildGraph(deck)
+
+	// Test ShortestPath from 0 (intro) to 3 (summary)
+	pathA := g.ShortestPath(0, 3)
+	if len(pathA) != 3 {
+		t.Fatalf("expected path length 3, got %+v", pathA)
+	}
+	if pathA[0] != 0 || pathA[2] != 3 {
+		t.Fatalf("expected path 0 -> 1|2 -> 3, got %+v", pathA)
+	}
+
+	// Invalid indices
+	if p := g.ShortestPath(-1, 2); p != nil {
+		t.Fatalf("expected nil for -1, got %+v", p)
+	}
+	if p := g.ShortestPath(0, 10); p != nil {
+		t.Fatalf("expected nil for 10, got %+v", p)
+	}
+	if p := g.ShortestPath(2, 2); len(p) != 1 || p[0] != 2 {
+		t.Fatalf("expected [2] for self-path, got %+v", p)
+	}
+
+	// BreadcrumbTrail tests
+	emptyTrail := BreadcrumbTrail(nil, 0, Deck{})
+	if emptyTrail != "" {
+		t.Fatalf("expected empty trail, got %q", emptyTrail)
+	}
+
+	trail := BreadcrumbTrail([]int{0, 1}, 3, deck)
+	if !strings.Contains(trail, "[01:intro]") || !strings.Contains(trail, "[04:summary]") {
+		t.Fatalf("unexpected trail: %s", trail)
+	}
+
+	// Long history truncation
+	longHistory := []int{0, 1, 2, 0, 1}
+	longTrail := BreadcrumbTrail(longHistory, 3, deck)
+	if !strings.HasPrefix(longTrail, "...") {
+		t.Fatalf("expected '...' prefix in long trail, got: %s", longTrail)
+	}
+
+	// BranchSummary tests
+	bs := BranchSummary(deck.Slides[0])
+	if !strings.Contains(bs, "[1] Opt A") || !strings.Contains(bs, "[2] Opt B") {
+		t.Fatalf("unexpected branch summary: %s", bs)
+	}
+
+	noBs := BranchSummary(deck.Slides[3])
+	if noBs != "" {
+		t.Fatalf("expected empty branch summary for slide without branches, got %q", noBs)
+	}
+}

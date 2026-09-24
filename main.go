@@ -52,6 +52,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			return m, cmd
 		}
 
+	case internal.ExecFinishedMsg:
+		m.editor.RunningCode = false
+		m.editor.ShowRunner = true
+		m.editor.RunnerResult = &msg.Result
+		m.editor.Message = fmt.Sprintf("run completed (exit %d · %v)", msg.Result.ExitCode, msg.Result.Duration.Round(time.Millisecond))
+		return m, nil
+
 	case internal.TickMsg:
 		var cmd tea.Cmd
 		if m.editor.ShowTimer || m.editor.Autoplay {
@@ -129,6 +136,8 @@ Options:
       --mermaid        Print presentation topology as Mermaid diagram syntax
       --stats          Print presentation statistics and deck metrics to terminal
       --export-html    Export presentation to standalone HTML file
+      --test-code      Execute and verify all code snippets in presentation
+      --run-slide <N>  Execute code block on slide N and print output
   -v, --version        Show version information
   -h, --help           Show this help message
 
@@ -139,13 +148,15 @@ Controls:
   Pointer:      ↓ / j (down), ↑ / k (up)
   Jumps:        / (jump to slide by number/search), g (first), G (last)
   Overview:     o / O (slide overview & 2D grid sorter)
+  Focus Mode:   f / F (zoom focused block to fill terminal viewport)
+  Live Runner:  X / ctrl+x (run code block), x (run code / toggle task)
   Theme:        t / T / f2 (cycle color themes: tokyo-night, dracula, nord, ...)
   Zen Mode:     z (toggle distraction-free zen mode)
   Line numbers: L (toggle code block line numbers)
   Timer:        c (toggle presentation timer), C (reset timer)
   Auto-play:    A (toggle auto-advance / rehearsal pacing)
   Reload:       r / R (reload deck from disk)
-  Yank:         y / Y (yank focused code/block to system clipboard)
+  Yank:         y / Y (yank focused code/block/runner to clipboard)
   Blank Screen: b / B (blank presentation screen, any key resumes)
   Export HTML:  E (export deck to standalone HTML presentation)
   Stats:        S (presentation statistics & deck metrics)
@@ -171,6 +182,8 @@ func main() {
 	var autoplaySec int
 	var showGraph bool
 	var showMermaid bool
+	var testCode bool
+	var runSlideNum int
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -202,6 +215,15 @@ func main() {
 			showGraph = true
 		case arg == "--mermaid":
 			showMermaid = true
+		case arg == "--test-code":
+			testCode = true
+		case arg == "--run-slide":
+			if i+1 < len(args) {
+				i++
+				fmt.Sscanf(args[i], "%d", &runSlideNum)
+			}
+		case strings.HasPrefix(arg, "--run-slide="):
+			fmt.Sscanf(strings.TrimPrefix(arg, "--run-slide="), "%d", &runSlideNum)
 		case arg == "--stats":
 			showStats = true
 		case arg == "--export-html":
@@ -336,6 +358,79 @@ func main() {
 		d.BaseDir = filepath.Dir(deckFile)
 		g := internal.BuildGraph(d)
 		fmt.Print(g.ToMermaid())
+		return
+	}
+
+	if testCode {
+		if len(fileArgs) < 1 {
+			fmt.Fprintln(os.Stderr, "error: missing deck file for --test-code")
+			os.Exit(1)
+		}
+		deckFile := fileArgs[0]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
+			os.Exit(1)
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		start := time.Now()
+		passed, failed, results := internal.TestAllDeckCode(d, 5*time.Second)
+		fmt.Print(internal.FormatTestCodeCLI(deckFile, passed, failed, results, time.Since(start)))
+		if failed > 0 {
+			os.Exit(1)
+		}
+		return
+	}
+
+	if runSlideNum > 0 {
+		if len(fileArgs) < 1 {
+			fmt.Fprintln(os.Stderr, "error: missing deck file for --run-slide")
+			os.Exit(1)
+		}
+		deckFile := fileArgs[0]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
+			os.Exit(1)
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		if runSlideNum > len(d.Slides) {
+			fmt.Fprintf(os.Stderr, "error: slide %d exceeds total slide count (%d)\n", runSlideNum, len(d.Slides))
+			os.Exit(1)
+		}
+		slide := d.Slides[runSlideNum-1]
+		var targetBlock *internal.Block
+		for _, b := range slide.Blocks {
+			if b.Kind == internal.BlockCode {
+				targetBlock = &b
+				break
+			}
+		}
+		if targetBlock == nil {
+			fmt.Fprintf(os.Stderr, "error: slide %d contains no code blocks\n", runSlideNum)
+			os.Exit(1)
+		}
+		res := internal.ExecuteBlock(*targetBlock, 10*time.Second)
+		if res.Stdout != "" {
+			fmt.Print(res.Stdout)
+			if !strings.HasSuffix(res.Stdout, "\n") {
+				fmt.Println()
+			}
+		}
+		if res.Stderr != "" {
+			fmt.Fprint(os.Stderr, res.Stderr)
+			if !strings.HasSuffix(res.Stderr, "\n") {
+				fmt.Fprintln(os.Stderr)
+			}
+		}
+		if res.Error != "" && !strings.Contains(res.Stderr, res.Error) {
+			fmt.Fprintf(os.Stderr, "error: %s\n", res.Error)
+		}
+		if res.ExitCode != 0 {
+			os.Exit(res.ExitCode)
+		}
 		return
 	}
 

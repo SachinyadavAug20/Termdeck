@@ -19,11 +19,12 @@ This document outlines the testing architecture, developer tooling, coverage met
 tpp/
 ├── main_test.go             # Root CLI & Bubble Tea engine tests
 ├── internal/
-│   ├── editor_test.go       # Navigation, edit mode, undo/redo, block mutations, DAG history
-│   ├── export_test.go       # HTML export formatting, CSS/JS bundling, interactive branching
-│   ├── graph_test.go        # DAG topology construction, Mermaid export, cycle/orphan analysis
-│   ├── view_test.go         # Syntax highlighting, inline styles, DAG modal, Lipgloss layout
-│   ├── model_test.go        # Parser edge cases, branching syntax, round-trip serialization
+│   ├── editor_test.go       # Navigation, edit mode, undo/redo, block mutations, DAG history, Focus Mode
+│   ├── export_test.go       # HTML export formatting, CSS/JS bundling, interactive branching, live code runner
+│   ├── graph_test.go        # DAG topology construction, Mermaid export, shortest path, breadcrumbs
+│   ├── runner_test.go       # Live code runner subprocess execution, timeouts, dedent, CI assertions
+│   ├── view_test.go         # Syntax highlighting, inline styles, DAG modal, runner card, Focus Mode
+│   ├── model_test.go        # Parser edge cases, branching syntax, round-trip serialization, no-eval flags
 │   ├── image_test.go        # Image path resolution, format probing, ASCII cards
 │   └── stats_test.go        # Talk statistics, progress bar, CLI format tests
 └── Makefile                 # Developer automation
@@ -42,6 +43,8 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestPrintHelpStats`: Asserts `--stats` and `S` control are documented in CLI help output.
 - `TestPrintHelpAutoplay`: Asserts `-a` / `--autoplay` and `A` control are documented in CLI help output.
 - `TestPrintHelpGraphAndMermaid`: Asserts `--graph` and `--mermaid` CLI options are documented in help output.
+- `TestPrintHelpLiveRunnerAndFocus`: Asserts `--test-code`, `--run-slide`, `X`, and `f` shortcuts are documented in help output.
+- `TestModelExecFinishedMsg`: Verifies `ExecFinishedMsg` delivers results cleanly to editor state without crashing.
 - `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
 - `TestModelUpdateTickMsg`: Verifies Bubble Tea model dispatches `TickCmd()` only when timer is enabled, avoiding background polling overhead.
 - `TestModelInitWatchMode`: Asserts `WatchCmd()` is initialized when `-w` / `--watch` CLI flag is set.
@@ -82,6 +85,7 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorExportHTMLKeyNav`: Verifies pressing `E` in navigation mode invokes HTML exporter and sets status bar confirmation.
 - `TestEditorAutoplay`: Validates toggling autoplay with `A`, per-second countdown ticking, automatic slide advancing, looping to start, and manual navigation reset.
 - `TestEditorBranchAndGraphNavigation`: Validates numeric branch jumping (`1`..`9`), `enter` on focused branch cards, `Backspace` / `H` history backtracking stack, and `M` graph map modal cursor navigation and jumping.
+- `TestEditorFocusModeAndLiveRunner`: Validates toggling Focus Mode (`f`), line numbering, vertical scrolling (`j`/`k`), running code via Bubble Tea command (`X`/`x`), yanking runner output (`y`), and dismissing runner card (`Esc`).
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
 Tests visual layout, card rendering, and terminal text styling:
@@ -118,6 +122,8 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestRenderGraphModal`: Tests interactive presentation DAG topology map rendering, active slide indicator, and visited path breadcrumbs (`Path: [01] ──► [02]`).
 - `TestNavStatusForkAndHistory`: Verifies `[fork: N paths]`, `[history: N]`, and `M map` badges in the status bar.
 - `TestHelpModalGraphShortcuts`: Asserts `1 - 9`, `Backspace / H`, and `M` shortcuts are documented in help modal.
+- `TestRenderRunnerCardAndView`: Verifies rendering of live code execution output cards with exit code badges, execution duration, and stdout/stderr blocks.
+- `TestRenderFocusModeView`: Asserts full viewport focus mode layout, line numbering, vertical scrolling offsets, and integrated execution output drawer.
 - `BenchmarkRenderView`: Measures frames-per-second rendering efficiency.
 
 ### D. Model & Parser — `internal/model_test.go`
@@ -176,6 +182,21 @@ Tests presentation graph construction, traversal analysis, and diagram export:
 - `TestBuildGraphBranching`: Tests multi-branch forks, convergence edges (`::next`), Mermaid diagram generation, and ASCII CLI format.
 - `TestGraphCycleAndOrphans`: Validates cycle detection algorithms and unreferenced detached slide detection with warnings.
 - `TestReachableNodesOutOfBounds`: Asserts safety against out-of-bounds start indices.
+- `TestShortestPathAndBreadcrumbs`: Validates BFS shortest path calculation on presentation DAG and real-time breadcrumb trail formatting.
+
+### J. Live Code Runner Subsystem — `internal/runner_test.go`
+Tests subprocess execution, execution timeouts, output truncation, language whitelisting, and CI deck testing:
+- `TestExecuteBlockSh`: Executes simple POSIX shell command (`echo "termdeck"`) and asserts stdout and exit code 0.
+- `TestExecuteBlockNonZeroExit`: Asserts non-zero exit codes (exit 2) are captured and marked as failures.
+- `TestExecuteBlockTimeout`: Verifies context timeouts terminate hanging subprocesses (`sleep 2`) cleanly.
+- `TestExecuteBlockNonCode`: Asserts non-code blocks return error without executing.
+- `TestIsExecutableLanguage`: Validates executable whitelist (`sh`, `bash`, `python`, `go`, `node`, `ruby`) vs display types (`diff`, `sql`, `yaml`, `text`).
+- `TestExecuteBlockEmpty`: Asserts empty code blocks return error.
+- `TestExecuteBlockGo`: Validates compiling and running temporary Go snippets.
+- `TestExecuteBlockWithLines`: Validates multiline Python execution with indentation stripping (`dedent()`).
+- `TestTruncateOutput`: Validates memory safeguard truncation at 16KB and 300 lines limit.
+- `TestExecuteCodeCmd`: Asserts `ExecCodeCmd` Bubble Tea command wraps execution in `ExecFinishedMsg`.
+- `TestTestAllDeckCode`: Tests deck-wide CI code validation and execution summary formatting.
 
 ---
 
@@ -213,13 +234,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (88 unit tests):
+Statement coverage across packages (105 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
-| `deck` (root) | 24.4% | Covers model, update loop, flags, live watch loop (excluding `main()` process exit) |
-| `deck/internal` | 91.1% | Exceeds >90% target across all core modules |
-| **Total Project** | **86.9%** | **PASSED** |
+| `deck` (root) | 17.6% | Covers model, update loop, flags, live watch loop, runner messages (excluding `main()` process exit) |
+| `deck/internal` | 90.0% | Meets $\ge 90\%$ target across all 10 core modules |
+| **Total Project** | **85.3%** | **PASSED** |
 
 ---
 

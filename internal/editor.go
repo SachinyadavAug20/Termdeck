@@ -74,6 +74,11 @@ type Editor struct {
 	History           []int
 	ShowGraphMap      bool
 	GraphMapCursor    int
+	RunningCode       bool
+	ShowRunner        bool
+	RunnerResult      *ExecResult
+	FocusMode         bool
+	FocusScroll       int
 }
 
 func NewEditor(filePath string) Editor {
@@ -570,6 +575,72 @@ func (e *Editor) ToggleTask(d *Deck) {
 	}
 }
 
+// --- Live code runner & focus mode ---
+
+func (e *Editor) RunFocusedCode(d *Deck) tea.Cmd {
+	if d == nil || e.SlideIdx >= len(d.Slides) {
+		e.Message = "no slide active"
+		return nil
+	}
+	slide := d.Slides[e.SlideIdx]
+	var targetBlock *Block
+	blkIdx := e.BlockIdx
+
+	// 1. Check current block
+	if blkIdx >= 0 && blkIdx < len(slide.Blocks) && slide.Blocks[blkIdx].Kind == BlockCode {
+		targetBlock = &slide.Blocks[blkIdx]
+	} else {
+		// 2. Search for first BlockCode on this slide
+		for i, b := range slide.Blocks {
+			if b.Kind == BlockCode {
+				targetBlock = &slide.Blocks[i]
+				blkIdx = i
+				e.BlockIdx = i
+				break
+			}
+		}
+	}
+
+	if targetBlock == nil {
+		e.Message = "no code block found on this slide"
+		return nil
+	}
+
+	if targetBlock.NoEval {
+		e.Message = "code block is marked display-only (no-eval)"
+		return nil
+	}
+
+	lang := targetBlock.Lang
+	if !IsExecutableLanguage(lang) && lang != "" {
+		e.Message = fmt.Sprintf("language '%s' is display-only (supported: sh, python, go, node, ruby)", lang)
+		return nil
+	}
+
+	e.RunningCode = true
+	e.ShowRunner = false
+	if lang == "" {
+		lang = "sh"
+	}
+	e.Message = fmt.Sprintf("executing [%s] code...", lang)
+	return ExecuteCodeCmd(*targetBlock, 5*time.Second, e.SlideIdx+1, blkIdx+1)
+}
+
+func (e *Editor) ToggleFocusMode(d *Deck) {
+	e.FocusMode = !e.FocusMode
+	e.FocusScroll = 0
+	if e.FocusMode {
+		e.Message = "focus mode: on (j/k to scroll, X to run, f/esc to exit)"
+	} else {
+		e.Message = "focus mode: off"
+	}
+}
+
+func (e *Editor) DismissRunner() {
+	e.ShowRunner = false
+	e.Message = "runner closed"
+}
+
 // --- Input handling ---
 
 func (e *Editor) HandleKey(msg tea.KeyMsg, d *Deck) tea.Cmd {
@@ -703,6 +774,64 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 	}
 
+	if e.FocusMode {
+		switch key {
+		case "esc", "f", "F", "q", "ctrl+c":
+			e.FocusMode = false
+			e.FocusScroll = 0
+			e.Message = "focus mode: off"
+			return nil
+		case "down", "j":
+			e.FocusScroll++
+			return nil
+		case "up", "k":
+			if e.FocusScroll > 0 {
+				e.FocusScroll--
+			}
+			return nil
+		case "g", "home":
+			e.FocusScroll = 0
+			return nil
+		case "G", "end":
+			e.FocusScroll = 100
+			return nil
+		case "X", "ctrl+x":
+			return e.RunFocusedCode(d)
+		case "x":
+			blk := e.currentBlock(d)
+			if blk != nil && blk.Kind == BlockCode {
+				return e.RunFocusedCode(d)
+			}
+			e.ToggleTask(d)
+			return nil
+		case "y", "Y":
+			if e.ShowRunner && e.RunnerResult != nil {
+				output := e.RunnerResult.Stdout
+				if e.RunnerResult.Stderr != "" {
+					if output != "" {
+						output += "\n"
+					}
+					output += e.RunnerResult.Stderr
+				}
+				e.Message = fmt.Sprintf("yanked %d chars of execution output to clipboard", len(output))
+				return tea.Printf("%s", OSC52Copy(output))
+			}
+			text, err := e.YankBlock(d)
+			if err != nil {
+				e.Message = "yank: " + err.Error()
+				return nil
+			}
+			return tea.Printf("%s", OSC52Copy(text))
+		case "t", "T":
+			e.CycleTheme(d)
+			return nil
+		case "L":
+			e.ShowLineNumbers = !e.ShowLineNumbers
+			return nil
+		}
+		return nil
+	}
+
 	switch key {
 	case "q", "ctrl+c":
 		if e.Dirty && e.FilePath != "" {
@@ -711,6 +840,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return tea.Quit
 
 	case "right", "l", " ", "enter", "pgdown":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
 		if e.Autoplay {
 			e.AutoplayCountdown = e.AutoplayInterval
 		}
@@ -740,6 +872,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 
 	case "left", "h", "pgup":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
 		if e.Autoplay {
 			e.AutoplayCountdown = e.AutoplayInterval
 		}
@@ -759,6 +894,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 
 	case "backspace":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
 		if e.Autoplay {
 			e.AutoplayCountdown = e.AutoplayInterval
 		}
@@ -782,11 +920,17 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 
 	case "H":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
 		if e.BackHistory(d) {
 			e.Message = fmt.Sprintf("back to slide %d/%d", e.SlideIdx+1, len(d.Slides))
 		}
 
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
 		if d != nil && e.SlideIdx < len(d.Slides) {
 			branch := d.Slides[e.SlideIdx].FindBranchByKey(key)
 			if branch != nil {
@@ -873,7 +1017,18 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 
 	case "x":
+		blk := e.currentBlock(d)
+		if blk != nil && blk.Kind == BlockCode {
+			return e.RunFocusedCode(d)
+		}
 		e.ToggleTask(d)
+
+	case "X", "ctrl+x":
+		return e.RunFocusedCode(d)
+
+	case "f", "F":
+		e.ToggleFocusMode(d)
+		return nil
 
 	case "o", "O":
 		e.ShowOverview = true
@@ -892,6 +1047,17 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 
 	case "y", "Y":
+		if e.ShowRunner && e.RunnerResult != nil {
+			output := e.RunnerResult.Stdout
+			if e.RunnerResult.Stderr != "" {
+				if output != "" {
+					output += "\n"
+				}
+				output += e.RunnerResult.Stderr
+			}
+			e.Message = fmt.Sprintf("yanked %d chars of execution output to clipboard", len(output))
+			return tea.Printf("%s", OSC52Copy(output))
+		}
 		text, err := e.YankBlock(d)
 		if err != nil {
 			e.Message = "yank: " + err.Error()
@@ -1006,6 +1172,11 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		e.ShowHelp = !e.ShowHelp
 
 	case "esc":
+		if e.ShowRunner {
+			e.ShowRunner = false
+			e.Message = "runner closed"
+			return nil
+		}
 		if e.ShowHelp {
 			e.ShowHelp = false
 			return nil
