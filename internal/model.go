@@ -27,6 +27,7 @@ const (
 	BlockCallout
 	BlockDivider
 	BlockBranch
+	BlockColumns
 )
 
 type Block struct {
@@ -42,6 +43,7 @@ type Block struct {
 	BranchKey    string
 	BranchTarget string
 	NoEval       bool
+	Columns      [][]Block
 }
 
 // --- Slide & Deck ---
@@ -119,6 +121,18 @@ func (s *Slide) Branches() []Branch {
 				Label:  b.Text,
 				Target: b.BranchTarget,
 			})
+		} else if b.Kind == BlockColumns {
+			for _, col := range b.Columns {
+				for _, inner := range col {
+					if inner.Kind == BlockBranch {
+						list = append(list, Branch{
+							Key:    inner.BranchKey,
+							Label:  inner.Text,
+							Target: inner.BranchTarget,
+						})
+					}
+				}
+			}
 		}
 	}
 	return list
@@ -143,6 +157,19 @@ func (s *Slide) Slug() string {
 	return slug
 }
 
+func (s *Slide) HasTag(tag string) bool {
+	if tag == "" || strings.EqualFold(tag, "all") {
+		return true
+	}
+	tagLower := strings.ToLower(strings.TrimSpace(tag))
+	for _, t := range s.Tags {
+		if strings.ToLower(strings.TrimSpace(t)) == tagLower {
+			return true
+		}
+	}
+	return false
+}
+
 func (s *Slide) Summary() string {
 	var kinds []string
 	hasCode := false
@@ -151,6 +178,7 @@ func (s *Slide) Summary() string {
 	hasCallout := false
 	hasTask := false
 	hasBranch := false
+	hasColumns := false
 
 	for _, b := range s.Blocks {
 		switch b.Kind {
@@ -164,6 +192,8 @@ func (s *Slide) Summary() string {
 			hasCallout = true
 		case BlockBranch:
 			hasBranch = true
+		case BlockColumns:
+			hasColumns = true
 		case BlockList:
 			trimmed := strings.TrimSpace(b.Text)
 			if strings.HasPrefix(trimmed, "- [ ]") || strings.HasPrefix(trimmed, "- [x]") {
@@ -196,6 +226,9 @@ func (s *Slide) Summary() string {
 	if hasBranch {
 		kinds = append(kinds, "fork")
 	}
+	if hasColumns {
+		kinds = append(kinds, "cols")
+	}
 	if len(kinds) > 0 {
 		summary += " · " + strings.Join(kinds, ",")
 	}
@@ -219,6 +252,35 @@ type Deck struct {
 	Align   AlignKind
 	Theme   string
 }
+
+func (d *Deck) AllTags() []string {
+	seen := make(map[string]bool)
+	var tags []string
+	for _, s := range d.Slides {
+		for _, t := range s.Tags {
+			trimmed := strings.TrimSpace(t)
+			if trimmed != "" {
+				lower := strings.ToLower(trimmed)
+				if !seen[lower] {
+					seen[lower] = true
+					tags = append(tags, trimmed)
+				}
+			}
+		}
+	}
+	return tags
+}
+
+func (d *Deck) SlideIndicesForTag(tag string) []int {
+	var indices []int
+	for i, s := range d.Slides {
+		if s.HasTag(tag) {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
 
 func (d *Deck) FindSlideByID(target string) int {
 	target = strings.TrimSpace(target)
@@ -475,8 +537,71 @@ func parseSlide(lines []string) Slide {
 		calloutLines = nil
 	}
 
+	inColumns := false
+	var colBlocks [][]Block
+	var currentColLines []string
+	hasColStarted := false
+
+	flushColumns := func() {
+		if hasColStarted && len(currentColLines) > 0 {
+			colBlocks = append(colBlocks, parseColumnBlocks(currentColLines))
+			currentColLines = nil
+		}
+		if len(colBlocks) > 0 {
+			blocks = append(blocks, Block{
+				Kind:    BlockColumns,
+				Columns: colBlocks,
+			})
+			colBlocks = nil
+		}
+		inColumns = false
+		hasColStarted = false
+	}
+
 	for _, line := range lines {
 		trimmed := strings.TrimSpace(line)
+
+		// Column parsing mode
+		if inColumns {
+			if trimmed == ":::" || trimmed == ":::end" || trimmed == "::end" || trimmed == "::columns end" {
+				flushColumns()
+				continue
+			}
+			if trimmed == ":::col" || trimmed == "::col" || strings.HasPrefix(trimmed, ":::col ") || strings.HasPrefix(trimmed, "::col ") {
+				if hasColStarted && len(currentColLines) > 0 {
+					colBlocks = append(colBlocks, parseColumnBlocks(currentColLines))
+					currentColLines = nil
+				}
+				hasColStarted = true
+				continue
+			}
+			currentColLines = append(currentColLines, line)
+			continue
+		}
+
+		if strings.HasPrefix(trimmed, ":::columns") || strings.HasPrefix(trimmed, "::columns") || strings.HasPrefix(trimmed, ":::split") || strings.HasPrefix(trimmed, "::split") {
+			if inCode {
+				flushCode()
+				inCode = false
+			}
+			if inNotes {
+				flushNotes()
+				inNotes = false
+			}
+			if inTable {
+				flushTable()
+				inTable = false
+			}
+			if inCallout {
+				flushCallout()
+				inCallout = false
+			}
+			inColumns = true
+			hasColStarted = true
+			colBlocks = nil
+			currentColLines = nil
+			continue
+		}
 
 		// 1. Standard markdown code fences (```)
 		if strings.HasPrefix(trimmed, "```") {
@@ -723,6 +848,9 @@ func parseSlide(lines []string) Slide {
 	if inCallout {
 		flushCallout()
 	}
+	if inColumns {
+		flushColumns()
+	}
 
 	return Slide{
 		ID:     slideID,
@@ -732,6 +860,11 @@ func parseSlide(lines []string) Slide {
 		Blocks: blocks,
 		Align:  slideAlign,
 	}
+}
+
+func parseColumnBlocks(lines []string) []Block {
+	slide := parseSlide(lines)
+	return slide.Blocks
 }
 
 func ParseDirective(line string) (key, value string) {
@@ -983,6 +1116,21 @@ func SerializeBlock(blk Block) string {
 			return fmt.Sprintf("::branch [%s] %s -> %s", blk.BranchKey, blk.Text, blk.BranchTarget)
 		}
 		return fmt.Sprintf("::branch %s -> %s", blk.Text, blk.BranchTarget)
+	case BlockColumns:
+		var b strings.Builder
+		b.WriteString(":::columns\n")
+		for _, col := range blk.Columns {
+			b.WriteString(":::col\n")
+			for j, inner := range col {
+				if j > 0 {
+					b.WriteString("\n")
+				}
+				b.WriteString(SerializeBlock(inner))
+				b.WriteString("\n")
+			}
+		}
+		b.WriteString(":::")
+		return b.String()
 	default:
 		return blk.Text
 	}

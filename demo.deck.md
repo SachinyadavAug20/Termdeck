@@ -2,6 +2,7 @@
 author: Sachin
 format: 0.1
 title: termdeck demo
+theme: tokyo-night
 ---
 
 ::align left
@@ -10,8 +11,11 @@ title: termdeck demo
 A terminal-native presentation format designed by developers, for developers.
 
 - plain **text** files, git-friendly
+
 - AI agents can *write* decks directly
+
 - present from any ssh session or tmux pane
+
 - zero dependencies — just a single binary
 
 ::code lang=bash eval=false
@@ -26,8 +30,11 @@ A terminal-native presentation format designed by developers, for developers.
 Present technical ideas in a simple, clean, and distraction-free medium:
 
 - no font or video codec hell
+
 - the canvas is just a character grid
+
 - works over **SSH**, in **tmux**, anywhere
+
 - switch between editing and presenting instantly
 
 ::code lang=bash eval=false
@@ -51,7 +58,9 @@ Mix styles seamlessly: **bold with *italic* text** inside.
 ***
 
 - **git-friendly** — readable line-by-line diffs
+
 - **AI-native** — agents generate `.deck.md` cleanly
+
 - *zero bloat* — fast launch, sub-millisecond rendering
 
 ---
@@ -134,7 +143,7 @@ Highlighting Rust, Python, TypeScript, and SQL queries:
 
 Present migrations, code reviews, and refactors cleanly:
 
-```diff
+::code lang=diff
 @@ -1,4 +1,4 @@
 - func getUser(id int) (*User, error)
 + func getUser(ctx context.Context, id int) (*User, error)
@@ -142,7 +151,6 @@ Present migrations, code reviews, and refactors cleanly:
 -     return db.QueryRow("SELECT * FROM users WHERE id = ?", id)
 +     return db.QueryRowContext(ctx, "SELECT * FROM users WHERE id = ?", id)
   }
-```
 
 ---
 
@@ -152,8 +160,11 @@ Present migrations, code reviews, and refactors cleanly:
 Track technical sprint milestones in real time. Press `x` to toggle:
 
 - [x] Design RFC & API schema
+
 - [x] Implement read replicas
+
 - [ ] Migrate caching layer
+
 - [ ] Decommission legacy monolith
 
 > [!TIP]
@@ -167,8 +178,11 @@ Track technical sprint milestones in real time. Press `x` to toggle:
 Tailored for terminal aesthetics and distraction-free presenting:
 
 - **9 Curated Themes** — Tokyo Night, Dracula, Nord, Catppuccin, Gruvbox, Monokai, Solarized, Cyberpunk, Termdeck Pink
+
 - Press `t` / `T` / `F2` to cycle color themes on the fly
+
 - Press `z` to enter **Zen Mode** (hiding status bars for clean screen sharing)
+
 - Hairline slide progress indicator at the bottom edge
 
 ***
@@ -184,22 +198,39 @@ Speaker reminder: Demonstrate pressing 'z' to toggle Zen Mode on and off.
 Full keyboard control designed for efficient presenting:
 
 - `←/→` or `j/k` — next/prev slide or block
+
 - `/` — quick slide jump (number or live title search)
+
 - `o` / `O` — slide overview & 2D grid sorter (visual deck map)
+
 - `y` / `Y` — copy/yank focused code or block to system clipboard (OSC 52)
+
 - `E` — export deck to standalone offline HTML presentation
+
 - `S` — talk statistics & sprint deck metrics modal (`--stats` CLI flag)
+
 - `A` — toggle auto-advance & rehearsal pacing (`-a <sec>` / `--autoplay` CLI flag)
+
 - `b` / `B` — blank/blackout presentation screen (any key resumes)
+
 - `c` / `C` — toggle presentation stopwatch / reset timer
+
 - `r` / `R` — reload deck file from disk (`-w` flag for auto-watch)
+
 - `L` — toggle code block line numbers
+
 - `x` — toggle task checklist item ([ ] ⇄ [x])
+
 - `z` — toggle distraction-free zen mode
+
 - `t` / `T` / `F2` — cycle color themes
+
 - `Tab` / `Ctrl+A` — cycle alignment (left / center / right)
+
 - `n` — toggle speaker notes overlay
+
 - `?` or `F1` — open in-app keyboard shortcuts help modal
+
 - `q` or `Ctrl+C` — quit (with auto-save)
 
 ---
@@ -210,13 +241,21 @@ Full keyboard control designed for efficient presenting:
 Press `i` to enter edit mode on any block. Edit slides directly:
 
 - `↑/↓` or `k/j` — move between blocks
+
 - `Esc` — exit edit mode
+
 - `Enter` — confirm edit (auto-saves to disk)
+
 - `Ctrl+N` — add new block
+
 - `Ctrl+D` — delete block
+
 - `Ctrl+K/J` — reorder blocks up / down
+
 - `Ctrl+S` — save file manually
+
 - `u` / `Ctrl+R` — undo / redo changes
+
 - `p` — open image in system viewer
 
 ---
@@ -255,15 +294,20 @@ Speaker notes are isolated from audience view.
 
 ---
 
+::id branching-hub
 ::align left
-# Non-Linear Branching & DAG Engine {#branching-hub}
+# Non-Linear Branching & DAG Engine
 
 Termdeck transforms static linear slides into an interactive directed graph (DAG).
+
 Presenters dynamically steer the presentation based on audience choice:
 
 ::branch [1] Deep Dive: Core Architecture & Topology -> arch-deepdive
+
 ::branch [2] Deep Dive: Rehearsal & Autoplay Pacing -> autoplay-deepdive
+
 ::branch [3] Deep Dive: Offline HTML & Diagram Exports -> export-deepdive
+
 ::branch [4] Deep Dive: Live Code Runner & Zoom Focus -> runner-deepdive
 
 > [!TIP]
@@ -272,15 +316,18 @@ Presenters dynamically steer the presentation based on audience choice:
 ---
 
 ::id arch-deepdive
-::align left
 ::next conclusion
+::align left
 # Core Architecture & DAG Topology
 
 Termdeck presentations can converge and fork anywhere:
 
 - **Directives**: `::id <slug>`, `::next <slug>`, `::prev <slug>`
+
 - **Arrows**: `-> [Label](target)` or `::branch [key] Label -> target`
+
 - **History Stack**: Press `Backspace` or `H` to return along your path
+
 - **Convergence**: Slides with `::next` automatically merge branches back
 
 ::code lang=text
@@ -290,15 +337,18 @@ Termdeck presentations can converge and fork anywhere:
 ---
 
 ::id autoplay-deepdive
-::align left
 ::next conclusion
+::align left
 # Rehearsal & Autoplay Pacing
 
 Prepare talk pacing with hands-free automated rehearsal:
 
 - Press `A` to toggle auto-advance mode on/off
+
 - Default 5-second interval or pass `--autoplay [sec]` CLI flag
+
 - Manual arrow key presses reset the countdown timer
+
 - Rehearsal loops automatically for unattended booth displays
 
 > [!NOTE]
@@ -307,14 +357,16 @@ Prepare talk pacing with hands-free automated rehearsal:
 ---
 
 ::id export-deepdive
-::align left
 ::next conclusion
+::align left
 # Offline HTML & Diagram Exports
 
 Share technical ideas beyond the terminal:
 
 - **HTML Export**: Press `E` or run `deck --export-html demo.deck.md`
+
 - **Mermaid Export**: Run `deck --mermaid demo.deck.md` for GitHub markdown diagrams
+
 - **ASCII DAG**: Run `deck --graph demo.deck.md` for terminal topology visualization
 
 ::code lang=bash eval=false
@@ -325,28 +377,29 @@ Share technical ideas beyond the terminal:
 ---
 
 ::id runner-deepdive
-::align left
 ::next conclusion
+::align left
 # Live Code Runner & Zoom Focus Mode
 
 Termdeck lets developers execute live code directly during presentations:
 
 - **Live Runner**: Press `X` or `ctrl+x` (or `x` on a code block) to execute
+
 - **Ephemeral Output**: Exit code, elapsed time, stdout/stderr rendered in runner card
+
 - **Element Zoom**: Press `f` or `F` to maximize focused code, table, or diagram to full screen!
+
 - **CI/CD Verification**: Run `deck --test-code demo.deck.md` to verify all slide code snippets
 
-```bash
+::code lang=bash
 # Live bash execution test
 uname -s -m
 echo "Termdeck presentation engine: 100% operational"
-```
 
-```python
+::code lang=python
 # Verified live calculation
 import math
 print(f"Verified live prime count up to 50: {len([p for p in range(2, 50) if all(p%d!=0 for d in range(2, int(p**0.5)+1))])}")
-```
 
 > [!TIP]
 > Focus on either code block above and press `X` to run, or press `f` to enter Zoom Focus mode!
@@ -360,14 +413,20 @@ print(f"Verified live prime count up to 50: {len([p for p in range(2, 50) if all
 Simple, clean, terminal-native presentations built by a developer for developers:
 
 - **Directed Graph Presentations** with interactive decision branches (`1-9`, `M`)
+
 - **Live Terminal Code Runner** (`X`, `ctrl+x`, `--test-code`) for running code live
+
 - **Zoom Focus Mode** (`f`, `F`) to maximize code/tables/diagrams distraction-free
+
 - **Offline HTML Export** with embedded standalone navigation (`E`)
+
 - **Distraction-Free Zen Mode** (`z`) & Presentation screen blackout (`b`)
+
 - **Rehearsal Pacing & Auto-advance** (`A`, `-a`) & Talk stopwatch (`c`, `C`)
+
 - **Live File Watch & Auto-reload** (`-w`, `r`) & Interactive Checklists (`x`)
+
 - **Zero bloat**, single binary, sub-millisecond per-frame rendering
 
 > [!IMPORTANT]
 > Run `deck --graph demo.deck.md` to view the full presentation topology map!
-

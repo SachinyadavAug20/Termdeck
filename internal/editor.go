@@ -79,6 +79,9 @@ type Editor struct {
 	RunnerResult      *ExecResult
 	FocusMode         bool
 	FocusScroll       int
+	ActiveTrack       string
+	ShowTrackModal    bool
+	TrackCursor       int
 }
 
 func NewEditor(filePath string) Editor {
@@ -202,6 +205,86 @@ func (e *Editor) BackHistory(d *Deck) bool {
 		e.BlockIdx = 0
 		e.ClampBlockIdx(d)
 		return true
+	}
+	return false
+}
+
+func (e *Editor) SelectTrack(track string, d *Deck) {
+	track = strings.TrimSpace(track)
+	if strings.EqualFold(track, "all") {
+		track = ""
+	}
+	e.ActiveTrack = track
+	if track == "" {
+		e.Message = "track: all slides"
+	} else {
+		e.Message = "track: " + track
+		if d != nil && len(d.Slides) > 0 && !d.Slides[e.SlideIdx].HasTag(track) {
+			matching := d.SlideIndicesForTag(track)
+			if len(matching) > 0 {
+				e.History = append(e.History, e.SlideIdx)
+				e.SlideIdx = matching[0]
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+			}
+		}
+	}
+}
+
+func (e *Editor) NextTrackSlide(d *Deck) bool {
+	if d == nil || len(d.Slides) == 0 {
+		return false
+	}
+	if e.ActiveTrack == "" {
+		if e.SlideIdx < len(d.Slides)-1 {
+			e.SlideIdx++
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+			return true
+		}
+		return false
+	}
+	for i := 1; i <= len(d.Slides); i++ {
+		targetIdx := (e.SlideIdx + i) % len(d.Slides)
+		if d.Slides[targetIdx].HasTag(e.ActiveTrack) {
+			if targetIdx != e.SlideIdx {
+				e.History = append(e.History, e.SlideIdx)
+				e.SlideIdx = targetIdx
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				return true
+			}
+			return false
+		}
+	}
+	return false
+}
+
+func (e *Editor) PrevTrackSlide(d *Deck) bool {
+	if d == nil || len(d.Slides) == 0 {
+		return false
+	}
+	if e.ActiveTrack == "" {
+		if e.SlideIdx > 0 {
+			e.SlideIdx--
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+			return true
+		}
+		return false
+	}
+	for i := 1; i <= len(d.Slides); i++ {
+		targetIdx := (e.SlideIdx - i + len(d.Slides)) % len(d.Slides)
+		if d.Slides[targetIdx].HasTag(e.ActiveTrack) {
+			if targetIdx != e.SlideIdx {
+				e.History = append(e.History, e.SlideIdx)
+				e.SlideIdx = targetIdx
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				return true
+			}
+			return false
+		}
 	}
 	return false
 }
@@ -586,17 +669,40 @@ func (e *Editor) RunFocusedCode(d *Deck) tea.Cmd {
 	var targetBlock *Block
 	blkIdx := e.BlockIdx
 
+	findCodeInColumns := func(cols [][]Block) *Block {
+		for _, col := range cols {
+			for i := range col {
+				if col[i].Kind == BlockCode {
+					return &col[i]
+				}
+			}
+		}
+		return nil
+	}
+
 	// 1. Check current block
-	if blkIdx >= 0 && blkIdx < len(slide.Blocks) && slide.Blocks[blkIdx].Kind == BlockCode {
-		targetBlock = &slide.Blocks[blkIdx]
-	} else {
-		// 2. Search for first BlockCode on this slide
+	if blkIdx >= 0 && blkIdx < len(slide.Blocks) {
+		if slide.Blocks[blkIdx].Kind == BlockCode {
+			targetBlock = &slide.Blocks[blkIdx]
+		} else if slide.Blocks[blkIdx].Kind == BlockColumns {
+			targetBlock = findCodeInColumns(slide.Blocks[blkIdx].Columns)
+		}
+	}
+	// 2. Search for first BlockCode on this slide
+	if targetBlock == nil {
 		for i, b := range slide.Blocks {
 			if b.Kind == BlockCode {
 				targetBlock = &slide.Blocks[i]
 				blkIdx = i
 				e.BlockIdx = i
 				break
+			} else if b.Kind == BlockColumns {
+				if inner := findCodeInColumns(b.Columns); inner != nil {
+					targetBlock = inner
+					blkIdx = i
+					e.BlockIdx = i
+					break
+				}
 			}
 		}
 	}
@@ -769,6 +875,54 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			return nil
 		case "q", "ctrl+c":
 			e.ShowGraphMap = false
+			return nil
+		}
+		return nil
+	}
+
+	if e.ShowTrackModal {
+		tags := d.AllTags()
+		totalOptions := len(tags) + 1
+		switch key {
+		case "esc", "q", "K":
+			e.ShowTrackModal = false
+			return nil
+		case "up", "k":
+			if e.TrackCursor > 0 {
+				e.TrackCursor--
+			}
+			return nil
+		case "down", "j":
+			if e.TrackCursor < totalOptions-1 {
+				e.TrackCursor++
+			}
+			return nil
+		case "g", "home":
+			e.TrackCursor = 0
+			return nil
+		case "G", "end":
+			if totalOptions > 0 {
+				e.TrackCursor = totalOptions - 1
+			}
+			return nil
+		case "0":
+			e.SelectTrack("", d)
+			e.ShowTrackModal = false
+			return nil
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			idx := int(key[0] - '0')
+			if idx <= len(tags) {
+				e.SelectTrack(tags[idx-1], d)
+				e.ShowTrackModal = false
+				return nil
+			}
+		case "enter", " ":
+			if e.TrackCursor == 0 {
+				e.SelectTrack("", d)
+			} else if e.TrackCursor-1 < len(tags) {
+				e.SelectTrack(tags[e.TrackCursor-1], d)
+			}
+			e.ShowTrackModal = false
 			return nil
 		}
 		return nil
@@ -1168,6 +1322,24 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			}
 		}
 
+	case "K":
+		e.ShowTrackModal = !e.ShowTrackModal
+		e.TrackCursor = 0
+		e.ShowHelp = false
+		e.ShowOverview = false
+		e.ShowStats = false
+		e.ShowGraphMap = false
+		e.DismissRunner()
+		return nil
+
+	case "]", "ctrl+]":
+		e.NextTrackSlide(d)
+		return nil
+
+	case "[", "ctrl+[":
+		e.PrevTrackSlide(d)
+		return nil
+
 	case "?", "f1":
 		e.ShowHelp = !e.ShowHelp
 
@@ -1187,6 +1359,10 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		if e.ShowGraphMap {
 			e.ShowGraphMap = false
+			return nil
+		}
+		if e.ShowTrackModal {
+			e.ShowTrackModal = false
 			return nil
 		}
 		if e.ShowStats {

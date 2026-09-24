@@ -277,6 +277,32 @@ func TestAllDeckCode(d Deck, timeout time.Duration) (int, int, []ExecResult) {
 				} else {
 					failed++
 				}
+			} else if blk.Kind == BlockColumns {
+				for _, col := range blk.Columns {
+					for _, inner := range col {
+						if inner.Kind == BlockCode {
+							if inner.NoEval || !IsExecutableLanguage(inner.Lang) {
+								continue
+							}
+							code := inner.Text
+							if len(inner.Lines) > 0 {
+								code = strings.Join(inner.Lines, "\n")
+							}
+							if strings.TrimSpace(code) == "" {
+								continue
+							}
+							res := ExecuteBlock(inner, timeout)
+							res.SlideNum = sIdx + 1
+							res.BlockNum = bIdx + 1
+							results = append(results, res)
+							if res.ExitCode == 0 && res.Error == "" {
+								passed++
+							} else {
+								failed++
+							}
+						}
+					}
+				}
 			}
 		}
 	}
