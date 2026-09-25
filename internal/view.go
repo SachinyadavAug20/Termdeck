@@ -888,7 +888,76 @@ func renderSlide(slide Slide, w, h int, baseDir string, e Editor) string {
 	if e.ShowRunner && e.RunnerResult != nil && !e.FocusMode {
 		lines = append(lines, renderRunnerCard(e.RunnerResult, w))
 	}
+	if slide.Loop != nil && !e.FocusMode {
+		pass := 0
+		if e.LoopCounters != nil {
+			pass = e.LoopCounters[e.SlideIdx]
+		}
+		maxPasses := slide.Loop.MaxPasses
+		if maxPasses <= 0 {
+			maxPasses = 3
+		}
+		lines = append(lines, renderLoopCard(slide.Loop, pass, maxPasses, w))
+	}
 	return strings.Join(lines, "\n\n")
+}
+
+func renderLoopCard(lcfg *LoopConfig, pass int, maxPasses int, w int) string {
+	if lcfg == nil {
+		return ""
+	}
+	cardW := w - 8
+	if cardW > 72 {
+		cardW = 72
+	}
+	if cardW < 36 {
+		cardW = 36
+	}
+
+	label := lcfg.Label
+	if label == "" {
+		label = "Iteration Cycle"
+	}
+
+	var borderCol string
+	var headerLine string
+	var detailLine string
+	var hintLine string
+
+	if pass < maxPasses {
+		borderCol = currentTheme.Accent
+		headerLine = fmt.Sprintf("⟳ LOOP ITERATION: %s [pass %d/%d]", label, pass+1, maxPasses)
+		detailLine = fmt.Sprintf("  Loop target: ──► #%s · Remaining iterations: %d", lcfg.Target, maxPasses-pass-1)
+		hints := "  [Space/Enter: Next Iteration · J: Branch HUD"
+		if lcfg.Key != "" {
+			hints += fmt.Sprintf(" · %s: Loop Hotkey", lcfg.Key)
+		}
+		hints += "]"
+		hintLine = hints
+	} else {
+		borderCol = currentTheme.Success
+		headerLine = fmt.Sprintf("✔ LOOP COMPLETED: %s (%d/%d passes)", label, maxPasses, maxPasses)
+		exitTgt := lcfg.ExitTarget
+		if exitTgt != "" {
+			detailLine = fmt.Sprintf("  Exit target: ──► #%s", exitTgt)
+		} else {
+			detailLine = "  Exit target: ──► next slide"
+		}
+		hintLine = "  [Space/Enter: Proceed to Exit Target]"
+	}
+
+	headerStyled := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(borderCol)).Render(headerLine)
+	detailStyled := currentTheme.HelpDescStyle.Render(detailLine)
+	hintStyled := lipgloss.NewStyle().Foreground(lipgloss.Color("241")).Render(hintLine)
+
+	cardContent := headerStyled + "\n" + detailStyled + "\n" + hintStyled
+
+	return lipgloss.NewStyle().
+		Border(lipgloss.RoundedBorder()).
+		BorderForeground(lipgloss.Color(borderCol)).
+		Width(cardW).
+		Padding(0, 1).
+		Render(cardContent)
 }
 
 func renderRunningBanner(lang string, w int) string {
@@ -2581,6 +2650,15 @@ func navStatus(d Deck, e Editor, w int) string {
 	}
 	if e.FindLastForkIndex(&d) >= 0 {
 		left += "  ·  [U: return to fork]"
+	}
+	if e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Loop != nil {
+		lcfg := d.Slides[e.SlideIdx].Loop
+		pass, maxPasses, _ := e.CurrentLoopPass(e.SlideIdx, &d)
+		if pass < maxPasses {
+			left += fmt.Sprintf("  ·  [⟳ loop: pass %d/%d (%s ──► %s)]", pass+1, maxPasses, lcfg.Label, lcfg.Target)
+		} else {
+			left += fmt.Sprintf("  ·  [✔ loop: %d/%d done (%s)]", maxPasses, maxPasses, lcfg.Label)
+		}
 	}
 	if len(d.Slides) > 0 {
 		bg := BuildGraph(d)

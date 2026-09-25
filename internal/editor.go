@@ -95,6 +95,7 @@ type Editor struct {
 	WaypointQuery     string
 	ShowRadarModal    bool
 	RadarCursor       int
+	LoopCounters      map[int]int
 }
 
 func NewEditor(filePath string) Editor {
@@ -105,6 +106,7 @@ func NewEditor(filePath string) Editor {
 		AutoplayInterval:  5,
 		AutoplayCountdown: 5,
 		AutoplayLoop:      true,
+		LoopCounters:      make(map[int]int),
 	}
 }
 
@@ -577,6 +579,92 @@ func (e *Editor) JumpToRadarBranch(item BranchCoverageItem, d *Deck) bool {
 	e.ShowRadarModal = false
 	e.Message = fmt.Sprintf("jumped to branch [%s] %s", item.BranchKey, item.TargetTitle)
 	return true
+}
+
+func (e Editor) CurrentLoopPass(slideIdx int, d *Deck) (pass int, maxPasses int, hasLoop bool) {
+	if d == nil || slideIdx < 0 || slideIdx >= len(d.Slides) {
+		return 0, 0, false
+	}
+	s := d.Slides[slideIdx]
+	if s.Loop == nil {
+		return 0, 0, false
+	}
+	if e.LoopCounters != nil {
+		pass = e.LoopCounters[slideIdx]
+	}
+	maxPasses = s.Loop.MaxPasses
+	if maxPasses <= 0 {
+		maxPasses = 3
+	}
+	return pass, maxPasses, true
+}
+
+func (e *Editor) ResetLoopCounter(slideIdx int) {
+	if e.LoopCounters != nil {
+		delete(e.LoopCounters, slideIdx)
+	}
+}
+
+func (e *Editor) ResetAllLoops() {
+	e.LoopCounters = make(map[int]int)
+}
+
+func (e *Editor) AdvanceLoop(slideIdx int, d *Deck) (tookLoop bool, targetIdx int) {
+	if d == nil || slideIdx < 0 || slideIdx >= len(d.Slides) {
+		return false, -1
+	}
+	s := d.Slides[slideIdx]
+	if s.Loop == nil {
+		return false, -1
+	}
+	if e.LoopCounters == nil {
+		e.LoopCounters = make(map[int]int)
+	}
+	pass := e.LoopCounters[slideIdx]
+	maxPasses := s.Loop.MaxPasses
+	if maxPasses <= 0 {
+		maxPasses = 3
+	}
+
+	if pass < maxPasses {
+		e.LoopCounters[slideIdx] = pass + 1
+		tgtIdx := d.FindSlideByID(s.Loop.Target)
+		if tgtIdx >= 0 && tgtIdx < len(d.Slides) {
+			e.History = append(e.History, e.SlideIdx)
+			e.SlideIdx = tgtIdx
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+			e.Message = fmt.Sprintf("⟳ loop [%s]: pass %d/%d ──► %s", s.Loop.Label, pass+1, maxPasses, s.Loop.Target)
+			return true, tgtIdx
+		}
+	}
+
+	// Loop pass threshold reached or target invalid -> Exit loop
+	exitTarget := s.Loop.ExitTarget
+	if exitTarget == "" {
+		exitTarget = s.NextID
+	}
+	if exitTarget != "" {
+		exitIdx := d.FindSlideByID(exitTarget)
+		if exitIdx >= 0 && exitIdx < len(d.Slides) {
+			e.History = append(e.History, e.SlideIdx)
+			e.SlideIdx = exitIdx
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+			e.Message = fmt.Sprintf("✔ loop [%s] completed (%d/%d) ──► %s", s.Loop.Label, maxPasses, maxPasses, exitTarget)
+			return false, exitIdx
+		}
+	}
+
+	if e.SlideIdx < len(d.Slides)-1 {
+		e.SlideIdx++
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		e.Message = fmt.Sprintf("✔ loop [%s] completed (%d/%d)", s.Loop.Label, maxPasses, maxPasses)
+		return false, e.SlideIdx
+	}
+
+	return false, -1
 }
 
 func (e *Editor) ClampBlockIdx(d *Deck) {
@@ -1575,6 +1663,28 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 				return nil
 			}
 		}
+		if d != nil && e.SlideIdx >= 0 && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Loop != nil {
+			pass, maxPasses, _ := e.CurrentLoopPass(e.SlideIdx, d)
+			if pass < maxPasses {
+				e.AdvanceLoop(e.SlideIdx, d)
+				return nil
+			}
+			exitTarget := d.Slides[e.SlideIdx].Loop.ExitTarget
+			if exitTarget == "" {
+				exitTarget = d.Slides[e.SlideIdx].NextID
+			}
+			if exitTarget != "" {
+				nextIdx := d.FindSlideByID(exitTarget)
+				if nextIdx >= 0 && nextIdx < len(d.Slides) {
+					e.History = append(e.History, e.SlideIdx)
+					e.SlideIdx = nextIdx
+					e.BlockIdx = 0
+					e.ClampBlockIdx(d)
+					e.Message = fmt.Sprintf("✔ loop [%s] completed (%d/%d) ──► %s", d.Slides[e.SlideIdx].Loop.Label, maxPasses, maxPasses, exitTarget)
+					return nil
+				}
+			}
+		}
 		if d != nil && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].NextID != "" {
 			nextIdx := d.FindSlideByID(d.Slides[e.SlideIdx].NextID)
 			if nextIdx >= 0 && nextIdx < len(d.Slides) {
@@ -1685,6 +1795,10 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.ShowRunner = false
 		}
 		if d != nil && e.SlideIdx < len(d.Slides) {
+			if d.Slides[e.SlideIdx].Loop != nil && d.Slides[e.SlideIdx].Loop.Key == key {
+				e.AdvanceLoop(e.SlideIdx, d)
+				return nil
+			}
 			branch := d.Slides[e.SlideIdx].FindBranchByKey(key)
 			if branch != nil {
 				if e.FollowBranch(branch.Target, d) {
@@ -1715,6 +1829,7 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		e.Message = "jump: enter slide number or search"
 
 	case "g":
+		e.ResetAllLoops()
 		e.SlideIdx = 0
 		e.BlockIdx = 0
 		e.ClampBlockIdx(d)
@@ -1755,6 +1870,10 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return TickCmd()
 
 	case "r", "R":
+		if d != nil && e.SlideIdx >= 0 && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Loop != nil && strings.EqualFold(d.Slides[e.SlideIdx].Loop.Key, "r") {
+			e.AdvanceLoop(e.SlideIdx, d)
+			return nil
+		}
 		if err := e.Reload(d); err == nil {
 			e.Message = "reloaded from disk"
 		} else {

@@ -63,6 +63,14 @@ type Branch struct {
 	Target string
 }
 
+type LoopConfig struct {
+	Key        string
+	Label      string
+	Target     string
+	MaxPasses  int
+	ExitTarget string
+}
+
 type Slide struct {
 	ID     string
 	NextID string
@@ -70,6 +78,7 @@ type Slide struct {
 	Tags   []string
 	Blocks []Block
 	Align  AlignKind
+	Loop   *LoopConfig
 }
 
 func (s *Slide) VisibleBlockIndices() []int {
@@ -135,6 +144,21 @@ func (s *Slide) Branches() []Branch {
 				}
 			}
 		}
+	}
+	if s.Loop != nil && s.Loop.Target != "" {
+		key := s.Loop.Key
+		if key == "" {
+			key = "⟳"
+		}
+		lbl := s.Loop.Label
+		if lbl == "" {
+			lbl = "Loop -> " + s.Loop.Target
+		}
+		list = append(list, Branch{
+			Key:    key,
+			Label:  lbl,
+			Target: s.Loop.Target,
+		})
 	}
 	return list
 }
@@ -544,6 +568,7 @@ func parseSlide(lines []string) Slide {
 	var nextID string
 	var prevID string
 	var tags []string
+	var slideLoop *LoopConfig
 	branchCount := 0
 
 	inCode := false
@@ -800,6 +825,14 @@ func parseSlide(lines []string) Slide {
 					}
 				}
 				continue
+			} else if key == "loop" || key == "cycle" {
+				if lcfg, ok := parseLoopDirective(line); ok {
+					slideLoop = lcfg
+					if nextID == "" && lcfg.ExitTarget != "" {
+						nextID = lcfg.ExitTarget
+					}
+					continue
+				}
 			} else if key == "branch" || key == "fork" {
 				if k, label, target, ok := parseBranchLine(line); ok {
 					if k == "" {
@@ -979,6 +1012,7 @@ func parseSlide(lines []string) Slide {
 		Tags:   tags,
 		Blocks: blocks,
 		Align:  slideAlign,
+		Loop:   slideLoop,
 	}
 }
 
@@ -1114,6 +1148,92 @@ func parseBranchContent(content string) (key, label, target string, ok bool) {
 	return "", "", "", false
 }
 
+func parseLoopDirective(line string) (*LoopConfig, bool) {
+	trimmed := strings.TrimSpace(line)
+	if !strings.HasPrefix(trimmed, "::") {
+		return nil, false
+	}
+	content := strings.TrimPrefix(trimmed, "::")
+	if strings.HasPrefix(content, "loop") {
+		content = strings.TrimPrefix(content, "loop")
+	} else if strings.HasPrefix(content, "cycle") {
+		content = strings.TrimPrefix(content, "cycle")
+	} else {
+		return nil, false
+	}
+	content = strings.TrimSpace(content)
+	if content == "" {
+		return nil, false
+	}
+
+	lcfg := &LoopConfig{
+		MaxPasses: 3,
+	}
+
+	// 1. Optional [key] prefix: e.g. [r] or [1]
+	if strings.HasPrefix(content, "[") {
+		closeIdx := strings.Index(content, "]")
+		if closeIdx > 1 {
+			lcfg.Key = strings.TrimSpace(content[1:closeIdx])
+			content = strings.TrimSpace(content[closeIdx+1:])
+		}
+	}
+
+	// 2. Extract key=value attributes from whitespace-separated tokens
+	tokens := strings.Fields(content)
+	var remainingTokens []string
+	for _, tok := range tokens {
+		lowerTok := strings.ToLower(tok)
+		if strings.HasPrefix(lowerTok, "max=") || strings.HasPrefix(lowerTok, "limit=") || strings.HasPrefix(lowerTok, "passes=") || strings.HasPrefix(lowerTok, "count=") {
+			eqIdx := strings.Index(tok, "=")
+			val := tok[eqIdx+1:]
+			var num int
+			if _, err := fmt.Sscanf(val, "%d", &num); err == nil && num > 0 {
+				lcfg.MaxPasses = num
+			}
+		} else if strings.HasPrefix(lowerTok, "next=") || strings.HasPrefix(lowerTok, "exit=") || strings.HasPrefix(lowerTok, "break=") {
+			eqIdx := strings.Index(tok, "=")
+			lcfg.ExitTarget = strings.TrimSpace(tok[eqIdx+1:])
+		} else {
+			remainingTokens = append(remainingTokens, tok)
+		}
+	}
+
+	body := strings.Join(remainingTokens, " ")
+	body = strings.TrimSpace(body)
+	if body == "" {
+		return nil, false
+	}
+
+	// 3. Parse label and target
+	sep := ""
+	if strings.Contains(body, "->") {
+		sep = "->"
+	} else if strings.Contains(body, "=>") {
+		sep = "=>"
+	}
+
+	if sep != "" {
+		parts := strings.SplitN(body, sep, 2)
+		lcfg.Label = strings.TrimSpace(parts[0])
+		lcfg.Target = strings.TrimSpace(parts[1])
+		lcfg.Target = strings.TrimPrefix(lcfg.Target, "(")
+		lcfg.Target = strings.TrimSuffix(lcfg.Target, ")")
+		lcfg.Target = strings.TrimSpace(lcfg.Target)
+	} else {
+		lcfg.Target = body
+	}
+
+	if lcfg.Target == "" {
+		return nil, false
+	}
+	if lcfg.Label == "" {
+		lcfg.Label = "Loop"
+	}
+
+	return lcfg, true
+}
+
 // --- Serialization ---
 
 func SerializeDeck(d Deck) string {
@@ -1157,7 +1277,7 @@ func SerializeDeck(d Deck) string {
 		if slide.ID != "" {
 			fmt.Fprintf(&b, "::id %s\n", slide.ID)
 		}
-		if slide.NextID != "" {
+		if slide.NextID != "" && (slide.Loop == nil || slide.Loop.ExitTarget != slide.NextID) {
 			fmt.Fprintf(&b, "::next %s\n", slide.NextID)
 		}
 		if slide.PrevID != "" {
@@ -1168,6 +1288,25 @@ func SerializeDeck(d Deck) string {
 		}
 		if slide.Align != "" && slide.Align != d.Align {
 			fmt.Fprintf(&b, "::align %s\n", slide.Align)
+		}
+		if slide.Loop != nil && slide.Loop.Target != "" {
+			maxPasses := slide.Loop.MaxPasses
+			if maxPasses <= 0 {
+				maxPasses = 3
+			}
+			label := slide.Loop.Label
+			if label == "" {
+				label = "Loop"
+			}
+			if slide.Loop.Key != "" {
+				fmt.Fprintf(&b, "::loop [%s] %s -> %s max=%d", slide.Loop.Key, label, slide.Loop.Target, maxPasses)
+			} else {
+				fmt.Fprintf(&b, "::loop %s -> %s max=%d", label, slide.Loop.Target, maxPasses)
+			}
+			if slide.Loop.ExitTarget != "" {
+				fmt.Fprintf(&b, " next=%s", slide.Loop.ExitTarget)
+			}
+			b.WriteString("\n")
 		}
 		for j, block := range slide.Blocks {
 			if j > 0 {
