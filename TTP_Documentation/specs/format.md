@@ -236,6 +236,28 @@ Comma-separated tags associated with the slide. Tags power **Audience Tracks**, 
 - Press `[` and `]` to hop directly backward or forward along slides matching the active track.
 - Pass `-k, --track <name>` on the CLI to filter TUI startup or CLI DAG diagrams (`--graph`).
 
+#### `::route` & `routes:` Frontmatter
+
+Preset Graph Routes define guided, pre-planned walks through a non-linear DAG presentation:
+
+**Frontmatter syntax:**
+```yaml
+---
+title: System Architecture
+routes:
+  lightning: intro -> why -> summary
+  deepdive: intro -> arch -> benchmarks -> summary
+---
+```
+
+**Inline directive syntax:**
+```markdown
+::route workshop: intro -> setup -> demo -> hands-on -> wrapup
+```
+
+Both arrow syntax (`->`, `=>`) and comma-separated syntax (`intro, setup, demo`) are supported.
+Presenters can press `P` to view available routes in the Route Switcher Modal, see estimated speaking duration and breadcrumbs, and quick-select with `1`–`9` (or `0` to clear).
+
 #### `::notes`
 
 ```
@@ -257,10 +279,11 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 
 | Key | Action |
 |-----|--------|
-| `→`, `l`, `Space`, `Enter`, `PageDown` | Next slide / advance directed edge |
-| `←`, `h`, `PageUp` | Previous slide |
+| `→`, `l`, `Space`, `Enter`, `PageDown` | Next slide / advance directed edge / follow active route |
+| `←`, `h`, `PageUp` | Previous slide / previous route slide |
 | `1` – `9` | Jump directly along numbered branch option |
 | `Backspace`, `H` | Backtrack along visited graph traversal history |
+| `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |
 | `K` | Open Audience Tracks & Subgraph Filtering modal (`0`-`9` quick select) |
 | `[`, `]` | Hop backward / forward along slides matching active audience track |
 | `M` | Open presentation graph map & DAG explorer modal |

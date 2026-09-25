@@ -383,3 +383,7 @@ func TestPrintHelpLiveRunnerAndFocus(t *testing.T) {
 func TestPrintHelpTrack(t *testing.T) {
 	printHelp()
 }
+
+func TestPrintHelpRoute(t *testing.T) {
+	printHelp()
+}

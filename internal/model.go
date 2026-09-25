@@ -3,6 +3,7 @@ package internal
 import (
 	"fmt"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 )
@@ -251,6 +252,45 @@ type Deck struct {
 	BaseDir string
 	Align   AlignKind
 	Theme   string
+	Routes  map[string][]string // Route name -> slice of slide target IDs / slugs
+}
+
+func (d *Deck) AllRouteNames() []string {
+	if len(d.Routes) == 0 {
+		return nil
+	}
+	names := make([]string, 0, len(d.Routes))
+	for k := range d.Routes {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	return names
+}
+
+func (d *Deck) RouteSlideIndices(routeName string) []int {
+	if d.Routes == nil {
+		return nil
+	}
+	steps, ok := d.Routes[routeName]
+	if !ok {
+		for k, v := range d.Routes {
+			if strings.EqualFold(k, routeName) {
+				steps = v
+				break
+			}
+		}
+	}
+	if len(steps) == 0 {
+		return nil
+	}
+	var indices []int
+	for _, step := range steps {
+		idx := d.FindSlideByID(step)
+		if idx >= 0 && idx < len(d.Slides) {
+			indices = append(indices, idx)
+		}
+	}
+	return indices
 }
 
 func (d *Deck) AllTags() []string {
@@ -334,10 +374,12 @@ func (d *Deck) HasBranches() bool {
 
 func ParseDeck(src string) Deck {
 	if strings.TrimSpace(src) == "" {
-		return Deck{Meta: map[string]string{}, Align: AlignCenter, Theme: "termdeck"}
+		return Deck{Meta: map[string]string{}, Align: AlignCenter, Theme: "termdeck", Routes: map[string][]string{}}
 	}
 	lines := strings.Split(src, "\n")
 	meta := map[string]string{}
+	routes := map[string][]string{}
+	inFrontmatterRoutes := false
 
 	if len(lines) > 0 && strings.TrimSpace(lines[0]) == "---" {
 		for i := 1; i < len(lines); i++ {
@@ -346,6 +388,30 @@ func ParseDeck(src string) Deck {
 				lines = lines[i+1:]
 				break
 			}
+			if trimmed == "routes:" {
+				inFrontmatterRoutes = true
+				continue
+			}
+			if inFrontmatterRoutes {
+				if strings.HasPrefix(lines[i], "  ") || strings.HasPrefix(lines[i], "\t") {
+					if name, steps, ok := parseRouteLine(trimmed); ok {
+						routes[name] = steps
+						continue
+					}
+				} else {
+					inFrontmatterRoutes = false
+				}
+			}
+			if strings.HasPrefix(trimmed, "route.") {
+				if idx := strings.Index(trimmed, ":"); idx > 0 {
+					name := strings.TrimPrefix(strings.TrimSpace(trimmed[:idx]), "route.")
+					val := strings.TrimSpace(trimmed[idx+1:])
+					if _, steps, ok := parseRouteLine("dummy: " + val); ok {
+						routes[name] = steps
+						continue
+					}
+				}
+			}
 			if idx := strings.Index(trimmed, ":"); idx > 0 {
 				key := strings.TrimSpace(trimmed[:idx])
 				val := strings.TrimSpace(trimmed[idx+1:])
@@ -353,6 +419,19 @@ func ParseDeck(src string) Deck {
 			}
 		}
 	}
+
+	var cleanLines []string
+	for _, line := range lines {
+		trimmed := strings.TrimSpace(line)
+		if strings.HasPrefix(trimmed, "::route") {
+			if name, steps, ok := parseRouteLine(trimmed); ok {
+				routes[name] = steps
+				continue
+			}
+		}
+		cleanLines = append(cleanLines, line)
+	}
+	lines = cleanLines
 
 	var slideGroups [][]string
 	var cur []string
@@ -390,7 +469,49 @@ func ParseDeck(src string) Deck {
 		deckTheme = strings.ToLower(strings.TrimSpace(th))
 	}
 
-	return Deck{Meta: meta, Slides: slides, Align: deckAlign, Theme: deckTheme}
+	return Deck{Meta: meta, Slides: slides, Align: deckAlign, Theme: deckTheme, Routes: routes}
+}
+
+func parseRouteLine(s string) (string, []string, bool) {
+	s = strings.TrimSpace(s)
+	s = strings.TrimPrefix(s, "::")
+	s = strings.TrimPrefix(s, "route")
+	s = strings.TrimPrefix(s, ":")
+	s = strings.TrimSpace(s)
+	colonIdx := strings.Index(s, ":")
+	if colonIdx <= 0 {
+		return "", nil, false
+	}
+	name := strings.TrimSpace(s[:colonIdx])
+	rest := strings.TrimSpace(s[colonIdx+1:])
+	if name == "" || rest == "" {
+		return "", nil, false
+	}
+	var steps []string
+	if strings.Contains(rest, "->") {
+		for _, part := range strings.Split(rest, "->") {
+			if t := strings.TrimSpace(part); t != "" {
+				steps = append(steps, t)
+			}
+		}
+	} else if strings.Contains(rest, "=>") {
+		for _, part := range strings.Split(rest, "=>") {
+			if t := strings.TrimSpace(part); t != "" {
+				steps = append(steps, t)
+			}
+		}
+	} else {
+		rest = strings.Trim(rest, "[]")
+		for _, part := range strings.Split(rest, ",") {
+			if t := strings.TrimSpace(part); t != "" {
+				steps = append(steps, t)
+			}
+		}
+	}
+	if len(steps) == 0 {
+		return "", nil, false
+	}
+	return name, steps, true
 }
 
 func parseCodeLangAndFlags(s string) (string, bool) {
@@ -1015,6 +1136,18 @@ func SerializeDeck(d Deck) string {
 			fmt.Fprintf(&b, "%s: %s\n", k, v)
 		}
 		b.WriteString("---\n\n")
+	}
+
+	if len(d.Routes) > 0 {
+		var rNames []string
+		for k := range d.Routes {
+			rNames = append(rNames, k)
+		}
+		sort.Strings(rNames)
+		for _, name := range rNames {
+			fmt.Fprintf(&b, "::route %s: %s\n", name, strings.Join(d.Routes[name], " -> "))
+		}
+		b.WriteString("\n")
 	}
 
 	for i, slide := range d.Slides {

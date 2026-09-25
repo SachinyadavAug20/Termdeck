@@ -82,6 +82,10 @@ type Editor struct {
 	ActiveTrack       string
 	ShowTrackModal    bool
 	TrackCursor       int
+	ActiveRoute       string
+	RouteStep         int
+	ShowRouteModal    bool
+	RouteCursor       int
 }
 
 func NewEditor(filePath string) Editor {
@@ -285,6 +289,88 @@ func (e *Editor) PrevTrackSlide(d *Deck) bool {
 			}
 			return false
 		}
+	}
+	return false
+}
+
+func (e *Editor) SelectRoute(routeName string, d *Deck) {
+	routeName = strings.TrimSpace(routeName)
+	if strings.EqualFold(routeName, "none") || strings.EqualFold(routeName, "off") || strings.EqualFold(routeName, "all") {
+		routeName = ""
+	}
+	if routeName == "" {
+		e.ActiveRoute = ""
+		e.RouteStep = 0
+		e.Message = "route: none (free graph traversal)"
+		return
+	}
+	if d == nil || len(d.Slides) == 0 {
+		return
+	}
+	indices := d.RouteSlideIndices(routeName)
+	if len(indices) == 0 {
+		e.Message = "route " + routeName + ": no matching slides"
+		return
+	}
+	e.ActiveRoute = routeName
+	// Check if current slide is on this route
+	foundStep := -1
+	for step, idx := range indices {
+		if idx == e.SlideIdx {
+			foundStep = step
+			break
+		}
+	}
+	if foundStep >= 0 {
+		e.RouteStep = foundStep
+		e.Message = fmt.Sprintf("route: %s (step %d/%d: %s)", routeName, e.RouteStep+1, len(indices), d.Slides[e.SlideIdx].Title())
+	} else {
+		e.History = append(e.History, e.SlideIdx)
+		e.RouteStep = 0
+		e.SlideIdx = indices[0]
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		e.Message = fmt.Sprintf("route: %s (step 1/%d: %s)", routeName, len(indices), d.Slides[e.SlideIdx].Title())
+	}
+}
+
+func (e *Editor) NextRouteSlide(d *Deck) bool {
+	if d == nil || len(d.Slides) == 0 || e.ActiveRoute == "" {
+		return false
+	}
+	indices := d.RouteSlideIndices(e.ActiveRoute)
+	if len(indices) == 0 {
+		return false
+	}
+	if e.RouteStep < len(indices)-1 {
+		e.History = append(e.History, e.SlideIdx)
+		e.RouteStep++
+		e.SlideIdx = indices[e.RouteStep]
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		e.Message = fmt.Sprintf("route: %s (step %d/%d: %s)", e.ActiveRoute, e.RouteStep+1, len(indices), d.Slides[e.SlideIdx].Title())
+		return true
+	}
+	e.Message = fmt.Sprintf("route: %s (completed - step %d/%d)", e.ActiveRoute, len(indices), len(indices))
+	return false
+}
+
+func (e *Editor) PrevRouteSlide(d *Deck) bool {
+	if d == nil || len(d.Slides) == 0 || e.ActiveRoute == "" {
+		return false
+	}
+	indices := d.RouteSlideIndices(e.ActiveRoute)
+	if len(indices) == 0 {
+		return false
+	}
+	if e.RouteStep > 0 {
+		e.History = append(e.History, e.SlideIdx)
+		e.RouteStep--
+		e.SlideIdx = indices[e.RouteStep]
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		e.Message = fmt.Sprintf("route: %s (step %d/%d: %s)", e.ActiveRoute, e.RouteStep+1, len(indices), d.Slides[e.SlideIdx].Title())
+		return true
 	}
 	return false
 }
@@ -928,6 +1014,54 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 	}
 
+	if e.ShowRouteModal {
+		routeNames := d.AllRouteNames()
+		totalOptions := len(routeNames) + 1
+		switch key {
+		case "esc", "q", "P":
+			e.ShowRouteModal = false
+			return nil
+		case "up", "k":
+			if e.RouteCursor > 0 {
+				e.RouteCursor--
+			}
+			return nil
+		case "down", "j":
+			if e.RouteCursor < totalOptions-1 {
+				e.RouteCursor++
+			}
+			return nil
+		case "g", "home":
+			e.RouteCursor = 0
+			return nil
+		case "G", "end":
+			if totalOptions > 0 {
+				e.RouteCursor = totalOptions - 1
+			}
+			return nil
+		case "0":
+			e.SelectRoute("", d)
+			e.ShowRouteModal = false
+			return nil
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			idx := int(key[0] - '0')
+			if idx <= len(routeNames) {
+				e.SelectRoute(routeNames[idx-1], d)
+				e.ShowRouteModal = false
+				return nil
+			}
+		case "enter", " ":
+			if e.RouteCursor == 0 {
+				e.SelectRoute("", d)
+			} else if e.RouteCursor-1 < len(routeNames) {
+				e.SelectRoute(routeNames[e.RouteCursor-1], d)
+			}
+			e.ShowRouteModal = false
+			return nil
+		}
+		return nil
+	}
+
 	if e.FocusMode {
 		switch key {
 		case "esc", "f", "F", "q", "ctrl+c":
@@ -1009,6 +1143,11 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 				}
 			}
 		}
+		if e.ActiveRoute != "" {
+			if e.NextRouteSlide(d) {
+				return nil
+			}
+		}
 		if d != nil && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].NextID != "" {
 			nextIdx := d.FindSlideByID(d.Slides[e.SlideIdx].NextID)
 			if nextIdx >= 0 && nextIdx < len(d.Slides) {
@@ -1031,6 +1170,11 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		if e.Autoplay {
 			e.AutoplayCountdown = e.AutoplayInterval
+		}
+		if e.ActiveRoute != "" {
+			if e.PrevRouteSlide(d) {
+				return nil
+			}
 		}
 		if d != nil && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].PrevID != "" {
 			prevIdx := d.FindSlideByID(d.Slides[e.SlideIdx].PrevID)
@@ -1329,6 +1473,18 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		e.ShowOverview = false
 		e.ShowStats = false
 		e.ShowGraphMap = false
+		e.ShowRouteModal = false
+		e.DismissRunner()
+		return nil
+
+	case "P":
+		e.ShowRouteModal = !e.ShowRouteModal
+		e.RouteCursor = 0
+		e.ShowHelp = false
+		e.ShowOverview = false
+		e.ShowStats = false
+		e.ShowGraphMap = false
+		e.ShowTrackModal = false
 		e.DismissRunner()
 		return nil
 
@@ -1363,6 +1519,10 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		if e.ShowTrackModal {
 			e.ShowTrackModal = false
+			return nil
+		}
+		if e.ShowRouteModal {
+			e.ShowRouteModal = false
 			return nil
 		}
 		if e.ShowStats {

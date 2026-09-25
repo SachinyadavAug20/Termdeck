@@ -215,6 +215,8 @@ func sendTestKey(ed *Editor, d *Deck, keyStr string) tea.Cmd {
 		msg = tea.KeyMsg{Type: tea.KeyPgUp}
 	case "pgdown":
 		msg = tea.KeyMsg{Type: tea.KeyPgDown}
+	case "space":
+		msg = tea.KeyMsg{Type: tea.KeySpace, Runes: []rune{' '}}
 	default:
 		msg = tea.KeyMsg{Type: tea.KeyRunes, Runes: []rune(keyStr)}
 	}
@@ -1964,5 +1966,164 @@ echo "inside column"
 	}
 	if !ed.RunningCode {
 		t.Errorf("expected RunningCode to be true")
+	}
+}
+
+func TestEditorRoutesAndModal(t *testing.T) {
+	src := `---
+title: Routes Editor Test
+routes:
+  quick: intro -> outro
+  thorough: intro -> middle -> outro
+---
+
+::id intro
+# Intro
+
+---
+
+::id middle
+# Middle
+
+::branch [1] Quick Exit -> outro
+
+---
+
+::id outro
+# Outro
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// 1. Direct method calls
+	ed.SelectRoute("thorough", &d)
+	if ed.ActiveRoute != "thorough" || ed.RouteStep != 0 || ed.SlideIdx != 0 {
+		t.Fatalf("expected route thorough at step 0, slide 0; got route=%q step=%d slide=%d", ed.ActiveRoute, ed.RouteStep, ed.SlideIdx)
+	}
+
+	// Step forward
+	if !ed.NextRouteSlide(&d) || ed.RouteStep != 1 || ed.SlideIdx != 1 {
+		t.Fatalf("expected NextRouteSlide to step 1 slide 1, got step=%d slide=%d", ed.RouteStep, ed.SlideIdx)
+	}
+	if !ed.NextRouteSlide(&d) || ed.RouteStep != 2 || ed.SlideIdx != 2 {
+		t.Fatalf("expected NextRouteSlide to step 2 slide 2, got step=%d slide=%d", ed.RouteStep, ed.SlideIdx)
+	}
+	// At end of route, NextRouteSlide should return false
+	if ed.NextRouteSlide(&d) {
+		t.Errorf("expected NextRouteSlide to return false at end of route")
+	}
+
+	// Step backwards
+	if !ed.PrevRouteSlide(&d) || ed.RouteStep != 1 || ed.SlideIdx != 1 {
+		t.Fatalf("expected PrevRouteSlide to step 1 slide 1, got step=%d slide=%d", ed.RouteStep, ed.SlideIdx)
+	}
+	if !ed.PrevRouteSlide(&d) || ed.RouteStep != 0 || ed.SlideIdx != 0 {
+		t.Fatalf("expected PrevRouteSlide to step 0 slide 0, got step=%d slide=%d", ed.RouteStep, ed.SlideIdx)
+	}
+	// At start of route, PrevRouteSlide should return false
+	if ed.PrevRouteSlide(&d) {
+		t.Errorf("expected PrevRouteSlide to return false at start of route")
+	}
+
+	// Clear route
+	ed.SelectRoute("", &d)
+	if ed.ActiveRoute != "" || ed.RouteStep != 0 {
+		t.Errorf("expected route cleared, got %q", ed.ActiveRoute)
+	}
+
+	// Unknown route
+	ed.SelectRoute("nonexistent", &d)
+	if ed.ActiveRoute != "" {
+		t.Errorf("expected nonexistent route to be rejected")
+	}
+
+	// 2. Route Modal Keyboard Dispatch
+	// Press 'P' to open route modal
+	sendTestKey(&ed, &d, "P")
+	if !ed.ShowRouteModal {
+		t.Fatalf("expected ShowRouteModal true after 'P'")
+	}
+
+	// j / k navigation in modal
+	sendTestKey(&ed, &d, "j")
+	if ed.RouteCursor != 1 {
+		t.Errorf("expected RouteCursor 1 after 'j', got %d", ed.RouteCursor)
+	}
+	sendTestKey(&ed, &d, "k")
+	if ed.RouteCursor != 0 {
+		t.Errorf("expected RouteCursor 0 after 'k', got %d", ed.RouteCursor)
+	}
+
+	// Press '1' to activate first route ("quick")
+	sendTestKey(&ed, &d, "1")
+	if ed.ShowRouteModal || ed.ActiveRoute != "quick" {
+		t.Errorf("expected modal closed and active route quick after '1', got route=%q", ed.ActiveRoute)
+	}
+
+	// Open modal, press '0' to clear route
+	sendTestKey(&ed, &d, "P")
+	sendTestKey(&ed, &d, "0")
+	if ed.ShowRouteModal || ed.ActiveRoute != "" {
+		t.Errorf("expected modal closed and active route empty after '0'")
+	}
+
+	// Open modal, navigate with down, press enter to select route
+	sendTestKey(&ed, &d, "P")
+	sendTestKey(&ed, &d, "down")
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowRouteModal || ed.ActiveRoute == "" {
+		t.Errorf("expected modal closed and route selected after enter")
+	}
+
+	// Dismiss via esc
+	sendTestKey(&ed, &d, "P")
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowRouteModal {
+		t.Errorf("expected modal closed after esc")
+	}
+
+	// Dismiss via q
+	sendTestKey(&ed, &d, "P")
+	sendTestKey(&ed, &d, "q")
+	if ed.ShowRouteModal {
+		t.Errorf("expected modal closed after q")
+	}
+
+	// Dismiss via P toggle
+	sendTestKey(&ed, &d, "P")
+	sendTestKey(&ed, &d, "P")
+	if ed.ShowRouteModal {
+		t.Errorf("expected modal closed after P toggle")
+	}
+
+	// 3. Arrow / Space key navigation with active route
+	ed.SelectRoute("thorough", &d)
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected SlideIdx 0, got %d", ed.SlideIdx)
+	}
+	// space advances along route
+	sendTestKey(&ed, &d, "space")
+	if ed.SlideIdx != 1 || ed.RouteStep != 1 {
+		t.Errorf("expected SlideIdx 1, RouteStep 1 after space, got slide=%d step=%d", ed.SlideIdx, ed.RouteStep)
+	}
+	// left moves back along route
+	sendTestKey(&ed, &d, "left")
+	if ed.SlideIdx != 0 || ed.RouteStep != 0 {
+		t.Errorf("expected SlideIdx 0, RouteStep 0 after left, got slide=%d step=%d", ed.SlideIdx, ed.RouteStep)
+	}
+
+	// While in route on middle slide (index 1), taking decision branch [1] works
+	sendTestKey(&ed, &d, "right") // move to slide 1
+	if ed.SlideIdx != 1 {
+		t.Fatalf("expected SlideIdx 1, got %d", ed.SlideIdx)
+	}
+	sendTestKey(&ed, &d, "1") // take branch 1 to outro
+	if ed.SlideIdx != 2 {
+		t.Errorf("expected branch 1 to take us to slide 2, got %d", ed.SlideIdx)
+	}
+	// Backspace pops back to slide 1
+	sendTestKey(&ed, &d, "backspace")
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected backspace to pop to slide 1, got %d", ed.SlideIdx)
 	}
 }

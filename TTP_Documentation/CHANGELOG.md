@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.8 — 25 September 2026
+
+### Added
+- **Preset Graph Routes & Guided Paths (`P` / `--route`)**:
+  - Non-destructive presentation route overlay engine enabling presenters to pre-configure tailored walkthrough paths across complex non-linear DAGs (e.g. `lightning`, `deepdive`, `workshop`).
+  - Supports dual authoring syntax:
+    - Deck Frontmatter: `routes:` mapping (or `route.<name>:`) with arrow (`->`, `=>`) or comma-separated slide slugs.
+    - Inline Directives: `::route <name>: <slug1> -> <slug2> -> <slug3>` anywhere in the deck body.
+    - Round-trip serialization (`SerializeDeck`) preserving custom `::route` directives.
+- **Route Switcher Modal (`P`)**:
+  - Dedicated interactive terminal modal displaying available preset routes.
+  - Real-time word count calculation and speaking duration estimation (at 130 WPM) for each route.
+  - Visual breadcrumb path previews (`[01:intro] ──► [04:arch] ──► [22:conclusion]`) showing exact slide sequence.
+  - Navigation controls: `j`/`k`/arrow keys to select, `1`–`9` to quick-activate, `0` to clear active route and return to free graph traversal, `Enter` to apply, and `Esc`/`q`/`P` to dismiss.
+- **Presenter Route Navigation Engine**:
+  - Advancing with `Space` / `Enter` / `Right` / `l` / `PageDown` automatically steps forward along the active route's pre-planned slide sequence.
+  - Backstepping with `Left` / `h` / `PageUp` moves backwards along the route.
+  - Maintains full compatibility with interactive decision forks (`::branch` / `1`–`9`) and the traversal history stack (`Backspace` / `H`), allowing spontaneous detours without losing route state.
+  - Status bar indicator: `[⚡ route: <name> (step X/Y)]` with quick-access hint (`P route`).
+- **Graph Topology & Diagram Integration**:
+  - Graph Modal (`M`): displays active route banner and marks route slides with step numbers (`#1`, `#2`, etc.).
+  - Terminal ASCII DAG Map (`deck --route=<name> --graph`): displays route step badges (`⚡ step N`) on connected slides.
+  - Mermaid Export (`deck --route=<name> --mermaid`): highlights route nodes with custom styling class (`classDef routeNode fill:#f59e0b,stroke:#d97706,...`).
+- **CLI Guided Path Integration**:
+  - Launch presentations directly into a preset route: `deck --route <name> presentation.deck.md` or `deck --route=<name>`.
+- Expanded automated test suite to **143 tests** achieving **90.2% statement coverage** in `deck/internal` with zero external runtime dependencies and sub-millisecond per-frame rendering.
+
 ## v0.7 — 25 September 2026
 
 ### Added

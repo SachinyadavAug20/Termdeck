@@ -1135,6 +1135,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks & subgraph filter")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("[ / ]"), currentTheme.HelpDescStyle.Render("Hop backward / forward along track")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("P"), currentTheme.HelpDescStyle.Render("Preset graph routes & guided paths")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("/"), currentTheme.HelpDescStyle.Render("Jump to slide (number or search)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("o / O"), currentTheme.HelpDescStyle.Render("Slide overview & grid sorter")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j"), currentTheme.HelpDescStyle.Render("Move laser pointer down")))
@@ -1518,6 +1519,10 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		matching := len(d.SlideIndicesForTag(e.ActiveTrack))
 		sb.WriteString(currentTheme.TableHeaderStyle.Render(fmt.Sprintf("★ Track: %s (%d/%d slides tagged)", e.ActiveTrack, matching, totalSlides)) + "\n")
 	}
+	if e.ActiveRoute != "" {
+		indices := d.RouteSlideIndices(e.ActiveRoute)
+		sb.WriteString(currentTheme.ProgressLineFilledStyle.Render(fmt.Sprintf("⚡ Route: %s (step %d/%d)", e.ActiveRoute, e.RouteStep+1, len(indices))) + "\n")
+	}
 	sb.WriteString("\n")
 
 	// Vertical scrolling calculation
@@ -1547,6 +1552,15 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		isCursor := i == cursor
 		isActive := i == e.SlideIdx
 		isTrackNode := e.ActiveTrack != "" && d.Slides[i].HasTag(e.ActiveTrack)
+		routeStep := -1
+		if e.ActiveRoute != "" {
+			for sIdx, rIdx := range d.RouteSlideIndices(e.ActiveRoute) {
+				if rIdx == i {
+					routeStep = sIdx + 1
+					break
+				}
+			}
+		}
 
 		pointer := "  "
 		if isCursor {
@@ -1559,6 +1573,9 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		}
 		if isTrackNode {
 			numBadge += " " + currentTheme.TableHeaderStyle.Render("★")
+		}
+		if routeStep > 0 {
+			numBadge += " " + currentTheme.ProgressLineFilledStyle.Render(fmt.Sprintf("#%d", routeStep))
 		}
 
 		t := node.Title
@@ -1613,7 +1630,7 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		sb.WriteString(dimStyle.Render("  ▼  more slides below") + "\n")
 	}
 
-	sb.WriteString("\n" + dimStyle.Render("▲/▼ or j/k: select  ·  Enter: jump to slide  ·  K: track  ·  M or Esc: close"))
+	sb.WriteString("\n" + dimStyle.Render("▲/▼ or j/k: select  ·  Enter: jump to slide  ·  P: routes  ·  K: track  ·  M or Esc: close"))
 
 	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
@@ -1697,6 +1714,125 @@ func renderTrackModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderRouteModal(d Deck, e Editor, w, h int) string {
+	routeNames := d.AllRouteNames()
+	totalOptions := len(routeNames) + 1
+
+	modalW := 68
+	if modalW > w-4 {
+		modalW = w - 4
+	}
+	if modalW < 36 {
+		modalW = 36
+	}
+
+	var sb strings.Builder
+	title := currentTheme.HelpTitleStyle.Render("🛣️   Preset Graph Routes & Guided Paths")
+	sb.WriteString(title + "\n")
+	sb.WriteString(dimStyle.Render("Select a pre-planned presentation path through the directed graph:") + "\n\n")
+
+	cursor := e.RouteCursor
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor >= totalOptions {
+		cursor = totalOptions - 1
+	}
+
+	// Option 0: None (Free graph navigation)
+	isNoneCursor := cursor == 0
+	isNoneActive := e.ActiveRoute == ""
+	nonePtr := "  "
+	if isNoneCursor {
+		nonePtr = currentTheme.LaserPointerStyle.Render("▶ ")
+	}
+	noneKey := "[0]"
+	noneLabel := "Free Graph Navigation (no route constraint)"
+	if isNoneActive {
+		noneLabel += "  " + currentTheme.ProgressLineFilledStyle.Render("● active")
+	}
+	if isNoneCursor {
+		sb.WriteString(nonePtr + currentTheme.HelpKeyStyle.Render(noneKey) + "  " + currentTheme.H1Style.Render(noneLabel) + "\n")
+	} else {
+		sb.WriteString(nonePtr + dimBoldStyle.Render(noneKey) + "  " + currentTheme.TableCellStyle.Render(noneLabel) + "\n")
+	}
+
+	if len(routeNames) == 0 {
+		sb.WriteString("\n" + dimStyle.Render("  No preset routes defined.") + "\n")
+		sb.WriteString(dimStyle.Render("  Add in frontmatter (`routes:`) or `::route <name>: s1 -> s2`.") + "\n")
+	}
+
+	// Routes
+	for i, name := range routeNames {
+		optIdx := i + 1
+		isCursor := cursor == optIdx
+		isActive := strings.EqualFold(e.ActiveRoute, name)
+
+		ptr := "  "
+		if isCursor {
+			ptr = currentTheme.LaserPointerStyle.Render("▶ ")
+		}
+
+		keyBadge := fmt.Sprintf("[%d]", optIdx)
+		if optIdx > 9 {
+			keyBadge = "   "
+		}
+
+		indices := d.RouteSlideIndices(name)
+		stepCount := len(indices)
+
+		totalWords := 0
+		for _, sIdx := range indices {
+			if sIdx >= 0 && sIdx < len(d.Slides) {
+				for _, b := range d.Slides[sIdx].Blocks {
+					totalWords += len(strings.Fields(b.Text))
+					for _, l := range b.Lines {
+						totalWords += len(strings.Fields(l))
+					}
+				}
+			}
+		}
+		estMin := (totalWords + 129) / 130
+		if estMin < 1 && stepCount > 0 {
+			estMin = 1
+		}
+
+		label := fmt.Sprintf("%-14s (%d slides · ~%d min)", name, stepCount, estMin)
+		if isActive {
+			label += "  " + currentTheme.ProgressLineFilledStyle.Render("● active")
+		}
+
+		if isCursor {
+			sb.WriteString(ptr + currentTheme.HelpKeyStyle.Render(keyBadge) + "  " + currentTheme.H1Style.Render(label) + "\n")
+		} else {
+			sb.WriteString(ptr + dimBoldStyle.Render(keyBadge) + "  " + currentTheme.TableCellStyle.Render(label) + "\n")
+		}
+
+		var stepNames []string
+		for _, sIdx := range indices {
+			if sIdx >= 0 && sIdx < len(d.Slides) {
+				t := d.Slides[sIdx].Title()
+				if len(t) > 12 {
+					t = t[:12] + "…"
+				}
+				stepNames = append(stepNames, fmt.Sprintf("[%02d:%s]", sIdx+1, t))
+			}
+		}
+		if len(stepNames) > 0 {
+			preview := "      " + strings.Join(stepNames, " ──► ")
+			if len(preview) > modalW-4 {
+				preview = preview[:modalW-5] + "…"
+			}
+			sb.WriteString(dimStyle.Render(preview) + "\n")
+		}
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("0-9: quick select  ·  ▲/▼ or j/k: navigate  ·  Enter: apply  ·  Esc: close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 func renderBlankScreen(w, h int) string {
 	msg := dimStyle.Render("●  presentation paused  ·  press any key to resume")
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
@@ -1744,6 +1880,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowTrackModal {
 		return renderTrackModal(d, e, width, height)
+	}
+
+	if e.ShowRouteModal {
+		return renderRouteModal(d, e, width, height)
 	}
 
 	if e.Mode == ModePrompt {
@@ -1934,10 +2074,14 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.ActiveTrack != "" {
 		left += fmt.Sprintf("  ·  [★ track: %s]", e.ActiveTrack)
 	}
+	if e.ActiveRoute != "" {
+		indices := d.RouteSlideIndices(e.ActiveRoute)
+		left += fmt.Sprintf("  ·  [⚡ route: %s (%d/%d)]", e.ActiveRoute, e.RouteStep+1, len(indices))
+	}
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · M map · K track · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · K track · P route · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

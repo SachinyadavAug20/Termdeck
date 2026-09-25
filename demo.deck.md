@@ -3,6 +3,10 @@ author: Sachin
 format: 0.1
 title: termdeck demo
 theme: tokyo-night
+routes:
+  lightning: intro -> why-terminal -> arch-comparison -> conclusion
+  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> conclusion
+  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> conclusion
 ---
 
 ::id intro
@@ -319,8 +323,10 @@ Presenters dynamically steer the presentation based on audience choice:
 
 ::branch [5] Deep Dive: Multi-Column Split & Audience Tracks -> columns-deepdive
 
+::branch [6] Deep Dive: Preset Routes & Guided Paths -> routes-deepdive
+
 > [!TIP]
-> Press `1`, `2`, `3`, `4`, or `5` to take a branch immediately, or press `M` to explore the DAG topology map!
+> Press `1`-`6` to take a branch immediately, `P` for preset paths, or `M` to explore DAG topology!
 
 ---
 
@@ -445,6 +451,35 @@ Present side-by-side technical content and tailor presentations to audience trac
 
 > [!TIP]
 > Press `K` to filter presentation flow by audience track, or use `[` / `]` to hop along track slides!
+
+---
+
+::id routes-deepdive
+::tags arch,demo,routes
+::next conclusion
+::align left
+# Preset Graph Routes & Guided Paths
+
+Pre-configure tailored presentation paths across your non-linear DAG:
+
+:::columns
+### Authoring Routes
+- In frontmatter:
+  `routes:`
+    `lightning: intro -> summary`
+- Inline: `::route name: s1 -> s2 -> s3`
+- Arrow (`->`) or comma (`s1, s2`) syntax
+:::col
+### Presenter Controls
+- Press `P` to open Route Switcher modal
+- `1`-`9` selects a route instantly
+- `0` clears back to standard navigation
+- Estimated talk duration based on WPM
+- CLI startup: `deck --route=lightning`
+:::
+
+> [!TIP]
+> Press `P` right now to preview and activate preset talk routes, or press `M` to see the route highlighted on the DAG!
 
 ---
 

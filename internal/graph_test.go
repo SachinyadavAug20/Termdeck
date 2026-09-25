@@ -356,3 +356,56 @@ title: Track Topology Test
 		t.Errorf("expected '★ backend' badge in CLI output, got:\n%s", cliOut)
 	}
 }
+
+func TestGraphWithRoute(t *testing.T) {
+	src := `---
+title: Graph Route Test
+routes:
+  talk: intro -> outro
+---
+
+::id intro
+# Intro
+
+---
+
+::id middle
+# Middle
+
+---
+
+::id outro
+# Outro
+`
+	deck := ParseDeck(src)
+	g := BuildGraph(deck)
+	theme := ResolveTheme("tokyo-night")
+
+	// 1. ToMermaidWithRoute
+	mmdRoute := g.ToMermaidWithRoute("talk", deck)
+	if !strings.Contains(mmdRoute, "classDef routeNode") {
+		t.Fatalf("expected classDef routeNode in mermaid, got:\n%s", mmdRoute)
+	}
+	if !strings.Contains(mmdRoute, "class node0,node2 routeNode;") {
+		t.Fatalf("expected node0 and node2 styled with routeNode, got:\n%s", mmdRoute)
+	}
+
+	mmdEmpty := g.ToMermaidWithRoute("", deck)
+	if strings.Contains(mmdEmpty, "classDef routeNode") {
+		t.Fatalf("expected no routeNode class for empty route, got:\n%s", mmdEmpty)
+	}
+
+	// 2. FormatGraphCLIWithRoute
+	cliRoute := FormatGraphCLIWithRoute(deck, theme, "talk")
+	if !strings.Contains(cliRoute, "[Route: talk") {
+		t.Fatalf("expected [Route: talk header in CLI, got:\n%s", cliRoute)
+	}
+	if !strings.Contains(cliRoute, "⚡ step 1") || !strings.Contains(cliRoute, "⚡ step 2") {
+		t.Fatalf("expected step badges in CLI output, got:\n%s", cliRoute)
+	}
+
+	cliNoRoute := FormatGraphCLIWithRoute(deck, theme, "")
+	if strings.Contains(cliNoRoute, "⚡ step") {
+		t.Fatalf("expected no step badges when route is empty, got:\n%s", cliNoRoute)
+	}
+}

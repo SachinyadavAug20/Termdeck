@@ -43,8 +43,9 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestPrintHelpStats`: Asserts `--stats` and `S` control are documented in CLI help output.
 - `TestPrintHelpAutoplay`: Asserts `-a` / `--autoplay` and `A` control are documented in CLI help output.
 - `TestPrintHelpGraphAndMermaid`: Asserts `--graph` and `--mermaid` CLI options are documented in help output.
-- `TestPrintHelpLiveRunnerAndFocus`: Asserts `--test-code`, `--run-slide`, `X`, and `f` shortcuts are documented in help output.
+- `TestPrintHelpLiveRunnerAndFocus`: Asserts --test-code, --run-slide, X, and f shortcuts are documented in help output.
 - `TestPrintHelpTrack`: Asserts `-k, --track`, `K`, and `[ / ]` audience track options are documented in help output.
+- `TestPrintHelpRoute`: Asserts `--route`, `P`, and `0` route controls are documented in help output.
 - `TestModelExecFinishedMsg`: Verifies `ExecFinishedMsg` delivers results cleanly to editor state without crashing.
 - `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
 - `TestModelUpdateTickMsg`: Verifies Bubble Tea model dispatches `TickCmd()` only when timer is enabled, avoiding background polling overhead.
@@ -240,8 +241,8 @@ Statement coverage across packages (138 unit tests):
 | Package | Statement Coverage | Status |
 |---|---|---|
 | `deck` (root) | 18.2% | Covers model, update loop, flags, live watch loop, runner messages (excluding `main()` process exit) |
-| `deck/internal` | 90.5% | Meets $\ge 90\%$ target across all 10 core modules |
-| **Total Project** | **85.9%** | **PASSED** |
+| `deck/internal` | 90.2% | Meets $\ge 90\%$ target across all core modules |
+| **Total Project** | **85.7%** | **PASSED** |
 
 ---
 

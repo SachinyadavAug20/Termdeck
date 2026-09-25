@@ -1028,6 +1028,96 @@ func TestParseCodeLangAndFlags(t *testing.T) {
 	}
 }
 
+func TestRouteModelAndParsing(t *testing.T) {
+	// 1. parseRouteLine tests
+	name, slugs, ok := parseRouteLine("lightning: intro -> middle -> outro")
+	if !ok || name != "lightning" || len(slugs) != 3 || slugs[0] != "intro" || slugs[1] != "middle" || slugs[2] != "outro" {
+		t.Fatalf("unexpected parseRouteLine arrow: %s %v %v", name, slugs, ok)
+	}
+
+	name2, slugs2, ok2 := parseRouteLine("fast: intro => demo => end")
+	if !ok2 || name2 != "fast" || len(slugs2) != 3 || slugs2[1] != "demo" {
+		t.Fatalf("unexpected parseRouteLine double arrow: %s %v %v", name2, slugs2, ok2)
+	}
+
+	name3, slugs3, ok3 := parseRouteLine("comma: s1, s2, s3")
+	if !ok3 || name3 != "comma" || len(slugs3) != 3 || slugs3[2] != "s3" {
+		t.Fatalf("unexpected parseRouteLine comma: %s %v %v", name3, slugs3, ok3)
+	}
+
+	// invalid lines
+	if _, _, ok := parseRouteLine("no colon line"); ok {
+		t.Errorf("expected failure on line with no colon")
+	}
+	if _, _, ok := parseRouteLine(": no name"); ok {
+		t.Errorf("expected failure on empty name")
+	}
+	if _, _, ok := parseRouteLine("name: "); ok {
+		t.Errorf("expected failure on empty target list")
+	}
+
+	// 2. ParseDeck frontmatter & inline directives
+	src := `---
+title: Route Test
+routes:
+  talk: intro -> arch -> end
+  quick: intro, end
+route.extra: arch -> end
+---
+
+::id intro
+# Intro Slide
+
+---
+
+::id arch
+# Architecture Slide
+
+::route inline-path: intro -> arch -> end
+
+---
+
+::id end
+# End Slide
+`
+	deck := ParseDeck(src)
+	routes := deck.AllRouteNames()
+	expectedRoutes := []string{"extra", "inline-path", "quick", "talk"}
+	if len(routes) != len(expectedRoutes) {
+		t.Fatalf("expected %d routes, got %v", len(expectedRoutes), routes)
+	}
+	for i, r := range expectedRoutes {
+		if routes[i] != r {
+			t.Errorf("expected route %d to be %q, got %q", i, r, routes[i])
+		}
+	}
+
+	// 3. RouteSlideIndices
+	indices := deck.RouteSlideIndices("talk")
+	if len(indices) != 3 || indices[0] != 0 || indices[1] != 1 || indices[2] != 2 {
+		t.Errorf("expected talk route indices [0, 1, 2], got %v", indices)
+	}
+
+	// Unknown route returns empty
+	emptyIdx := deck.RouteSlideIndices("nonexistent")
+	if len(emptyIdx) != 0 {
+		t.Errorf("expected empty indices for nonexistent route, got %v", emptyIdx)
+	}
+
+	// Route with unknown slide slug
+	deck.Routes["broken"] = []string{"intro", "missing-slug", "end"}
+	brokenIdx := deck.RouteSlideIndices("broken")
+	if len(brokenIdx) != 2 || brokenIdx[0] != 0 || brokenIdx[1] != 2 {
+		t.Errorf("expected broken route to skip missing slug and return [0, 2], got %v", brokenIdx)
+	}
+
+	// 4. Serialization
+	serialized := SerializeDeck(deck)
+	if !strings.Contains(serialized, "::route") {
+		t.Errorf("expected serialized deck to contain ::route, got:\n%s", serialized)
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

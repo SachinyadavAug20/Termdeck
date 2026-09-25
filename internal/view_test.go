@@ -1332,6 +1332,80 @@ Right side content.
 	}
 }
 
+func TestRenderRouteModal(t *testing.T) {
+	// 1. Empty routes
+	dEmpty := Deck{Slides: []Slide{{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Solo"}}}}}
+	ed := NewEditor("test.deck.md")
+	emptyModal := stripANSI(renderRouteModal(dEmpty, ed, 100, 30))
+	if !strings.Contains(emptyModal, "Preset Graph Routes") || !strings.Contains(emptyModal, "No preset routes defined.") {
+		t.Fatalf("expected empty route modal message, got:\n%s", emptyModal)
+	}
+
+	// 2. Populated routes
+	src := `---
+title: Route View Test
+routes:
+  quick: intro -> outro
+  deepdive: intro -> deep -> outro
+---
+
+::id intro
+# Intro
+Welcome to the talk.
+
+---
+
+::id deep
+# Deep Dive
+Technical details and architectures.
+
+---
+
+::id outro
+# Conclusion
+Summary and thank you.
+`
+	d := ParseDeck(src)
+	ed = NewEditor("test.deck.md")
+	ed.ShowRouteModal = true
+
+	modalView := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(modalView, "Preset Graph Routes") {
+		t.Fatalf("expected Preset Graph Routes title in View, got:\n%s", modalView)
+	}
+	if !strings.Contains(modalView, "quick") || !strings.Contains(modalView, "deepdive") {
+		t.Fatalf("expected route names in modal view, got:\n%s", modalView)
+	}
+	if !strings.Contains(modalView, "slides") || !strings.Contains(modalView, "──►") {
+		t.Fatalf("expected slide count and path arrows in modal, got:\n%s", modalView)
+	}
+
+	// Active route badge
+	ed.ActiveRoute = "quick"
+	ed.RouteStep = 0
+	activeModal := stripANSI(renderRouteModal(d, ed, 100, 30))
+	if !strings.Contains(activeModal, "● active") {
+		t.Fatalf("expected ● active badge for active route, got:\n%s", activeModal)
+	}
+
+	// 3. navStatus with active route
+	ed.ShowRouteModal = false
+	status := stripANSI(navStatus(d, ed, 200))
+	if !strings.Contains(status, "[⚡ route: quick (1/2)]") || !strings.Contains(status, "P route") {
+		t.Fatalf("expected route status and P hint in navStatus, got:\n%s", status)
+	}
+
+	// 4. Graph modal with active route
+	ed.ShowGraphMap = true
+	graphView := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(graphView, "⚡ Route: quick") {
+		t.Fatalf("expected active route in graph modal header, got:\n%s", graphView)
+	}
+	if !strings.Contains(graphView, "#1") {
+		t.Fatalf("expected #1 route step badge in graph modal, got:\n%s", graphView)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

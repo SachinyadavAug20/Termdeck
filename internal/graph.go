@@ -214,6 +214,57 @@ func (g DeckGraph) ToMermaid() string {
 	return g.ToMermaidWithTrack("")
 }
 
+func (g DeckGraph) ToMermaidWithRoute(routeName string, d Deck) string {
+	var b strings.Builder
+	b.WriteString("graph LR\n")
+
+	for _, n := range g.Nodes {
+		cleanTitle := strings.ReplaceAll(n.Title, "\"", "'")
+		if n.ID != "" {
+			fmt.Fprintf(&b, "  node%d[\"[%02d] %s<br/>#%s\"]\n", n.Index, n.Index+1, cleanTitle, n.ID)
+		} else {
+			fmt.Fprintf(&b, "  node%d[\"[%02d] %s\"]\n", n.Index, n.Index+1, cleanTitle)
+		}
+	}
+
+	for _, e := range g.Edges {
+		if e.ToIndex < 0 || e.ToIndex >= len(g.Nodes) {
+			continue
+		}
+		switch e.Kind {
+		case EdgeLinear:
+			fmt.Fprintf(&b, "  node%d --> node%d\n", e.FromIndex, e.ToIndex)
+		case EdgeBranch:
+			label := e.Label
+			if e.Key != "" {
+				label = fmt.Sprintf("[%s] %s", e.Key, label)
+			}
+			label = strings.ReplaceAll(label, "\"", "'")
+			fmt.Fprintf(&b, "  node%d -- \"%s\" --> node%d\n", e.FromIndex, label, e.ToIndex)
+		case EdgeNext:
+			fmt.Fprintf(&b, "  node%d -. \"next\" .-> node%d\n", e.FromIndex, e.ToIndex)
+		case EdgePrev:
+			fmt.Fprintf(&b, "  node%d -. \"prev\" .-> node%d\n", e.FromIndex, e.ToIndex)
+		}
+	}
+
+	if routeName != "" {
+		indices := d.RouteSlideIndices(routeName)
+		var routeNodes []string
+		for _, sIdx := range indices {
+			if sIdx >= 0 && sIdx < len(g.Nodes) {
+				routeNodes = append(routeNodes, fmt.Sprintf("node%d", sIdx))
+			}
+		}
+		if len(routeNodes) > 0 {
+			b.WriteString("\n  classDef routeNode fill:#f59e0b,stroke:#d97706,stroke-width:2px,color:#ffffff;\n")
+			fmt.Fprintf(&b, "  class %s routeNode;\n", strings.Join(routeNodes, ","))
+		}
+	}
+
+	return b.String()
+}
+
 func (g DeckGraph) ReachableNodes(startIndex int) []int {
 	if startIndex < 0 || startIndex >= len(g.Nodes) {
 		return nil
@@ -426,6 +477,128 @@ func FormatGraphCLIWithTrack(d Deck, theme Theme, track string) string {
 
 func FormatGraphCLI(d Deck, theme Theme) string {
 	return FormatGraphCLIWithTrack(d, theme, "")
+}
+
+func FormatGraphCLIWithRoute(d Deck, theme Theme, routeName string) string {
+	g := BuildGraph(d)
+	var b strings.Builder
+
+	titleStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(theme.Accent))
+
+	idxStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.Secondary)).
+		Bold(true)
+
+	arrowStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.Muted))
+
+	keyStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color(theme.Accent))
+
+	targetStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.Secondary))
+
+	tagStyle := lipgloss.NewStyle().
+		Foreground(lipgloss.Color(theme.Comment))
+
+	routeBadgeStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ffffff")).
+		Background(lipgloss.Color("#f59e0b")).
+		Padding(0, 1)
+
+	header := "Termdeck Presentation Topology Map (DAG)"
+	if routeName != "" {
+		header += fmt.Sprintf(" [Route: %s]", routeName)
+	}
+	b.WriteString(titleStyle.Render(header))
+	b.WriteString("\n")
+	b.WriteString(arrowStyle.Render(strings.Repeat("─", 50)))
+	b.WriteString("\n\n")
+
+	if len(g.Nodes) == 0 {
+		b.WriteString(tagStyle.Render("Empty deck (0 slides)\n"))
+		return b.String()
+	}
+
+	routeIndices := d.RouteSlideIndices(routeName)
+	routeStepMap := make(map[int]int)
+	for sIdx, nodeIdx := range routeIndices {
+		routeStepMap[nodeIdx] = sIdx + 1
+	}
+
+	for _, n := range g.Nodes {
+		step, isRouteNode := routeStepMap[n.Index]
+
+		b.WriteString(idxStyle.Render(fmt.Sprintf("[%02d]", n.Index+1)))
+		b.WriteString(" ")
+		if isRouteNode {
+			b.WriteString(titleStyle.Render(n.Title) + " " + routeBadgeStyle.Render(fmt.Sprintf("⚡ step %d", step)))
+		} else {
+			b.WriteString(titleStyle.Render(n.Title))
+		}
+
+		if n.ID != "" {
+			b.WriteString(" " + tagStyle.Render("#"+n.ID))
+		}
+		if len(n.Tags) > 0 {
+			b.WriteString(" " + tagStyle.Render("["+strings.Join(n.Tags, ",")+"]"))
+		}
+		b.WriteString("\n")
+
+		if len(n.OutEdges) == 0 {
+			b.WriteString(arrowStyle.Render("     └──► ") + tagStyle.Render("(terminal slide)") + "\n\n")
+			continue
+		}
+
+		for eIdx, edge := range n.OutEdges {
+			isLast := eIdx == len(n.OutEdges)-1
+			prefix := "     ├──► "
+			if isLast {
+				prefix = "     └──► "
+			}
+
+			switch edge.Kind {
+			case EdgeLinear:
+				targetTitle := "End of deck"
+				if edge.ToIndex < len(g.Nodes) {
+					targetTitle = fmt.Sprintf("[%02d] %s", edge.ToIndex+1, g.Nodes[edge.ToIndex].Title)
+				}
+				b.WriteString(arrowStyle.Render(prefix) + tagStyle.Render("(linear)") + arrowStyle.Render(" ──► ") + targetStyle.Render(targetTitle) + "\n")
+
+			case EdgeBranch:
+				targetTitle := edge.TargetID
+				if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+					targetTitle = fmt.Sprintf("[%02d] %s", edge.ToIndex+1, g.Nodes[edge.ToIndex].Title)
+				}
+				keyPart := ""
+				if edge.Key != "" {
+					keyPart = fmt.Sprintf("[%s] ", edge.Key)
+				}
+				b.WriteString(arrowStyle.Render(prefix) + keyStyle.Render(keyPart+edge.Label) + arrowStyle.Render(" ──► ") + targetStyle.Render(targetTitle) + "\n")
+
+			case EdgeNext:
+				targetTitle := edge.TargetID
+				if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+					targetTitle = fmt.Sprintf("[%02d] %s", edge.ToIndex+1, g.Nodes[edge.ToIndex].Title)
+				}
+				b.WriteString(arrowStyle.Render(prefix) + tagStyle.Render("(next)") + arrowStyle.Render(" ──► ") + targetStyle.Render(targetTitle) + "\n")
+
+			case EdgePrev:
+				targetTitle := edge.TargetID
+				if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+					targetTitle = fmt.Sprintf("[%02d] %s", edge.ToIndex+1, g.Nodes[edge.ToIndex].Title)
+				}
+				b.WriteString(arrowStyle.Render(prefix) + tagStyle.Render("(prev)") + arrowStyle.Render(" ──► ") + targetStyle.Render(targetTitle) + "\n")
+			}
+		}
+		b.WriteString("\n")
+	}
+
+	return b.String()
 }
 
 // ShortestPath computes the sequence of slide indices representing the shortest path from 'from' to 'to' in the DAG using BFS.

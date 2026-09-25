@@ -16,6 +16,13 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 25 September 2026 (v0.8.0)
+- [x] **Preset Graph Routes & Guided Paths (`P` / `--route`)**: Pre-configure tailored presentation paths across your non-linear DAG for different talk formats and time constraints (e.g. `lightning`, `deepdive`, `workshop`); advance naturally along the route using `Space` / `Enter` or navigate back with `Left` / `h` while retaining instant access to decision branches (`1`..`9`)
+- [x] **Route Switcher Modal (`P`)**: visual popup presenting available routes, slide counts, speaking duration estimates (at 130 WPM), and breadcrumb path previews (`[01:intro] ──► [04:arch] ──► [22:conclusion]`); press `1`..`9` to activate a route instantly, or `0` to return to free graph navigation
+- [x] **Dual Authoring Syntax**: author routes in frontmatter (`routes:\n  lightning: intro -> summary`) or anywhere in deck body using inline directives (`::route name: s1 -> s2 -> s3`) with arrow (`->`, `=>`) or comma-separated slide slug syntax
+- [x] **CLI Guided Path Integration (`--route <name>`)**: boot directly into a guided route from terminal (`deck --route=lightning demo.deck.md`), preview route paths in terminal ASCII topology maps (`deck --route=lightning --graph`), and highlight route nodes in Mermaid diagram exports (`deck --route=lightning --mermaid`)
+- [x] **143 Automated Unit Tests** maintaining **90.2% statement coverage** in `internal/` with zero external runtime dependencies and sub-millisecond per-frame rendering
+
 #### 25 September 2026 (v0.7.0)
 - [x] **Multi-Column Side-by-Side Split Grids (`:::columns` ... `:::col`)**: native multi-column responsive layout engine allowing developers to present technical comparisons (e.g. Problem vs Solution, Rust vs Go, Backend vs Frontend) side-by-side with balanced column widths, padding, and divider spacing
 - [x] **Audience Tracks & Subgraph Filtering (`K` / `[` / `]` / `--track`)**: tag slides with `::tags <tags>` and filter presentations dynamically for different audiences (e.g. executive overview vs backend deep-dive vs live workshop); hop along track slides with `[` / `]`; explore track-filtered topology with `K` modal
@@ -142,6 +149,7 @@ deck [options] <file.deck.md>
 # Options:
 #   -s, --start-at <N>   Start at slide N
 #   -k, --track <name>   Filter slides and DAG navigation to audience track
+#       --route <name>   Follow pre-planned graph presentation route
 #   -t, --theme <name>   Set presentation theme
 #       --list-themes    List all available themes
 #       --track <name>   Filter slides, ASCII DAG, and Mermaid output by track
@@ -161,10 +169,11 @@ deck [options] <file.deck.md>
 
 | Key | Action |
 |-----|--------|
-| `→` `l` `Space` `Enter` `PageDown` | Next slide / advance directed edge |
-| `←` `h` `PageUp` | Previous slide |
+| `→` `l` `Space` `Enter` `PageDown` | Next slide / advance directed edge / follow active route |
+| `←` `h` `PageUp` | Previous slide / previous route slide |
 | `1` – `9` | Jump directly along numbered branch / fork option |
 | `Backspace` `H` | Backtrack along visited graph traversal history |
+| `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |
 | `K` | Open Audience Tracks & Subgraph Filtering modal (`0`-`9` quick select) |
 | `[` / `]` | Hop backward / forward along slides matching active audience track |
 | `M` | Open interactive presentation graph map & DAG explorer modal |
@@ -247,20 +256,21 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Non-Linear DAG Traversal Breadcrumb Tracking**: Real-time journey breadcrumbs (`[01:intro] ──► [15:hub] ──► [19:runner]`) in the status bar and topology explorer modal, ensuring audiences and speakers never lose orientation during branching talks.
 - **Multi-Column Side-by-Side Split Grids**: Present comparisons side-by-side with native terminal split layouts (`:::columns` ... `:::col` ... `:::columns` or `::split`), automatically balancing terminal column widths and vertical alignment
 - **Audience Tracks & Subgraph Filtering**: Tailor talks to specific audiences (backend engineers, management, live workshops) using slide tags (`::tags <tags>`); switch active tracks on the fly with the Track Modal (`K`), hop along track slides (`[` / `]`), or filter CLI outputs (`deck --track=<name> --graph`)
+- **Preset Graph Routes & Guided Paths**: Pre-plan named presentation paths through your non-linear DAG for different talk lengths or audiences (`routes:` frontmatter or `::route` directives); switch routes via `P`, advance along the path with `Space`/`Enter`, and launch via CLI (`deck --route=lightning`)
 - **Non-Linear Directed Graph (DAG) Engine**: Break free from rigid linear slides! Author interactive decision forks (`::branch [key] label -> target` or `-> [label](target)`), direct numerical jumping (`1`–`9`), back-stack traversal (`Backspace` / `H`), convergence (`::next <slug>`), and interactive topology explorer modal (`M`)
 - **ASCII DAG & Mermaid Diagrams**: Inspect deck topology directly in your terminal with `deck --graph <deck.md>` or export Mermaid syntax for GitHub with `deck --mermaid <deck.md>`
 - **Standalone Offline HTML Export**: Press `E` or pass `--export-html` to generate a self-contained single-file HTML presentation with embedded CSS, base64 images, and interactive JavaScript navigation
 - **Presentation Statistics & Deck Metrics**: Press `S` or pass `--stats` for talk duration estimates (130 WPM), code density metrics, block counts, and sprint task checklist velocity
 - **Rehearsal & Autoplay Mode**: Press `A` or pass `-a, --autoplay [sec]` for automated rehearsal pacing with countdown timer, loop restart, and manual override protection
 - **Live File Watch & Hot-Reload**: Start with `-w` or `--watch` to auto-reload on file edits from external editors/IDEs, or press `r` / `R` anytime to reload manually (safeguards protect active in-app edit sessions)
-- **CLI Options**: `-k, --track <name>`, `--graph`, `--mermaid`, `--test-code`, `--run-slide <N>`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
+- **CLI Options**: `--route <name>`, `-k, --track <name>`, `--graph`, `--mermaid`, `--test-code`, `--run-slide <N>`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **90.5% statement coverage** in `internal/` with 138 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **90.2% statement coverage** in `internal/` with 143 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary
