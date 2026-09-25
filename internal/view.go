@@ -573,9 +573,70 @@ func renderBlock(blk Block, w int, maxBlockH int, baseDir string, isCursor bool,
 				}
 			}
 		}
+
+	case BlockColumns:
+		if isEditing {
+			b.WriteString(editStyle.Width(w - 4).Render(editDraft))
+		} else {
+			rendered := renderColumns(blk.Columns, w-4, maxBlockH, baseDir, isCursor, cursorCol, showLineNumbers)
+			lines := strings.Split(rendered, "\n")
+			for idx, l := range lines {
+				if idx > 0 {
+					b.WriteString("\n")
+				}
+				if idx == 0 && isCursor {
+					b.WriteString(cursorMark + l)
+				} else {
+					b.WriteString("  " + l)
+				}
+			}
+		}
 	}
 
 	return b.String()
+}
+
+func renderColumns(cols [][]Block, w int, maxBlockH int, baseDir string, isCursor bool, cursorCol int, showLineNumbers bool) string {
+	numCols := len(cols)
+	if numCols == 0 {
+		return ""
+	}
+	gap := 3
+	totalGap := gap * (numCols - 1)
+	availW := w - totalGap
+	if availW < numCols*16 {
+		availW = numCols * 16
+	}
+	colW := availW / numCols
+
+	colOutputs := make([]string, numCols)
+	for i, colBlocks := range cols {
+		var colBuilder strings.Builder
+		for j, blk := range colBlocks {
+			if j > 0 {
+				colBuilder.WriteString("\n")
+			}
+			rendered := renderBlock(blk, colW, maxBlockH, baseDir, false, false, "", 0, showLineNumbers)
+			lines := strings.Split(rendered, "\n")
+			for lineIdx, line := range lines {
+				if lineIdx > 0 {
+					colBuilder.WriteString("\n")
+				}
+				colBuilder.WriteString(strings.TrimPrefix(line, "  "))
+			}
+		}
+		colOutputs[i] = lipgloss.NewStyle().Width(colW).Render(colBuilder.String())
+	}
+
+	var joinedCols []string
+	for i, colOutput := range colOutputs {
+		if i > 0 {
+			joinedCols = append(joinedCols, strings.Repeat(" ", gap))
+		}
+		joinedCols = append(joinedCols, colOutput)
+	}
+
+	return lipgloss.JoinHorizontal(lipgloss.Top, joinedCols...)
 }
 
 func renderListItem(text string) string {
@@ -973,6 +1034,8 @@ func renderFocusMode(d Deck, e Editor, w, h int) string {
 		kindName = "Image"
 	case BlockList:
 		kindName = "List"
+	case BlockColumns:
+		kindName = fmt.Sprintf("Columns: %d split", len(blk.Columns))
 	default:
 		kindName = "Paragraph"
 	}
@@ -1070,6 +1133,8 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Backspace / H"), currentTheme.HelpDescStyle.Render("Backtrack along traversal history")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Follow branch option shortcut")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks & subgraph filter")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("[ / ]"), currentTheme.HelpDescStyle.Render("Hop backward / forward along track")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("/"), currentTheme.HelpDescStyle.Render("Jump to slide (number or search)")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("o / O"), currentTheme.HelpDescStyle.Render("Slide overview & grid sorter")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j"), currentTheme.HelpDescStyle.Render("Move laser pointer down")))
@@ -1449,6 +1514,10 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 	} else if e.SlideIdx < totalSlides {
 		sb.WriteString(dimStyle.Render(fmt.Sprintf("%d slides · active: [%02d] %s", totalSlides, e.SlideIdx+1, d.Slides[e.SlideIdx].Title())) + "\n")
 	}
+	if e.ActiveTrack != "" {
+		matching := len(d.SlideIndicesForTag(e.ActiveTrack))
+		sb.WriteString(currentTheme.TableHeaderStyle.Render(fmt.Sprintf("★ Track: %s (%d/%d slides tagged)", e.ActiveTrack, matching, totalSlides)) + "\n")
+	}
 	sb.WriteString("\n")
 
 	// Vertical scrolling calculation
@@ -1477,6 +1546,7 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		node := g.Nodes[i]
 		isCursor := i == cursor
 		isActive := i == e.SlideIdx
+		isTrackNode := e.ActiveTrack != "" && d.Slides[i].HasTag(e.ActiveTrack)
 
 		pointer := "  "
 		if isCursor {
@@ -1486,6 +1556,9 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		numBadge := fmt.Sprintf("[%02d]", i+1)
 		if isActive {
 			numBadge += " " + currentTheme.ProgressLineFilledStyle.Render("●")
+		}
+		if isTrackNode {
+			numBadge += " " + currentTheme.TableHeaderStyle.Render("★")
 		}
 
 		t := node.Title
@@ -1500,6 +1573,8 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		var line string
 		if isCursor {
 			line = pointer + currentTheme.HelpKeyStyle.Render(numBadge) + " " + currentTheme.H1Style.Render(t)
+		} else if isTrackNode {
+			line = pointer + currentTheme.TableHeaderStyle.Render(numBadge) + " " + currentTheme.TableHeaderStyle.Render(t)
 		} else {
 			line = pointer + dimBoldStyle.Render(numBadge) + " " + currentTheme.TableCellStyle.Render(t)
 		}
@@ -1538,7 +1613,85 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		sb.WriteString(dimStyle.Render("  ▼  more slides below") + "\n")
 	}
 
-	sb.WriteString("\n" + dimStyle.Render("▲/▼ or j/k: select  ·  Enter: jump to slide  ·  M or Esc: close"))
+	sb.WriteString("\n" + dimStyle.Render("▲/▼ or j/k: select  ·  Enter: jump to slide  ·  K: track  ·  M or Esc: close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
+func renderTrackModal(d Deck, e Editor, w, h int) string {
+	tags := d.AllTags()
+	totalOptions := len(tags) + 1
+
+	modalW := 62
+	if modalW > w-4 {
+		modalW = w - 4
+	}
+	if modalW < 36 {
+		modalW = 36
+	}
+
+	var sb strings.Builder
+	title := currentTheme.HelpTitleStyle.Render("🎯  Audience Tracks & Subgraph Filtering")
+	sb.WriteString(title + "\n")
+	sb.WriteString(dimStyle.Render("Filter presentation navigation and DAG exploration to a specific track:") + "\n\n")
+
+	cursor := e.TrackCursor
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor >= totalOptions {
+		cursor = totalOptions - 1
+	}
+
+	// Option 0: All Slides
+	isAllCursor := cursor == 0
+	isAllActive := e.ActiveTrack == ""
+	allPtr := "  "
+	if isAllCursor {
+		allPtr = currentTheme.LaserPointerStyle.Render("▶ ")
+	}
+	allKey := "[0]"
+	allLabel := fmt.Sprintf("All Slides (%d slides)", len(d.Slides))
+	if isAllActive {
+		allLabel += "  " + currentTheme.ProgressLineFilledStyle.Render("● active")
+	}
+	if isAllCursor {
+		sb.WriteString(allPtr + currentTheme.HelpKeyStyle.Render(allKey) + "  " + currentTheme.H1Style.Render(allLabel) + "\n")
+	} else {
+		sb.WriteString(allPtr + dimBoldStyle.Render(allKey) + "  " + currentTheme.TableCellStyle.Render(allLabel) + "\n")
+	}
+
+	// Tag options
+	for i, tag := range tags {
+		optIdx := i + 1
+		isCursor := cursor == optIdx
+		isActive := strings.EqualFold(e.ActiveTrack, tag)
+
+		ptr := "  "
+		if isCursor {
+			ptr = currentTheme.LaserPointerStyle.Render("▶ ")
+		}
+
+		keyBadge := fmt.Sprintf("[%d]", optIdx)
+		if optIdx > 9 {
+			keyBadge = "   "
+		}
+
+		matchingCount := len(d.SlideIndicesForTag(tag))
+		label := fmt.Sprintf("%-16s (%d slides)", tag, matchingCount)
+		if isActive {
+			label += "  " + currentTheme.ProgressLineFilledStyle.Render("● active")
+		}
+
+		if isCursor {
+			sb.WriteString(ptr + currentTheme.HelpKeyStyle.Render(keyBadge) + "  " + currentTheme.H1Style.Render(label) + "\n")
+		} else {
+			sb.WriteString(ptr + dimBoldStyle.Render(keyBadge) + "  " + currentTheme.TableCellStyle.Render(label) + "\n")
+		}
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("0-9: quick select  ·  ▲/▼ or j/k: navigate  ·  Enter: apply  ·  Esc: close"))
 
 	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
@@ -1587,6 +1740,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowGraphMap {
 		return renderGraphModal(d, e, width, height)
+	}
+
+	if e.ShowTrackModal {
+		return renderTrackModal(d, e, width, height)
 	}
 
 	if e.Mode == ModePrompt {
@@ -1774,10 +1931,13 @@ func navStatus(d Deck, e Editor, w int) string {
 			left += "  ·  [path: " + trail + "]"
 		}
 	}
+	if e.ActiveTrack != "" {
+		left += fmt.Sprintf("  ·  [★ track: %s]", e.ActiveTrack)
+	}
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · M map · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · K track · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

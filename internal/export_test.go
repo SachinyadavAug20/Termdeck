@@ -260,3 +260,35 @@ End.`
 		t.Errorf("expected 'jumpToBranch' in script of exported HTML, got:\n%s", htmlStr)
 	}
 }
+
+func TestExportHTMLColumns(t *testing.T) {
+	src := `---
+title: Columns Export Test
+---
+
+# Slide With Columns
+
+:::columns
+### Left Column
+Left paragraph text.
+:::col
+### Right Column
+Right paragraph text.
+:::
+`
+	d := ParseDeck(src)
+	htmlStr := ExportHTML(d, "")
+
+	if !strings.Contains(htmlStr, "class=\"columns-grid\"") {
+		t.Errorf("expected 'columns-grid' in HTML export, got:\n%s", htmlStr)
+	}
+	if !strings.Contains(htmlStr, "class=\"column-item\"") {
+		t.Errorf("expected 'column-item' in HTML export, got:\n%s", htmlStr)
+	}
+	if !strings.Contains(htmlStr, "Left Column") || !strings.Contains(htmlStr, "Right Column") {
+		t.Errorf("expected Left Column and Right Column text in HTML export, got:\n%s", htmlStr)
+	}
+	if !strings.Contains(htmlStr, ".columns-grid {") {
+		t.Errorf("expected .columns-grid CSS definition in HTML export, got:\n%s", htmlStr)
+	}
+}

@@ -1264,6 +1264,74 @@ func TestRenderFocusModeView(t *testing.T) {
 	}
 }
 
+func TestRenderColumnsAndTrackModal(t *testing.T) {
+	src := `---
+title: Columns and Track View Test
+---
+
+::id s1
+::tags backend,arch
+# Slide 1
+
+:::columns
+### Left
+Left side content.
+:::col
+### Right
+Right side content.
+:::
+
+---
+
+::id s2
+::tags frontend
+# Slide 2
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// 1. Render normal view with columns
+	viewNormal := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewNormal, "Left") || !strings.Contains(viewNormal, "Right") {
+		t.Fatalf("expected Left and Right column content in view, got:\n%s", viewNormal)
+	}
+
+	// 2. Render focus mode on columns
+	ed.BlockIdx = 1 // columns block
+	ed.FocusMode = true
+	viewFocus := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewFocus, "Columns: 2 split") {
+		t.Fatalf("expected 'Columns: 2 split' in focus mode header, got:\n%s", viewFocus)
+	}
+	ed.FocusMode = false
+
+	// 3. Render Track Modal
+	ed.ShowTrackModal = true
+	viewTrack := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewTrack, "Audience Tracks") || !strings.Contains(viewTrack, "backend") || !strings.Contains(viewTrack, "frontend") {
+		t.Fatalf("expected Audience Tracks modal with tags, got:\n%s", viewTrack)
+	}
+	ed.ShowTrackModal = false
+
+	// 4. Render Graph Modal with active track
+	ed.ActiveTrack = "backend"
+	ed.ShowGraphMap = true
+	viewGraph := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewGraph, "★ Track: backend") {
+		t.Fatalf("expected Track header in graph modal, got:\n%s", viewGraph)
+	}
+	if !strings.Contains(viewGraph, "★") {
+		t.Fatalf("expected star badge for track nodes in graph modal, got:\n%s", viewGraph)
+	}
+	ed.ShowGraphMap = false
+
+	// 5. Render navStatus with active track
+	status := stripANSI(navStatus(d, ed, 200))
+	if !strings.Contains(status, "[★ track: backend]") {
+		t.Fatalf("expected '[★ track: backend]' in nav status, got:\n%s", status)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

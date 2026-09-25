@@ -5,6 +5,8 @@ title: termdeck demo
 theme: tokyo-night
 ---
 
+::id intro
+::tags intro,demo
 ::align left
 # termdeck
 
@@ -24,6 +26,8 @@ A terminal-native presentation format designed by developers, for developers.
 
 ---
 
+::id why-terminal
+::tags intro,demo
 ::align left
 # Why Terminal?
 
@@ -65,6 +69,8 @@ Mix styles seamlessly: **bold with *italic* text** inside.
 
 ---
 
+::id arch-comparison
+::tags arch,demo
 ::align left
 # Architecture & Comparison
 
@@ -295,6 +301,7 @@ Speaker notes are isolated from audience view.
 ---
 
 ::id branching-hub
+::tags arch,demo,tracks
 ::align left
 # Non-Linear Branching & DAG Engine
 
@@ -310,12 +317,15 @@ Presenters dynamically steer the presentation based on audience choice:
 
 ::branch [4] Deep Dive: Live Code Runner & Zoom Focus -> runner-deepdive
 
+::branch [5] Deep Dive: Multi-Column Split & Audience Tracks -> columns-deepdive
+
 > [!TIP]
-> Press `1`, `2`, `3`, or `4` to take a branch immediately, or press `M` to explore the DAG topology map!
+> Press `1`, `2`, `3`, `4`, or `5` to take a branch immediately, or press `M` to explore the DAG topology map!
 
 ---
 
 ::id arch-deepdive
+::tags arch,demo
 ::next conclusion
 ::align left
 # Core Architecture & DAG Topology
@@ -337,6 +347,7 @@ Termdeck presentations can converge and fork anywhere:
 ---
 
 ::id autoplay-deepdive
+::tags demo
 ::next conclusion
 ::align left
 # Rehearsal & Autoplay Pacing
@@ -357,6 +368,7 @@ Prepare talk pacing with hands-free automated rehearsal:
 ---
 
 ::id export-deepdive
+::tags demo,export
 ::next conclusion
 ::align left
 # Offline HTML & Diagram Exports
@@ -377,6 +389,7 @@ Share technical ideas beyond the terminal:
 ---
 
 ::id runner-deepdive
+::tags dev,demo
 ::next conclusion
 ::align left
 # Live Code Runner & Zoom Focus Mode
@@ -395,18 +408,48 @@ Termdeck lets developers execute live code directly during presentations:
 # Live bash execution test
 uname -s -m
 echo "Termdeck presentation engine: 100% operational"
+::code
 
 ::code lang=python
 # Verified live calculation
 import math
 print(f"Verified live prime count up to 50: {len([p for p in range(2, 50) if all(p%d!=0 for d in range(2, int(p**0.5)+1))])}")
+::code
 
 > [!TIP]
 > Focus on either code block above and press `X` to run, or press `f` to enter Zoom Focus mode!
 
 ---
 
+::id columns-deepdive
+::tags arch,demo,tracks
+::next conclusion
+::align left
+# Multi-Column Split & Audience Tracks
+
+Present side-by-side technical content and tailor presentations to audience tracks:
+
+:::columns
+### Backend / Arch Track
+- Systems design & internals
+- Zero-alloc rendering loops
+- Deterministic DAG traversal
+- Tag with `::tags arch,backend`
+:::col
+### Developer Experience Track
+- Live terminal execution (`X`)
+- Instant element zoom (`f`)
+- Non-linear branches (`1-9`, `M`)
+- Press `K` for audience tracks
+:::
+
+> [!TIP]
+> Press `K` to filter presentation flow by audience track, or use `[` / `]` to hop along track slides!
+
+---
+
 ::id conclusion
+::tags demo,summary
 ::align left
 # Developer Summary
 

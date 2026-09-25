@@ -281,7 +281,6 @@ func (d *Deck) SlideIndicesForTag(tag string) []int {
 	return indices
 }
 
-
 func (d *Deck) FindSlideByID(target string) int {
 	target = strings.TrimSpace(target)
 	if target == "" {

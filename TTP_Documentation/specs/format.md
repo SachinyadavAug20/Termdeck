@@ -207,6 +207,35 @@ Standard GitHub-flavored Markdown tables are parsed into `BlockTable` blocks and
 
 Callouts are parsed into `BlockCallout` blocks and rendered with styled borders matching theme accent, warning, and success colors, prefixed with clear icons (`💡 TIP`, `ℹ NOTE`, `⚠ WARNING`, `🚨 IMPORTANT`, `🛑 CAUTION`, `❝ QUOTE`).
 
+#### Multi-Column Split Grids (`:::columns`)
+
+Multi-column side-by-side layouts are authored using container directives:
+
+```markdown
+:::columns
+### Problem: Monolith
+- Tight coupling
+- Long compile times
+:::col
+### Solution: Micro-Engines
+- Modular boundaries
+- Sub-millisecond frames
+:::
+```
+
+Alternative syntax: `::columns` or `::split` containers with `::col` column separators. Inside each column, any Markdown element (headings, paragraphs, code blocks, diffs, tables, callouts, lists, images) is parsed recursively. Column widths are dynamically balanced based on terminal viewport width with configured horizontal gaps.
+
+#### `::tags`
+
+```markdown
+::tags backend,arch,demo
+```
+
+Comma-separated tags associated with the slide. Tags power **Audience Tracks**, allowing presenters to tailor presentation flow dynamically for different audiences:
+- Press `K` to open the Track Selection Modal.
+- Press `[` and `]` to hop directly backward or forward along slides matching the active track.
+- Pass `-k, --track <name>` on the CLI to filter TUI startup or CLI DAG diagrams (`--graph`).
+
 #### `::notes`
 
 ```
@@ -232,6 +261,8 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `←`, `h`, `PageUp` | Previous slide |
 | `1` – `9` | Jump directly along numbered branch option |
 | `Backspace`, `H` | Backtrack along visited graph traversal history |
+| `K` | Open Audience Tracks & Subgraph Filtering modal (`0`-`9` quick select) |
+| `[`, `]` | Hop backward / forward along slides matching active audience track |
 | `M` | Open presentation graph map & DAG explorer modal |
 | `X`, `Ctrl+X` | Run focused code block live in background & show output card |
 | `f`, `F` | Toggle Element Zoom & Focus Mode (full-viewport view with `j`/`k` scroll) |

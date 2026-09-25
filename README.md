@@ -16,6 +16,13 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 25 September 2026 (v0.7.0)
+- [x] **Multi-Column Side-by-Side Split Grids (`:::columns` ... `:::col`)**: native multi-column responsive layout engine allowing developers to present technical comparisons (e.g. Problem vs Solution, Rust vs Go, Backend vs Frontend) side-by-side with balanced column widths, padding, and divider spacing
+- [x] **Audience Tracks & Subgraph Filtering (`K` / `[` / `]` / `--track`)**: tag slides with `::tags <tags>` and filter presentations dynamically for different audiences (e.g. executive overview vs backend deep-dive vs live workshop); hop along track slides with `[` / `]`; explore track-filtered topology with `K` modal
+- [x] **CLI Audience Track Integration (`-k, --track <name>`)**: filter TUI presentation, ASCII DAG map (`--graph --track=<name>`), and Mermaid exports (`--mermaid --track=<name>`) to targeted audience tracks directly from shell
+- [x] **Responsive Multi-Column HTML Export**: standalone HTML presentations export `.columns-grid` with CSS Flexbox side-by-side columns and responsive mobile stacked fallback
+- [x] **138 Automated Unit Tests** maintaining **90.5% statement coverage** in `internal/` with zero external runtime dependencies and sub-millisecond per-frame rendering
+
 #### 24 September 2026
 - [x] **Live Terminal Code Runner (`X` / `ctrl+x`)**: execute focused code blocks (bash, sh, zsh, python, go, node, ruby) live during presentations with output card, green/red exit badges, and stdout/stderr capture
 - [x] **Element Zoom & Focus Mode (`f` / `F`)**: maximize code snippets, architecture diagrams, and tables to full terminal viewport with dynamic line numbers, vertical scrolling (`j`/`k`), and integrated live execution
@@ -134,8 +141,10 @@ deck [options] <file.deck.md>
 
 # Options:
 #   -s, --start-at <N>   Start at slide N
+#   -k, --track <name>   Filter slides and DAG navigation to audience track
 #   -t, --theme <name>   Set presentation theme
 #       --list-themes    List all available themes
+#       --track <name>   Filter slides, ASCII DAG, and Mermaid output by track
 #   -w, --watch          Watch file for external changes and auto-reload
 #   -a, --autoplay <sec> Auto-advance slides every N seconds (default: 5)
 #       --graph          Print presentation topology map (ASCII DAG) to terminal
@@ -156,6 +165,8 @@ deck [options] <file.deck.md>
 | `←` `h` `PageUp` | Previous slide |
 | `1` – `9` | Jump directly along numbered branch / fork option |
 | `Backspace` `H` | Backtrack along visited graph traversal history |
+| `K` | Open Audience Tracks & Subgraph Filtering modal (`0`-`9` quick select) |
+| `[` / `]` | Hop backward / forward along slides matching active audience track |
 | `M` | Open interactive presentation graph map & DAG explorer modal |
 | `X` `Ctrl+X` | Run focused code block live in background & show output card |
 | `f` / `F` | Toggle Element Zoom & Focus Mode (full-viewport view with `j`/`k` scroll) |
@@ -234,20 +245,22 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **CI/CD Automated Code Testing (`--test-code`)**: Validate all executable code snippets across the deck in headless CI mode (`deck --test-code demo.deck.md`), returning exit code 0 if all snippets execute cleanly and non-zero on failure.
 - **Direct Slide Execution CLI (`--run-slide <N>`)**: Run code blocks from slide N directly in the shell without entering the TUI.
 - **Non-Linear DAG Traversal Breadcrumb Tracking**: Real-time journey breadcrumbs (`[01:intro] ──► [15:hub] ──► [19:runner]`) in the status bar and topology explorer modal, ensuring audiences and speakers never lose orientation during branching talks.
+- **Multi-Column Side-by-Side Split Grids**: Present comparisons side-by-side with native terminal split layouts (`:::columns` ... `:::col` ... `:::columns` or `::split`), automatically balancing terminal column widths and vertical alignment
+- **Audience Tracks & Subgraph Filtering**: Tailor talks to specific audiences (backend engineers, management, live workshops) using slide tags (`::tags <tags>`); switch active tracks on the fly with the Track Modal (`K`), hop along track slides (`[` / `]`), or filter CLI outputs (`deck --track=<name> --graph`)
 - **Non-Linear Directed Graph (DAG) Engine**: Break free from rigid linear slides! Author interactive decision forks (`::branch [key] label -> target` or `-> [label](target)`), direct numerical jumping (`1`–`9`), back-stack traversal (`Backspace` / `H`), convergence (`::next <slug>`), and interactive topology explorer modal (`M`)
 - **ASCII DAG & Mermaid Diagrams**: Inspect deck topology directly in your terminal with `deck --graph <deck.md>` or export Mermaid syntax for GitHub with `deck --mermaid <deck.md>`
 - **Standalone Offline HTML Export**: Press `E` or pass `--export-html` to generate a self-contained single-file HTML presentation with embedded CSS, base64 images, and interactive JavaScript navigation
 - **Presentation Statistics & Deck Metrics**: Press `S` or pass `--stats` for talk duration estimates (130 WPM), code density metrics, block counts, and sprint task checklist velocity
 - **Rehearsal & Autoplay Mode**: Press `A` or pass `-a, --autoplay [sec]` for automated rehearsal pacing with countdown timer, loop restart, and manual override protection
 - **Live File Watch & Hot-Reload**: Start with `-w` or `--watch` to auto-reload on file edits from external editors/IDEs, or press `r` / `R` anytime to reload manually (safeguards protect active in-app edit sessions)
-- **CLI Options**: `--graph`, `--mermaid`, `--test-code`, `--run-slide <N>`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
+- **CLI Options**: `-k, --track <name>`, `--graph`, `--mermaid`, `--test-code`, `--run-slide <N>`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **90.0% statement coverage** in `internal/` with 105 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **90.5% statement coverage** in `internal/` with 138 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

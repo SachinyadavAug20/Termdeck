@@ -1784,3 +1784,185 @@ func TestEditorFocusModeAndLiveRunner(t *testing.T) {
 		t.Fatalf("expected FocusMode false after 'esc'")
 	}
 }
+
+func TestEditorAudienceTracksAndModal(t *testing.T) {
+	src := `---
+title: Tracks Test
+---
+
+::id s1
+::tags arch
+# Slide 1 (Arch)
+
+---
+
+::id s2
+::tags demo
+# Slide 2 (Demo)
+
+---
+
+::id s3
+::tags arch,demo
+# Slide 3 (Both)
+
+---
+
+::id s4
+# Slide 4 (Untagged)
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// SelectTrack for "demo": current slide is s1 (arch), so it should auto-hop to s2 (demo)
+	ed.SelectTrack("demo", &d)
+	if ed.ActiveTrack != "demo" {
+		t.Errorf("expected ActiveTrack 'demo', got %q", ed.ActiveTrack)
+	}
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected SlideIdx 1 (slide 2), got %d", ed.SlideIdx)
+	}
+
+	// NextTrackSlide hops to slide 3 (index 2) which also has tag "demo"
+	if !ed.NextTrackSlide(&d) {
+		t.Errorf("expected NextTrackSlide to succeed")
+	}
+	if ed.SlideIdx != 2 {
+		t.Errorf("expected SlideIdx 2 (slide 3), got %d", ed.SlideIdx)
+	}
+
+	// NextTrackSlide wraps around back to slide 2 (index 1)
+	if !ed.NextTrackSlide(&d) {
+		t.Errorf("expected NextTrackSlide wrap-around to succeed")
+	}
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected SlideIdx 1 (slide 2), got %d", ed.SlideIdx)
+	}
+
+	// PrevTrackSlide steps backward to slide 3 (index 2)
+	if !ed.PrevTrackSlide(&d) {
+		t.Errorf("expected PrevTrackSlide to succeed")
+	}
+	if ed.SlideIdx != 2 {
+		t.Errorf("expected SlideIdx 2 (slide 3), got %d", ed.SlideIdx)
+	}
+
+	// SelectTrack("all") clears active track
+	ed.SelectTrack("all", &d)
+	if ed.ActiveTrack != "" {
+		t.Errorf("expected ActiveTrack to be cleared by 'all'")
+	}
+
+	// When ActiveTrack is empty, NextTrackSlide and PrevTrackSlide behave as linear slide advances
+	ed.SlideIdx = 0
+	if !ed.NextTrackSlide(&d) || ed.SlideIdx != 1 {
+		t.Errorf("expected NextTrackSlide without active track to advance to 1")
+	}
+	if !ed.PrevTrackSlide(&d) || ed.SlideIdx != 0 {
+		t.Errorf("expected PrevTrackSlide without active track to return to 0")
+	}
+
+	// Test nil deck handling
+	var nilDeck *Deck
+	if ed.NextTrackSlide(nilDeck) || ed.PrevTrackSlide(nilDeck) {
+		t.Errorf("expected nil deck to return false")
+	}
+
+	// Test 'K' key to toggle Track Modal
+	sendTestKey(&ed, &d, "K")
+	if !ed.ShowTrackModal {
+		t.Fatalf("expected ShowTrackModal true after 'K'")
+	}
+
+	// Test cursor movement in Track Modal
+	sendTestKey(&ed, &d, "j")
+	if ed.TrackCursor != 1 {
+		t.Errorf("expected TrackCursor 1 after 'j', got %d", ed.TrackCursor)
+	}
+	sendTestKey(&ed, &d, "k")
+	if ed.TrackCursor != 0 {
+		t.Errorf("expected TrackCursor 0 after 'k', got %d", ed.TrackCursor)
+	}
+	sendTestKey(&ed, &d, "G")
+	if ed.TrackCursor == 0 {
+		t.Errorf("expected TrackCursor > 0 after 'G'")
+	}
+	sendTestKey(&ed, &d, "g")
+	if ed.TrackCursor != 0 {
+		t.Errorf("expected TrackCursor 0 after 'g', got %d", ed.TrackCursor)
+	}
+
+	// Quick select with number keys: '1' selects first tag ("arch")
+	sendTestKey(&ed, &d, "1")
+	if ed.ShowTrackModal {
+		t.Errorf("expected modal to dismiss after '1'")
+	}
+	if ed.ActiveTrack != "arch" {
+		t.Errorf("expected ActiveTrack 'arch' after '1', got %q", ed.ActiveTrack)
+	}
+
+	// Open modal again and select "0" (all slides)
+	sendTestKey(&ed, &d, "K")
+	sendTestKey(&ed, &d, "0")
+	if ed.ShowTrackModal || ed.ActiveTrack != "" {
+		t.Errorf("expected modal dismissed and ActiveTrack empty after '0'")
+	}
+
+	// Open modal, move cursor down and press Enter
+	sendTestKey(&ed, &d, "K")
+	sendTestKey(&ed, &d, "j")
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowTrackModal || ed.ActiveTrack == "" {
+		t.Errorf("expected modal dismissed and active track applied after enter")
+	}
+
+	// Open modal and dismiss via esc
+	sendTestKey(&ed, &d, "K")
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowTrackModal {
+		t.Errorf("expected modal dismissed after esc")
+	}
+
+	// Test '[' and ']' keys in nav mode
+	ed.ActiveTrack = "demo"
+	ed.SlideIdx = 1
+	sendTestKey(&ed, &d, "]")
+	if ed.SlideIdx != 2 {
+		t.Errorf("expected SlideIdx 2 after ']', got %d", ed.SlideIdx)
+	}
+	sendTestKey(&ed, &d, "[")
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected SlideIdx 1 after '[', got %d", ed.SlideIdx)
+	}
+}
+
+func TestRunFocusedCodeInColumns(t *testing.T) {
+	src := `---
+title: Columns Code Run
+---
+
+# Slide 1
+
+:::columns
+### Col A
+Some intro
+:::col
+### Col B
+::code lang=bash
+echo "inside column"
+::code
+:::
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+	ed.SlideIdx = 0
+	ed.BlockIdx = 1 // the BlockColumns block
+
+	cmd := ed.RunFocusedCode(&d)
+	if cmd == nil {
+		t.Fatalf("expected non-nil cmd when executing code inside column")
+	}
+	if !ed.RunningCode {
+		t.Errorf("expected RunningCode to be true")
+	}
+}

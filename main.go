@@ -11,7 +11,7 @@ import (
 	tea "github.com/charmbracelet/bubbletea"
 )
 
-const version = "0.4.0"
+const version = "0.7.0"
 
 type model struct {
 	deck        internal.Deck
@@ -128,6 +128,7 @@ Usage:
 
 Options:
   -s, --start-at <N>   Start presentation at slide N (1-based)
+  -k, --track <name>   Filter slides and DAG navigation to audience track
   -t, --theme <name>   Set presentation color theme
       --list-themes    List all available color themes
   -w, --watch          Watch deck file for external changes and auto-reload
@@ -144,6 +145,7 @@ Options:
 Controls:
   Navigation:   → / l / Space / Enter (next / advance edge), ← / h (prev)
   Branching:    1-9 (follow branch option), Backspace / H (backtrack traversal)
+  Audience:     K (audience tracks & subgraph filter), [ / ] (hop along track)
   Graph Map:    M (presentation graph map & DAG explorer)
   Pointer:      ↓ / j (down), ↑ / k (up)
   Jumps:        / (jump to slide by number/search), g (first), G (last)
@@ -184,6 +186,7 @@ func main() {
 	var showMermaid bool
 	var testCode bool
 	var runSlideNum int
+	var cliTrack string
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -199,6 +202,13 @@ func main() {
 			listThemes = true
 		case arg == "-w" || arg == "--watch":
 			watchMode = true
+		case arg == "-k" || arg == "--track":
+			if i+1 < len(args) {
+				i++
+				cliTrack = args[i]
+			}
+		case strings.HasPrefix(arg, "--track="):
+			cliTrack = strings.TrimPrefix(arg, "--track=")
 		case arg == "-a" || arg == "--autoplay":
 			autoplayMode = true
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") && !strings.HasSuffix(args[i+1], ".deck.md") && !strings.HasSuffix(args[i+1], ".md") {
@@ -339,7 +349,11 @@ func main() {
 			d.Theme = cliTheme
 		}
 		theme := internal.ResolveTheme(d.Theme)
-		fmt.Print(internal.FormatGraphCLI(d, theme))
+		if cliTrack != "" {
+			fmt.Print(internal.FormatGraphCLIWithTrack(d, theme, cliTrack))
+		} else {
+			fmt.Print(internal.FormatGraphCLI(d, theme))
+		}
 		return
 	}
 
@@ -357,7 +371,11 @@ func main() {
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
 		g := internal.BuildGraph(d)
-		fmt.Print(g.ToMermaid())
+		if cliTrack != "" {
+			fmt.Print(g.ToMermaidWithTrack(cliTrack))
+		} else {
+			fmt.Print(g.ToMermaid())
+		}
 		return
 	}
 
@@ -450,6 +468,10 @@ func main() {
 	if cliTheme != "" {
 		m.deck.Theme = cliTheme
 		m.editor.Theme = cliTheme
+	}
+
+	if cliTrack != "" {
+		m.editor.SelectTrack(cliTrack, &m.deck)
 	}
 
 	if startAt > 0 {

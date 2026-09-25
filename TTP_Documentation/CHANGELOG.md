@@ -1,5 +1,29 @@
 # Changelog
 
+## v0.7 — 25 September 2026
+
+### Added
+- **Multi-Column Side-by-Side Split Grids (`BlockColumns`)**:
+  - Author split layouts with `:::columns` (or `:::split` / `::split`) and column dividers `:::col` (or `::col`).
+  - Supports recursive block parsing inside columns: any valid Markdown construct (headings, text, code blocks, diffs, tables, callout admonitions, tasks, images) works within each column.
+  - Dynamically calculates column widths `(viewportWidth - totalGaps) / columnCount` with horizontal joining via `lipgloss.JoinHorizontal`.
+  - Laser cursor alignment and element zoom focus mode (`f` / `F`) support for multi-column structures.
+  - Live code runner execution (`X`, `x`) detects and executes code blocks situated within columns.
+  - Headless CI automated testing (`--test-code`) traverses and validates code blocks nested inside multi-column grids.
+  - Standalone HTML export (`ExportHTML`) emits responsive CSS Flexbox `.columns-grid` with `.column-item` cells and mobile breakpoint fallback.
+- **Audience Tracks & Subgraph Filtering**:
+  - Tag slides with `::tags <tag1>,<tag2>` in `.deck.md` files.
+  - Interactive Track Selection Modal (`K`): dedicated terminal modal listing all unique tags in the deck with slide counts and active indicators. Quick-select tags via `0` (all slides) or numbers `1`–`9`.
+  - Sequential Track Navigation (`[` and `]`): hop directly between slides tagged with the active track without altering the deck's underlying slide order.
+  - Status bar indicator: displays active track badge `[★ track: <name>]`.
+  - Graph Modal (`M`) track integration: displays active track summary header and highlights matching track nodes with `★` and accent badges.
+  - Subgraph Extraction (`DeckGraph.FilterByTag`): filters full DAG topology to isolate only nodes belonging to a designated audience track.
+  - Mermaid Export (`g.ToMermaidWithTrack`): annotates track nodes with `classDef trackNode` and `class nodeX trackNode;` styling.
+  - Terminal ASCII DAG Map (`FormatGraphCLIWithTrack`): displays `[Track: <name>]` in the header and badges track nodes with `★ <name>`.
+- **CLI Options**:
+  - `-k, --track <name>` and `--track=<name>`: launches TUI presentation locked to an audience track, or scopes `--graph` ASCII DAG / `--mermaid` diagrams.
+- Expanded automated test suite to **138 tests** achieving **90.5% statement coverage** in `deck/internal` with zero external dependencies beyond Bubble Tea and Lipgloss.
+
 ## v0.6 — 24 September 2026
 
 ### Added

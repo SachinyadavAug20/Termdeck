@@ -803,6 +803,231 @@ title: Branch Deck
 	}
 }
 
+func TestColumnsParsingAndSerialization(t *testing.T) {
+	src := `---
+title: Split Columns Demo
+---
+
+# Slide With Columns
+
+:::columns
+### Left Column
+Left paragraph text.
+
+- Left item 1
+- Left item 2
+:::col
+### Right Column
+Right paragraph text.
+
+::code lang=go
+fmt.Println("right")
+::code
+:::
+
+---
+
+# Split Alternative Syntax
+
+::split
+Column A
+::col
+Column B
+::split
+`
+	deck := ParseDeck(src)
+	if len(deck.Slides) != 2 {
+		t.Fatalf("expected 2 slides, got %d", len(deck.Slides))
+	}
+
+	s1 := deck.Slides[0]
+	var colBlock *Block
+	for _, b := range s1.Blocks {
+		if b.Kind == BlockColumns {
+			colBlock = &b
+			break
+		}
+	}
+	if colBlock == nil {
+		t.Fatalf("expected BlockColumns on slide 1")
+	}
+	if len(colBlock.Columns) != 2 {
+		t.Fatalf("expected 2 columns, got %d", len(colBlock.Columns))
+	}
+	if len(colBlock.Columns[0]) < 2 {
+		t.Errorf("expected left column to have at least 2 blocks, got %d", len(colBlock.Columns[0]))
+	}
+	if len(colBlock.Columns[1]) < 2 {
+		t.Errorf("expected right column to have at least 2 blocks, got %d", len(colBlock.Columns[1]))
+	}
+
+	summary := s1.Summary()
+	if !strings.Contains(summary, "cols") {
+		t.Errorf("expected summary to include 'cols', got %q", summary)
+	}
+
+	// Test alternative ::split syntax
+	s2 := deck.Slides[1]
+	var colBlock2 *Block
+	for _, b := range s2.Blocks {
+		if b.Kind == BlockColumns {
+			colBlock2 = &b
+			break
+		}
+	}
+	if colBlock2 == nil {
+		t.Fatalf("expected BlockColumns on slide 2 from ::split")
+	}
+	if len(colBlock2.Columns) != 2 {
+		t.Fatalf("expected 2 columns on slide 2, got %d", len(colBlock2.Columns))
+	}
+
+	// Test serialization round-trip
+	serialized := SerializeDeck(deck)
+	reparsed := ParseDeck(serialized)
+	if len(reparsed.Slides) != 2 {
+		t.Fatalf("expected 2 reparsed slides, got %d", len(reparsed.Slides))
+	}
+	var reparsedCol *Block
+	for _, b := range reparsed.Slides[0].Blocks {
+		if b.Kind == BlockColumns {
+			reparsedCol = &b
+			break
+		}
+	}
+	if reparsedCol == nil || len(reparsedCol.Columns) != 2 {
+		t.Fatalf("expected reparsed BlockColumns with 2 columns")
+	}
+}
+
+func TestSlideTagsAndAudienceTracks(t *testing.T) {
+	src := `---
+title: Tag Test
+---
+
+::id s1
+::tags backend,arch
+# Slide 1
+
+---
+
+::id s2
+::tags frontend,ui
+# Slide 2
+
+---
+
+::id s3
+::tags backend,performance
+# Slide 3
+`
+	deck := ParseDeck(src)
+	if len(deck.Slides) != 3 {
+		t.Fatalf("expected 3 slides, got %d", len(deck.Slides))
+	}
+
+	s1 := &deck.Slides[0]
+	if !s1.HasTag("backend") {
+		t.Errorf("expected s1 to have tag backend")
+	}
+	if !s1.HasTag("BACKEND") {
+		t.Errorf("expected s1 to have tag BACKEND (case insensitive)")
+	}
+	if !s1.HasTag("arch") {
+		t.Errorf("expected s1 to have tag arch")
+	}
+	if s1.HasTag("frontend") {
+		t.Errorf("s1 should not have frontend tag")
+	}
+	if !s1.HasTag("") {
+		t.Errorf("empty tag should match any slide")
+	}
+	if !s1.HasTag("all") {
+		t.Errorf("'all' tag should match any slide")
+	}
+
+	allTags := deck.AllTags()
+	expectedTags := []string{"backend", "arch", "frontend", "ui", "performance"}
+	if len(allTags) != len(expectedTags) {
+		t.Fatalf("expected %d unique tags, got %d: %+v", len(expectedTags), len(allTags), allTags)
+	}
+
+	backendIndices := deck.SlideIndicesForTag("backend")
+	if len(backendIndices) != 2 || backendIndices[0] != 0 || backendIndices[1] != 2 {
+		t.Errorf("expected backend indices [0, 2], got %+v", backendIndices)
+	}
+
+	frontendIndices := deck.SlideIndicesForTag("frontend")
+	if len(frontendIndices) != 1 || frontendIndices[0] != 1 {
+		t.Errorf("expected frontend indices [1], got %+v", frontendIndices)
+	}
+
+	nonexistentIndices := deck.SlideIndicesForTag("devops")
+	if len(nonexistentIndices) != 0 {
+		t.Errorf("expected 0 indices for nonexistent tag, got %+v", nonexistentIndices)
+	}
+}
+
+func TestSlideTitleAndBranches(t *testing.T) {
+	// 1. Heading slide
+	sHeading := Slide{Blocks: []Block{{Kind: BlockHeading, Text: "My Heading"}}}
+	if sHeading.Title() != "My Heading" {
+		t.Errorf("expected 'My Heading', got %q", sHeading.Title())
+	}
+
+	// 2. Short paragraph slide
+	sShortPara := Slide{Blocks: []Block{{Kind: BlockParagraph, Text: "Short paragraph"}}}
+	if sShortPara.Title() != "Short paragraph" {
+		t.Errorf("expected 'Short paragraph', got %q", sShortPara.Title())
+	}
+
+	// 3. Long paragraph slide (> 30 chars)
+	sLongPara := Slide{Blocks: []Block{{Kind: BlockParagraph, Text: "This is a very long paragraph that definitely exceeds thirty characters."}}}
+	if !strings.HasSuffix(sLongPara.Title(), "...") {
+		t.Errorf("expected truncated title with ellipsis, got %q", sLongPara.Title())
+	}
+
+	// 4. Empty slide with no heading or paragraph
+	sEmpty := Slide{Blocks: []Block{{Kind: BlockCode, Text: "code"}}}
+	if sEmpty.Title() != "Slide" {
+		t.Errorf("expected fallback 'Slide', got %q", sEmpty.Title())
+	}
+
+	// 5. HasBranches check
+	deckNoBranches := Deck{Slides: []Slide{sHeading, sShortPara}}
+	if deckNoBranches.HasBranches() {
+		t.Errorf("expected HasBranches false for linear deck")
+	}
+
+	deckWithNext := Deck{Slides: []Slide{{NextID: "outro"}}}
+	if !deckWithNext.HasBranches() {
+		t.Errorf("expected HasBranches true for deck with NextID")
+	}
+}
+
+func TestParseCodeLangAndFlags(t *testing.T) {
+	cases := []struct {
+		input        string
+		expectedL    string
+		expectedEval bool
+	}{
+		{"go", "go", false},
+		{"python no-eval", "python", true},
+		{"lang=bash eval=false", "bash", true},
+		{"sh run=false", "sh", true},
+		{"rust ignore", "rust", true},
+		{"ts noexec", "ts", true},
+		{`"javascript"`, "javascript", false},
+	}
+
+	for _, tc := range cases {
+		lang, noEval := parseCodeLangAndFlags(tc.input)
+		if lang != tc.expectedL || noEval != tc.expectedEval {
+			t.Errorf("parseCodeLangAndFlags(%q) = (%q, %v); expected (%q, %v)", tc.input, lang, noEval, tc.expectedL, tc.expectedEval)
+		}
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

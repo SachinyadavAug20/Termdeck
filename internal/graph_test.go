@@ -284,3 +284,75 @@ title: Path Test
 		t.Fatalf("expected empty branch summary for slide without branches, got %q", noBs)
 	}
 }
+
+func TestGraphFilterByTagAndTracks(t *testing.T) {
+	src := `---
+title: Track Topology Test
+---
+
+::id intro
+::tags backend,intro
+# Intro
+::branch [1] Backend Dive -> backend-dive
+::branch [2] Frontend Dive -> frontend-dive
+
+---
+
+::id backend-dive
+::tags backend
+::next summary
+# Backend Deep Dive
+
+---
+
+::id frontend-dive
+::tags frontend
+::next summary
+# Frontend Deep Dive
+
+---
+
+::id summary
+::tags backend,summary
+# Summary
+`
+	deck := ParseDeck(src)
+	g := BuildGraph(deck)
+
+	// FilterByTag
+	filtered := g.FilterByTag("backend")
+	if len(filtered.Nodes) != 3 {
+		t.Errorf("expected 3 nodes in backend filtered graph, got %d", len(filtered.Nodes))
+	}
+	allFiltered := g.FilterByTag("")
+	if len(allFiltered.Nodes) != 4 {
+		t.Errorf("expected 4 nodes when filter is empty, got %d", len(allFiltered.Nodes))
+	}
+	noneFiltered := g.FilterByTag("devops")
+	if len(noneFiltered.Nodes) != 0 {
+		t.Errorf("expected 0 nodes for devops filter, got %d", len(noneFiltered.Nodes))
+	}
+
+	// ToMermaidWithTrack
+	mmdWithTrack := g.ToMermaidWithTrack("backend")
+	if !strings.Contains(mmdWithTrack, "classDef trackNode") {
+		t.Errorf("expected classDef trackNode in mermaid output, got:\n%s", mmdWithTrack)
+	}
+	if !strings.Contains(mmdWithTrack, "trackNode;") {
+		t.Errorf("expected node styling with trackNode in mermaid output, got:\n%s", mmdWithTrack)
+	}
+	mmdAll := g.ToMermaidWithTrack("")
+	if strings.Contains(mmdAll, "classDef trackNode") {
+		t.Errorf("expected no trackNode class when track is empty, got:\n%s", mmdAll)
+	}
+
+	// FormatGraphCLIWithTrack
+	theme := ResolveTheme("tokyo-night")
+	cliOut := FormatGraphCLIWithTrack(deck, theme, "backend")
+	if !strings.Contains(cliOut, "[Track: backend]") {
+		t.Errorf("expected [Track: backend] in CLI output, got:\n%s", cliOut)
+	}
+	if !strings.Contains(cliOut, "★ backend") {
+		t.Errorf("expected '★ backend' badge in CLI output, got:\n%s", cliOut)
+	}
+}

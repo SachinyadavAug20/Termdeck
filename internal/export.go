@@ -269,6 +269,19 @@ func renderBlockHTML(blk Block, baseDir string) string {
 		return fmt.Sprintf("    <div class=\"image-card\"><img src=\"%s\" alt=\"%s\" /><div class=\"image-caption\">%s</div></div>\n",
 			html.EscapeString(src), html.EscapeString(alt), html.EscapeString(alt))
 
+	case BlockColumns:
+		var sb strings.Builder
+		sb.WriteString("    <div class=\"columns-grid\">\n")
+		for _, col := range blk.Columns {
+			sb.WriteString("      <div class=\"column-item\">\n")
+			for _, inner := range col {
+				sb.WriteString(renderBlockHTML(inner, baseDir))
+			}
+			sb.WriteString("      </div>\n")
+		}
+		sb.WriteString("    </div>\n")
+		return sb.String()
+
 	default:
 		if strings.TrimSpace(blk.Text) != "" {
 			return fmt.Sprintf("    <p>%s</p>\n", formatInlineHTML(blk.Text))
@@ -479,6 +492,23 @@ func generateDeckCSS(theme Theme) string {
     width: 100%;
     border: none;
     border-top: 1px solid var(--border);
+  }
+  .columns-grid {
+    display: flex;
+    gap: 1.5rem;
+    justify-content: space-between;
+    width: 100%;
+    margin: 1.2rem 0;
+  }
+  .column-item {
+    flex: 1;
+    min-width: 0;
+  }
+  @media (max-width: 768px) {
+    .columns-grid {
+      flex-direction: column;
+      gap: 1rem;
+    }
   }
   .branch-fork-card {
     display: inline-flex;

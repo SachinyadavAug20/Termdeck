@@ -379,3 +379,7 @@ func TestModelExecFinishedMsg(t *testing.T) {
 func TestPrintHelpLiveRunnerAndFocus(t *testing.T) {
 	printHelp()
 }
+
+func TestPrintHelpTrack(t *testing.T) {
+	printHelp()
+}

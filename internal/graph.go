@@ -121,7 +121,42 @@ func BuildGraph(d Deck) DeckGraph {
 	return g
 }
 
-func (g DeckGraph) ToMermaid() string {
+func (g DeckGraph) FilterByTag(tag string) DeckGraph {
+	if tag == "" || strings.EqualFold(tag, "all") {
+		return g
+	}
+	tagLower := strings.ToLower(strings.TrimSpace(tag))
+	matches := make(map[int]bool)
+	for i, n := range g.Nodes {
+		for _, t := range n.Tags {
+			if strings.ToLower(strings.TrimSpace(t)) == tagLower {
+				matches[i] = true
+				break
+			}
+		}
+	}
+
+	var filteredNodes []GraphNode
+	for i, n := range g.Nodes {
+		if matches[i] {
+			filteredNodes = append(filteredNodes, n)
+		}
+	}
+
+	var filteredEdges []GraphEdge
+	for _, e := range g.Edges {
+		if matches[e.FromIndex] && matches[e.ToIndex] {
+			filteredEdges = append(filteredEdges, e)
+		}
+	}
+
+	return DeckGraph{
+		Nodes: filteredNodes,
+		Edges: filteredEdges,
+	}
+}
+
+func (g DeckGraph) ToMermaidWithTrack(track string) string {
 	var b strings.Builder
 	b.WriteString("graph LR\n")
 
@@ -155,7 +190,28 @@ func (g DeckGraph) ToMermaid() string {
 		}
 	}
 
+	if track != "" {
+		trackLower := strings.ToLower(strings.TrimSpace(track))
+		var trackNodes []string
+		for _, n := range g.Nodes {
+			for _, t := range n.Tags {
+				if strings.ToLower(strings.TrimSpace(t)) == trackLower {
+					trackNodes = append(trackNodes, fmt.Sprintf("node%d", n.Index))
+					break
+				}
+			}
+		}
+		if len(trackNodes) > 0 {
+			b.WriteString("\n  classDef trackNode fill:#22c55e,stroke:#16a34a,stroke-width:2px,color:#ffffff;\n")
+			fmt.Fprintf(&b, "  class %s trackNode;\n", strings.Join(trackNodes, ","))
+		}
+	}
+
 	return b.String()
+}
+
+func (g DeckGraph) ToMermaid() string {
+	return g.ToMermaidWithTrack("")
 }
 
 func (g DeckGraph) ReachableNodes(startIndex int) []int {
@@ -219,7 +275,7 @@ func (g DeckGraph) HasCycles() bool {
 	return false
 }
 
-func FormatGraphCLI(d Deck, theme Theme) string {
+func FormatGraphCLIWithTrack(d Deck, theme Theme, track string) string {
 	g := BuildGraph(d)
 	var b strings.Builder
 
@@ -244,7 +300,17 @@ func FormatGraphCLI(d Deck, theme Theme) string {
 	tagStyle := lipgloss.NewStyle().
 		Foreground(lipgloss.Color(theme.Comment))
 
-	b.WriteString(titleStyle.Render("Termdeck Presentation Topology Map (DAG)"))
+	trackBadgeStyle := lipgloss.NewStyle().
+		Bold(true).
+		Foreground(lipgloss.Color("#ffffff")).
+		Background(lipgloss.Color(theme.Accent)).
+		Padding(0, 1)
+
+	header := "Termdeck Presentation Topology Map (DAG)"
+	if track != "" {
+		header += fmt.Sprintf(" [Track: %s]", track)
+	}
+	b.WriteString(titleStyle.Render(header))
 	b.WriteString("\n")
 	b.WriteString(arrowStyle.Render(strings.Repeat("─", 50)))
 	b.WriteString("\n\n")
@@ -254,10 +320,26 @@ func FormatGraphCLI(d Deck, theme Theme) string {
 		return b.String()
 	}
 
+	trackLower := strings.ToLower(strings.TrimSpace(track))
+
 	for _, n := range g.Nodes {
+		isTrackNode := false
+		if trackLower != "" {
+			for _, t := range n.Tags {
+				if strings.ToLower(strings.TrimSpace(t)) == trackLower {
+					isTrackNode = true
+					break
+				}
+			}
+		}
+
 		b.WriteString(idxStyle.Render(fmt.Sprintf("[%02d]", n.Index+1)))
 		b.WriteString(" ")
-		b.WriteString(titleStyle.Render(n.Title))
+		if isTrackNode {
+			b.WriteString(titleStyle.Render(n.Title) + " " + trackBadgeStyle.Render("★ "+track))
+		} else {
+			b.WriteString(titleStyle.Render(n.Title))
+		}
 
 		if n.ID != "" {
 			b.WriteString(" " + tagStyle.Render("#"+n.ID))
@@ -340,6 +422,10 @@ func FormatGraphCLI(d Deck, theme Theme) string {
 	}
 
 	return b.String()
+}
+
+func FormatGraphCLI(d Deck, theme Theme) string {
+	return FormatGraphCLIWithTrack(d, theme, "")
 }
 
 // ShortestPath computes the sequence of slide indices representing the shortest path from 'from' to 'to' in the DAG using BFS.

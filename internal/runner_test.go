@@ -207,3 +207,49 @@ func TestTestAllDeckCode(t *testing.T) {
 		t.Fatalf("unexpected pass output: %s", outPass)
 	}
 }
+
+func TestTestAllDeckCodeWithColumnsAndDedent(t *testing.T) {
+	deck := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{
+						Kind: BlockColumns,
+						Columns: [][]Block{
+							{
+								{Kind: BlockCode, Lang: "sh", Text: "echo 'col 1'"},
+								{Kind: BlockCode, Lang: "sh", NoEval: true, Text: "rm -rf /"},
+								{Kind: BlockCode, Lang: "text", Text: "diagram"},
+								{Kind: BlockCode, Lang: "sh", Text: "   "},
+							},
+							{
+								{Kind: BlockCode, Lang: "bash", Lines: []string{"echo 'col 2'"}},
+								{Kind: BlockCode, Lang: "sh", Text: "exit 2"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	passed, failed, results := TestAllDeckCode(deck, 2*time.Second)
+	if passed != 2 || failed != 1 {
+		t.Fatalf("expected 2 passed, 1 failed from columns; got passed=%d, failed=%d", passed, failed)
+	}
+	if len(results) != 3 {
+		t.Fatalf("expected 3 results from columns, got %d", len(results))
+	}
+
+	// Test dedent
+	indented := "    def foo():\n        return 42\n"
+	dedented := dedent(indented)
+	if !strings.HasPrefix(dedented, "def foo():") {
+		t.Errorf("expected dedented code to start with 'def foo():', got:\n%s", dedented)
+	}
+
+	// Dedent single line or empty
+	if dedent("") != "" {
+		t.Errorf("expected empty string from dedent('')")
+	}
+}
