@@ -545,3 +545,99 @@ routes:
 		t.Fatalf("unexpected warning-only FormatLintCLI output: %s", warnOut)
 	}
 }
+
+func TestGetForkOptions(t *testing.T) {
+	// 1. Boundary cases
+	if opts := GetForkOptions(-1, Deck{}, "", ""); opts != nil {
+		t.Fatalf("expected nil for negative index")
+	}
+	if opts := GetForkOptions(0, Deck{}, "", ""); opts != nil {
+		t.Fatalf("expected nil for empty deck")
+	}
+
+	src := `---
+title: Branching Deck
+routes:
+  demo: hub -> target-a
+---
+
+::id hub
+# Hub Slide
+::branch Option A -> target-a
+::branch [2] Option B -> target-b
+
+---
+
+::id target-a
+::tags devops
+# Target A
+Here is some architecture explanation text with several words.
+` + "```go\nfunc main() {}\n```" + `
+
+---
+
+::id target-b
+::tags backend
+# Target B
+Another branch with code.
+` + "```python\nprint(1)\n```" + `
+
+---
+
+::id terminal
+# Terminal Slide
+`
+	d := ParseDeck(src)
+
+	// Hub slide (slide 0) with 2 branches
+	hubOpts := GetForkOptions(0, d, "devops", "demo")
+	if len(hubOpts) != 2 {
+		t.Fatalf("expected 2 fork options for hub slide, got %d", len(hubOpts))
+	}
+
+	optA := hubOpts[0]
+	if optA.Key != "1" || optA.Label != "Option A" || optA.TargetID != "target-a" || optA.TargetIndex != 1 {
+		t.Fatalf("unexpected optA: %+v", optA)
+	}
+	if optA.TargetTitle != "Target A" {
+		t.Fatalf("expected TargetTitle 'Target A', got %q", optA.TargetTitle)
+	}
+	if optA.CodeBlocksCount != 2 {
+		t.Fatalf("expected 2 code blocks in downstream for optA, got %d", optA.CodeBlocksCount)
+	}
+	if !optA.IsTrackMatch {
+		t.Fatalf("expected IsTrackMatch true for devops track")
+	}
+	if !optA.IsRouteMatch {
+		t.Fatalf("expected IsRouteMatch true for demo route")
+	}
+	if optA.DownstreamCount <= 0 || optA.EstimatedMin <= 0 {
+		t.Fatalf("expected positive DownstreamCount and EstimatedMin: %+v", optA)
+	}
+
+	optB := hubOpts[1]
+	if optB.Key != "2" || optB.Label != "Option B" || optB.TargetIndex != 2 {
+		t.Fatalf("unexpected optB: %+v", optB)
+	}
+	if optB.CodeBlocksCount != 1 {
+		t.Fatalf("expected 1 code block in downstream for optB, got %d", optB.CodeBlocksCount)
+	}
+	if optB.IsTrackMatch {
+		t.Fatalf("expected IsTrackMatch false for backend target on devops track")
+	}
+	if optB.IsRouteMatch {
+		t.Fatalf("expected IsRouteMatch false for target-b on demo route")
+	}
+
+	// Linear slide with sequential fallthrough (slide 1)
+	linearOpts := GetForkOptions(1, d, "", "")
+	if len(linearOpts) != 1 || linearOpts[0].Key != "→" || linearOpts[0].TargetIndex != 2 {
+		t.Fatalf("expected linear next option for slide 1: %+v", linearOpts)
+	}
+
+	// Terminal slide (slide 3) with no branches and no next
+	termOpts := GetForkOptions(3, d, "", "")
+	if len(termOpts) != 0 {
+		t.Fatalf("expected 0 fork options on terminal slide, got %d", len(termOpts))
+	}
+}

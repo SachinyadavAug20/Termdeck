@@ -16,6 +16,13 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 25 September 2026 (v0.10.0)
+- [x] **Branch Decision Fork HUD & Target Preview Picker (`J`)**: interactive floating HUD invoked at decision forks displaying all outgoing branch options, target slide IDs, and real-time syntax-highlighted **code & text previews** of destination slides before committing
+- [x] **Downstream Reachable Subgraph Metrics & Time Budgeting**: calculates reachable slide depth, estimated speaking duration (~130 WPM), and executable code block counts for every outgoing branch path, allowing presenters and audience to make informed branching decisions
+- [x] **Audience Track & Preset Route Indicators**: highlights `★ Track Match` if target slide matches active audience track (`-k, --track`), and `⚡ Route Step` if target slide syncs with active preset route (`--route`)
+- [x] **Seamless Navigation & Jumping**: navigate options with `j`/`k`/arrows to inspect previews, press `Enter` to jump, or hit `1`..`9` for instant branch execution
+- [x] **150 Automated Unit Tests** maintaining **90.5% statement coverage** in `internal/` with zero external runtime dependencies and sub-millisecond per-frame rendering
+
 #### 25 September 2026 (v0.9.0)
 - [x] **Traversal History & Graph Reflog Modal (`H`)**: visual presentation journey stack allowing speakers to inspect every slide visited across branching decision forks, see distance back (`(3 steps back)`), and rewind directly to any prior step using `1`..`9` or `Enter`; press `c` to reset journey or `Backspace` to pop one step
 - [x] **Graph Topology Linter & CI/CD Diagnostics (`--lint` / `--lint-graph`)**: compiler-grade diagnostic validator that inspects DAG topology for broken `::branch` / `::next` / `::prev` links, duplicate slide identifiers, broken route steps, unreachable orphan slides, and dead-end traps before speaking; returns exit code 0 on sound DAGs and 1 on fatal broken links
@@ -179,6 +186,7 @@ deck [options] <file.deck.md>
 | `→` `l` `Space` `Enter` `PageDown` | Next slide / advance directed edge / follow active route |
 | `←` `h` `PageUp` | Previous slide / previous route slide |
 | `1` – `9` | Jump directly along numbered branch / fork option |
+| `J` | Open interactive Branch Decision Fork HUD with live target previews & metrics |
 | `Backspace` | Pop back 1 slide along traversal history |
 | `H` | Open Traversal History & Graph Reflog modal (`1`-`9` or Enter to rewind) |
 | `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |

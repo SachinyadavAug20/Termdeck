@@ -1445,6 +1445,94 @@ func TestRenderHistoryModal(t *testing.T) {
 	}
 }
 
+func TestRenderBranchHUDModal(t *testing.T) {
+	src := `---
+title: Branch View Test
+routes:
+  demo: hub -> target-a
+---
+
+::id hub
+# Hub Slide
+::branch [1] Option Alpha -> target-a
+::branch [2] Option Beta -> target-b
+
+---
+
+::id target-a
+::tags backend
+# Target Alpha
+Live microservices code:
+` + "```go\nfunc StreamEvents() {}\n```" + `
+
+---
+
+::id target-b
+# Target Beta
+Simple summary text.
+
+---
+
+::id terminal
+# Terminal Slide
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// 1. Terminal slide with no outgoing branches
+	ed.SlideIdx = 3
+	emptyHUD := stripANSI(renderBranchHUDModal(d, ed, 100, 30))
+	if !strings.Contains(emptyHUD, "Branch Decision Fork HUD") || !strings.Contains(emptyHUD, "No outgoing branches or links") {
+		t.Fatalf("expected terminal slide message in HUD, got:\n%s", emptyHUD)
+	}
+
+	// 2. Hub slide HUD with options and previews
+	ed.SlideIdx = 0
+	ed.ShowBranchHUD = true
+	ed.ActiveTrack = "backend"
+	ed.ActiveRoute = "demo"
+
+	hudView := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(hudView, "Branch Decision Fork HUD") {
+		t.Fatalf("expected Branch Decision Fork HUD title in view, got:\n%s", hudView)
+	}
+	if !strings.Contains(hudView, "Option Alpha") || !strings.Contains(hudView, "Option Beta") {
+		t.Fatalf("expected Option Alpha and Option Beta in HUD, got:\n%s", hudView)
+	}
+	if !strings.Contains(hudView, "Track Match") {
+		t.Fatalf("expected Track Match badge in HUD, got:\n%s", hudView)
+	}
+	if !strings.Contains(hudView, "Route Step") {
+		t.Fatalf("expected Route Step badge in HUD, got:\n%s", hudView)
+	}
+	if !strings.Contains(hudView, "Destination Preview: [02] Target Alpha") {
+		t.Fatalf("expected destination preview box for selected target, got:\n%s", hudView)
+	}
+	if !strings.Contains(hudView, "StreamEvents") {
+		t.Fatalf("expected code preview in destination preview card, got:\n%s", hudView)
+	}
+
+	// 3. Test cursor on Option Beta
+	ed.BranchHUDCursor = 1
+	hudBeta := stripANSI(renderBranchHUDModal(d, ed, 100, 30))
+	if !strings.Contains(hudBeta, "Destination Preview: [03] Target Beta") || !strings.Contains(hudBeta, "Simple summary text") {
+		t.Fatalf("expected Beta preview content, got:\n%s", hudBeta)
+	}
+
+	// 4. Test navStatus with fork (J) hint
+	ed.ShowBranchHUD = false
+	status := stripANSI(navStatus(d, ed, 240))
+	if !strings.Contains(status, "[fork: 2 paths (J)") || !strings.Contains(status, "J fork") {
+		t.Fatalf("expected fork (J) and J fork in navStatus, got:\n%s", status)
+	}
+
+	// 5. Test renderHelpModal documents J
+	help := stripANSI(renderHelpModal(100, 40))
+	if !strings.Contains(help, "Branch fork HUD") {
+		t.Fatalf("expected J documented in help modal, got:\n%s", help)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

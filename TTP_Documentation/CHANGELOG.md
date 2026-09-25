@@ -1,5 +1,25 @@
 # Changelog
 
+## v0.10 — 25 September 2026
+
+### Added
+- **Branch Decision Fork HUD & Target Preview Picker (`J`)**:
+  - Interactive floating HUD overlay invoked at any branching decision point during presentations.
+  - Lists all outgoing path choices with direct jump keys (`[1]`, `[2]`, `[→]`), destination slide indices, titles, and slide IDs (`#slug`).
+  - Real-time syntax-highlighted **code & text preview panel** rendered within the HUD displaying destination code snippets and markdown text before jumping.
+  - Controls: `j`/`k`/arrow keys to browse choices, `Enter`/`Space` to commit jump, `1`..`9` for instant branch execution, `Esc`/`q`/`J` to dismiss.
+- **Downstream Subgraph Metrics & Time Budgeting**:
+  - Analyzes downstream reachable subtrees for every outgoing branch path:
+    - **Reachable Slide Depth**: total number of slides downstream.
+    - **Estimated Speaking Duration**: talk time in minutes computed from downstream word counts (~130 WPM).
+    - **Code Snippet Counter**: total executable and display code blocks in downstream path.
+    - **Track Match Indicators**: `★ Track Match` badge when destination slide matches active audience track (`-k, --track`).
+    - **Route Sync Indicators**: `⚡ Route Step` badge when destination aligns with active preset route (`--route`).
+- **HUD & Status Bar Ergonomics**:
+  - Status bar displays `[fork: N paths (J)]` when branches exist on slide, plus quick-hint `J fork`.
+  - In-app Help modal (`?`/`F1`) and CLI help updated to document `J` decision fork HUD.
+- Expanded automated test suite to **150 tests** maintaining **90.5% statement coverage** in `deck/internal` with zero external runtime dependencies and sub-millisecond per-frame rendering.
+
 ## v0.9 — 25 September 2026
 
 ### Added

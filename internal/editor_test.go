@@ -2256,3 +2256,125 @@ title: History Editor Test
 		t.Errorf("expected modal closed after H toggle")
 	}
 }
+
+func TestEditorBranchHUDModal(t *testing.T) {
+	src := `---
+title: Branch HUD Test
+---
+
+::id hub
+# Hub Slide
+::branch [1] Path A -> target-a
+::branch [2] Path B -> target-b
+
+---
+
+::id target-a
+# Target A
+Path A details
+
+---
+
+::id target-b
+# Target B
+Path B details
+
+---
+
+::id terminal
+# Terminal Slide
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// 1. Boundary & Helper tests
+	ed.ToggleBranchHUD(nil) // nil deck safe
+	if ed.ShowBranchHUD {
+		t.Fatalf("expected ShowBranchHUD false for nil deck")
+	}
+
+	// JumpToForkOption with invalid index
+	if ed.JumpToForkOption(BranchForkOption{TargetIndex: -1}, &d) || ed.JumpToForkOption(BranchForkOption{TargetIndex: 99}, &d) {
+		t.Fatalf("expected JumpToForkOption to fail on invalid TargetIndex")
+	}
+
+	// 2. Open Branch HUD on Hub slide with 'J'
+	sendTestKey(&ed, &d, "J")
+	if !ed.ShowBranchHUD {
+		t.Fatalf("expected ShowBranchHUD true after 'J'")
+	}
+	if ed.BranchHUDCursor != 0 {
+		t.Errorf("expected initial BranchHUDCursor 0, got %d", ed.BranchHUDCursor)
+	}
+
+	// 3. Navigation inside HUD
+	sendTestKey(&ed, &d, "down")
+	if ed.BranchHUDCursor != 1 {
+		t.Errorf("expected cursor 1 after 'down', got %d", ed.BranchHUDCursor)
+	}
+	sendTestKey(&ed, &d, "j")
+	if ed.BranchHUDCursor != 1 {
+		t.Errorf("expected cursor clamped at 1, got %d", ed.BranchHUDCursor)
+	}
+	sendTestKey(&ed, &d, "up")
+	if ed.BranchHUDCursor != 0 {
+		t.Errorf("expected cursor 0 after 'up', got %d", ed.BranchHUDCursor)
+	}
+	sendTestKey(&ed, &d, "k")
+	if ed.BranchHUDCursor != 0 {
+		t.Errorf("expected cursor clamped at 0, got %d", ed.BranchHUDCursor)
+	}
+	sendTestKey(&ed, &d, "G")
+	if ed.BranchHUDCursor != 1 {
+		t.Errorf("expected cursor 1 after 'G', got %d", ed.BranchHUDCursor)
+	}
+	sendTestKey(&ed, &d, "g")
+	if ed.BranchHUDCursor != 0 {
+		t.Errorf("expected cursor 0 after 'g', got %d", ed.BranchHUDCursor)
+	}
+
+	// 4. Dismissal via esc, q, J
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowBranchHUD {
+		t.Fatalf("expected HUD closed after 'esc'")
+	}
+	sendTestKey(&ed, &d, "J")
+	sendTestKey(&ed, &d, "q")
+	if ed.ShowBranchHUD {
+		t.Fatalf("expected HUD closed after 'q'")
+	}
+	sendTestKey(&ed, &d, "J")
+	sendTestKey(&ed, &d, "J")
+	if ed.ShowBranchHUD {
+		t.Fatalf("expected HUD closed after toggle 'J'")
+	}
+
+	// 5. Jump via Enter on selected option (Target A at index 1)
+	sendTestKey(&ed, &d, "J")
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowBranchHUD || ed.SlideIdx != 1 {
+		t.Fatalf("expected jumped to slide 1 (Target A), got slide=%d", ed.SlideIdx)
+	}
+	if len(ed.History) != 1 || ed.History[0] != 0 {
+		t.Fatalf("expected history to record slide 0, got %v", ed.History)
+	}
+
+	// 6. Jump via numeric key (e.g. '2' for Path B)
+	ed.SlideIdx = 0
+	ed.History = nil
+	sendTestKey(&ed, &d, "J")
+	sendTestKey(&ed, &d, "2")
+	if ed.ShowBranchHUD || ed.SlideIdx != 2 {
+		t.Fatalf("expected jumped to slide 2 (Target B) via '2', got slide=%d", ed.SlideIdx)
+	}
+
+	// 7. On terminal slide (slide 3)
+	ed.SlideIdx = 3
+	sendTestKey(&ed, &d, "J")
+	if ed.ShowBranchHUD {
+		t.Fatalf("expected HUD not to open on terminal slide")
+	}
+	if !strings.Contains(ed.Message, "terminal slide") {
+		t.Errorf("expected terminal slide message, got %q", ed.Message)
+	}
+}

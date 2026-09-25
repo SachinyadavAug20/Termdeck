@@ -1133,6 +1133,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Backspace"), currentTheme.HelpDescStyle.Render("Pop back 1 slide along traversal history")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("H"), currentTheme.HelpDescStyle.Render("Traversal history & visual reflog modal")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Follow branch option shortcut")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("J"), currentTheme.HelpDescStyle.Render("Branch fork HUD & destination preview picker")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks & subgraph filter")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("[ / ]"), currentTheme.HelpDescStyle.Render("Hop backward / forward along track")))
@@ -1918,6 +1919,151 @@ func renderHistoryModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderBranchHUDModal(d Deck, e Editor, w, h int) string {
+	modalW := 74
+	if modalW > w-4 {
+		modalW = w - 4
+	}
+	if modalW < 36 {
+		modalW = 36
+	}
+
+	options := GetForkOptions(e.SlideIdx, d, e.ActiveTrack, e.ActiveRoute)
+	var sb strings.Builder
+
+	curTitle := "Slide"
+	if e.SlideIdx >= 0 && e.SlideIdx < len(d.Slides) {
+		curTitle = d.Slides[e.SlideIdx].Title()
+	}
+	title := currentTheme.HelpTitleStyle.Render("⚡   Branch Decision Fork HUD")
+	sb.WriteString(title + "\n")
+	sb.WriteString(dimStyle.Render(fmt.Sprintf("From [%02d] %s  ·  Select outgoing path:", e.SlideIdx+1, curTitle)) + "\n\n")
+
+	if len(options) == 0 {
+		sb.WriteString(dimStyle.Render("  No outgoing branches or links from this slide.\n  (Terminal slide in presentation topology)\n\n"))
+	} else {
+		cursor := e.BranchHUDCursor
+		if cursor < 0 {
+			cursor = 0
+		}
+		if cursor >= len(options) {
+			cursor = len(options) - 1
+		}
+
+		for i, opt := range options {
+			isCursor := cursor == i
+			ptr := "  "
+			if isCursor {
+				ptr = currentTheme.LaserPointerStyle.Render("▶ ")
+			}
+
+			keyBadge := fmt.Sprintf("[%s]", opt.Key)
+			targetLabel := fmt.Sprintf("[%02d] %s", opt.TargetIndex+1, opt.TargetTitle)
+			if opt.TargetID != "" {
+				targetLabel += "  #" + opt.TargetID
+			}
+
+			line1 := ptr + currentTheme.HelpKeyStyle.Render(keyBadge) + " " + currentTheme.H1Style.Render(opt.Label) + dimStyle.Render(" ──► ") + currentTheme.TableCellStyle.Render(targetLabel)
+
+			subMetrics := fmt.Sprintf("     %d slide%s · ~%dm", opt.DownstreamCount, plural(opt.DownstreamCount), opt.EstimatedMin)
+			if opt.CodeBlocksCount > 0 {
+				subMetrics += fmt.Sprintf(" · %d code snippet%s", opt.CodeBlocksCount, plural(opt.CodeBlocksCount))
+			}
+			if opt.IsTrackMatch {
+				subMetrics += "  " + currentTheme.ProgressLineFilledStyle.Render("★ Track Match")
+			}
+			if opt.IsRouteMatch {
+				subMetrics += "  " + currentTheme.TableBorderStyle.Render("⚡ Route Step")
+			}
+
+			if isCursor {
+				sb.WriteString(line1 + "\n" + currentTheme.HelpDescStyle.Render(subMetrics) + "\n")
+			} else {
+				sb.WriteString(line1 + "\n" + dimStyle.Render(subMetrics) + "\n")
+			}
+		}
+
+		if cursor >= 0 && cursor < len(options) && options[cursor].TargetIndex >= 0 && options[cursor].TargetIndex < len(d.Slides) {
+			tgtSlide := d.Slides[options[cursor].TargetIndex]
+			sb.WriteString("\n")
+			previewBoxW := modalW - 6
+			if previewBoxW < 30 {
+				previewBoxW = 30
+			}
+
+			var previewContent strings.Builder
+			previewContent.WriteString(currentTheme.HelpHeaderStyle.Render(fmt.Sprintf("Destination Preview: [%02d] %s", options[cursor].TargetIndex+1, tgtSlide.Title())) + "\n")
+
+			linesShown := 0
+			maxPreviewLines := 4
+			for _, blk := range tgtSlide.Blocks {
+				if blk.Kind == BlockDirective || blk.Kind == BlockDivider {
+					continue
+				}
+				if blk.Kind == BlockCode {
+					for _, l := range blk.Lines {
+						if linesShown >= maxPreviewLines {
+							break
+						}
+						lTrim := strings.TrimSpace(l)
+						if lTrim == "" {
+							continue
+						}
+						if len(lTrim) > previewBoxW-4 {
+							lTrim = lTrim[:previewBoxW-7] + "..."
+						}
+						previewContent.WriteString("  " + currentTheme.SyntaxKeyword.Render("│ ") + dimStyle.Render(lTrim) + "\n")
+						linesShown++
+					}
+				} else {
+					text := blk.Text
+					if text == "" && len(blk.Lines) > 0 {
+						text = strings.Join(blk.Lines, " ")
+					}
+					trimmed := strings.TrimSpace(text)
+					if trimmed == "" {
+						continue
+					}
+					for _, l := range strings.Split(trimmed, "\n") {
+						if linesShown >= maxPreviewLines {
+							break
+						}
+						lTrim := strings.TrimSpace(l)
+						if lTrim == "" {
+							continue
+						}
+						if len(lTrim) > previewBoxW-4 {
+							lTrim = lTrim[:previewBoxW-7] + "..."
+						}
+						previewContent.WriteString("  " + dimStyle.Render("• "+lTrim) + "\n")
+						linesShown++
+					}
+				}
+				if linesShown >= maxPreviewLines {
+					break
+				}
+			}
+			if linesShown == 0 {
+				previewContent.WriteString("  " + dimStyle.Render("(No previewable content)") + "\n")
+			}
+
+			cardPreview := lipgloss.NewStyle().
+				Border(lipgloss.RoundedBorder()).
+				BorderForeground(lipgloss.Color(currentTheme.Comment)).
+				Padding(0, 1).
+				Width(previewBoxW).
+				Render(previewContent.String())
+
+			sb.WriteString(cardPreview + "\n")
+		}
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("1-9: jump to branch  ·  ▲/▼ or j/k: select  ·  Enter: jump  ·  Esc/J: close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 func renderBlankScreen(w, h int) string {
 	msg := dimStyle.Render("●  presentation paused  ·  press any key to resume")
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
@@ -1973,6 +2119,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowHistoryModal {
 		return renderHistoryModal(d, e, width, height)
+	}
+
+	if e.ShowBranchHUD {
+		return renderBranchHUDModal(d, e, width, height)
 	}
 
 	if e.Mode == ModePrompt {
@@ -2147,9 +2297,9 @@ func navStatus(d Deck, e Editor, w int) string {
 		if len(branches) > 0 {
 			bs := BranchSummary(d.Slides[e.SlideIdx])
 			if bs != "" {
-				left += fmt.Sprintf("  ·  [fork: %d paths · %s]", len(branches), bs)
+				left += fmt.Sprintf("  ·  [fork: %d paths (J) · %s]", len(branches), bs)
 			} else {
-				left += fmt.Sprintf("  ·  [fork: %d paths]", len(branches))
+				left += fmt.Sprintf("  ·  [fork: %d paths (J)]", len(branches))
 			}
 		}
 	}
@@ -2170,7 +2320,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · M map · K track · P route · H history · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · K track · P route · H history · J fork · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

@@ -911,3 +911,123 @@ func plural(n int) string {
 	}
 	return "s"
 }
+
+// BranchForkOption represents an interactive decision choice from the current slide.
+type BranchForkOption struct {
+	Key             string   // e.g. "1", "2", "→"
+	Label           string   // e.g. "Kubernetes Operator"
+	TargetID        string   // e.g. "arch-k8s"
+	TargetIndex     int      // 0-indexed slide in deck (-1 if unresolved)
+	TargetTitle     string   // Title of target slide
+	TargetTags      []string // Tags of target slide
+	DownstreamCount int      // Total reachable slides from target
+	EstimatedMin    int      // Estimated talk time in minutes for downstream
+	CodeBlocksCount int      // Number of code blocks in downstream path
+	IsTrackMatch    bool     // Does target match active audience track?
+	IsRouteMatch    bool     // Is target the next step in active route?
+}
+
+// GetForkOptions returns all outgoing choices for the given slide index,
+// calculating downstream reachability, word counts, talk time, and track matches.
+func GetForkOptions(slideIdx int, d Deck, activeTrack string, activeRoute string) []BranchForkOption {
+	if slideIdx < 0 || slideIdx >= len(d.Slides) {
+		return nil
+	}
+
+	g := BuildGraph(d)
+	curSlide := d.Slides[slideIdx]
+	trackLower := strings.ToLower(strings.TrimSpace(activeTrack))
+
+	// Find what the next slide in activeRoute would be
+	routeNextIdx := -1
+	if activeRoute != "" {
+		routeIndices := d.RouteSlideIndices(activeRoute)
+		for i, idx := range routeIndices {
+			if idx == slideIdx && i+1 < len(routeIndices) {
+				routeNextIdx = routeIndices[i+1]
+				break
+			}
+		}
+	}
+
+	buildOption := func(key, label, targetID string, targetIdx int) BranchForkOption {
+		opt := BranchForkOption{
+			Key:         key,
+			Label:       label,
+			TargetID:    targetID,
+			TargetIndex: targetIdx,
+		}
+
+		if targetIdx >= 0 && targetIdx < len(d.Slides) {
+			targetSlide := d.Slides[targetIdx]
+			opt.TargetTitle = targetSlide.Title()
+			opt.TargetTags = targetSlide.Tags
+
+			// Reachable downstream nodes from target
+			downstream := g.ReachableNodes(targetIdx)
+			opt.DownstreamCount = len(downstream)
+
+			totalWords := 0
+			codeBlocks := 0
+			for _, nodeIdx := range downstream {
+				if nodeIdx >= 0 && nodeIdx < len(d.Slides) {
+					s := d.Slides[nodeIdx]
+					for _, b := range s.Blocks {
+						if b.Kind == BlockCode {
+							codeBlocks++
+							totalWords += countWords(strings.Join(b.Lines, " "))
+						} else {
+							totalWords += countWords(b.Text)
+							for _, l := range b.Lines {
+								totalWords += countWords(l)
+							}
+						}
+					}
+				}
+			}
+			opt.CodeBlocksCount = codeBlocks
+			est := (totalWords + 129) / 130
+			if est == 0 && totalWords > 0 {
+				est = 1
+			}
+			opt.EstimatedMin = est
+
+			if trackLower != "" {
+				for _, t := range targetSlide.Tags {
+					if strings.ToLower(strings.TrimSpace(t)) == trackLower {
+						opt.IsTrackMatch = true
+						break
+					}
+				}
+			}
+
+			if routeNextIdx >= 0 && targetIdx == routeNextIdx {
+				opt.IsRouteMatch = true
+			}
+		}
+		return opt
+	}
+
+	var options []BranchForkOption
+
+	branches := curSlide.Branches()
+	if len(branches) > 0 {
+		for _, b := range branches {
+			targetIdx := d.FindSlideByID(b.Target)
+			key := b.Key
+			if key == "" {
+				key = fmt.Sprintf("%d", len(options)+1)
+			}
+			options = append(options, buildOption(key, b.Label, b.Target, targetIdx))
+		}
+	}
+
+	if curSlide.NextID != "" {
+		targetIdx := d.FindSlideByID(curSlide.NextID)
+		options = append(options, buildOption("→", "Next Slide", curSlide.NextID, targetIdx))
+	} else if len(branches) == 0 && slideIdx+1 < len(d.Slides) {
+		options = append(options, buildOption("→", "Next Slide", "", slideIdx+1))
+	}
+
+	return options
+}

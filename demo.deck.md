@@ -5,8 +5,8 @@ title: termdeck demo
 theme: tokyo-night
 routes:
   lightning: intro -> why-terminal -> arch-comparison -> conclusion
-  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> conclusion
-  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> conclusion
+  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> conclusion
+  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> conclusion
 ---
 
 ::id intro
@@ -327,8 +327,10 @@ Presenters dynamically steer the presentation based on audience choice:
 
 ::branch [7] Deep Dive: Traversal History & DAG Linter -> history-deepdive
 
+::branch [8] Deep Dive: Decision Fork HUD & Previews -> fork-hud-deepdive
+
 > [!TIP]
-> Press `1`-`7` to take a branch immediately, `H` for reflog, `P` for paths, or `M` for topology!
+> Press `1`-`8` to branch, `J` for Fork HUD, `H` for reflog, `P` for paths, or `M` for topology!
 
 ---
 
@@ -511,6 +513,35 @@ Inspect and rewind your presentation journey through the non-linear DAG:
 
 > [!TIP]
 > Press `H` anytime to see your reflog trail, or run `deck --lint` before your talk to guarantee zero broken links!
+
+---
+
+::id fork-hud-deepdive
+::tags arch,demo,branching
+::next conclusion
+::align left
+# Decision Fork HUD & Subgraph Metrics
+
+Preview destinations and inspect downstream path depth before branching:
+
+:::columns
+### Interactive Fork HUD (`J`)
+- Press `J` on any branching slide
+- Real-time **code & content preview** of destinations
+- Displays keys `[1]`, `[2]`, `[→]` with target IDs
+- `j`/`k` to select target, `Enter` to jump
+- Direct numeric execution `1`-`9`
+:::col
+### Downstream Metrics & Budgets
+- **Slide depth**: Reachable slides in subgraph
+- **Time estimate**: Duration based on ~130 WPM
+- **Code snippets**: Tally of executable blocks
+- **Track match**: `★ Track Match` indicators
+- **Route sync**: Highlights `⚡ Route Step`
+:::
+
+> [!TIP]
+> Press `J` whenever you reach a fork to see live previews and time estimates for every branch!
 
 ---
 

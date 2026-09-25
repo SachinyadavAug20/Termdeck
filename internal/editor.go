@@ -88,6 +88,8 @@ type Editor struct {
 	RouteCursor       int
 	ShowHistoryModal  bool
 	HistoryCursor     int
+	ShowBranchHUD     bool
+	BranchHUDCursor   int
 }
 
 func NewEditor(filePath string) Editor {
@@ -391,6 +393,41 @@ func (e *Editor) PrevRouteSlide(d *Deck) bool {
 		return true
 	}
 	return false
+}
+
+func (e *Editor) ToggleBranchHUD(d *Deck) {
+	if d == nil || len(d.Slides) == 0 {
+		return
+	}
+	options := GetForkOptions(e.SlideIdx, *d, e.ActiveTrack, e.ActiveRoute)
+	if len(options) == 0 {
+		e.Message = "terminal slide: no outgoing branches"
+		return
+	}
+	e.ShowBranchHUD = !e.ShowBranchHUD
+	if e.ShowBranchHUD {
+		e.BranchHUDCursor = 0
+		e.Message = "branch HUD: select path (arrows/jk, enter/1-9 to jump, J/esc to close)"
+	} else {
+		e.Message = "branch HUD closed"
+	}
+}
+
+func (e *Editor) JumpToForkOption(opt BranchForkOption, d *Deck) bool {
+	if d == nil || opt.TargetIndex < 0 || opt.TargetIndex >= len(d.Slides) {
+		return false
+	}
+	e.History = append(e.History, e.SlideIdx)
+	e.SlideIdx = opt.TargetIndex
+	e.BlockIdx = 0
+	e.ClampBlockIdx(d)
+	e.ShowBranchHUD = false
+	if opt.Key != "" && opt.Label != "" {
+		e.Message = fmt.Sprintf("branch [%s] ──► %s", opt.Key, opt.Label)
+	} else {
+		e.Message = fmt.Sprintf("jumped to slide %d/%d", e.SlideIdx+1, len(d.Slides))
+	}
+	return true
 }
 
 func (e *Editor) ClampBlockIdx(d *Deck) {
@@ -1135,6 +1172,52 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 	}
 
+	if e.ShowBranchHUD {
+		options := GetForkOptions(e.SlideIdx, *d, e.ActiveTrack, e.ActiveRoute)
+		switch key {
+		case "esc", "q", "J":
+			e.ShowBranchHUD = false
+			e.Message = "branch HUD closed"
+			return nil
+		case "up", "k":
+			if e.BranchHUDCursor > 0 {
+				e.BranchHUDCursor--
+			}
+			return nil
+		case "down", "j":
+			if e.BranchHUDCursor < len(options)-1 {
+				e.BranchHUDCursor++
+			}
+			return nil
+		case "g", "home":
+			e.BranchHUDCursor = 0
+			return nil
+		case "G", "end":
+			if len(options) > 0 {
+				e.BranchHUDCursor = len(options) - 1
+			}
+			return nil
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			for _, opt := range options {
+				if opt.Key == key {
+					e.JumpToForkOption(opt, d)
+					return nil
+				}
+			}
+			idx := int(key[0] - '0')
+			if idx <= len(options) {
+				e.JumpToForkOption(options[idx-1], d)
+				return nil
+			}
+		case "enter", " ":
+			if e.BranchHUDCursor >= 0 && e.BranchHUDCursor < len(options) {
+				e.JumpToForkOption(options[e.BranchHUDCursor], d)
+			}
+			return nil
+		}
+		return nil
+	}
+
 	if e.FocusMode {
 		switch key {
 		case "esc", "f", "F", "q", "ctrl+c":
@@ -1296,6 +1379,13 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		e.ShowHistoryModal = !e.ShowHistoryModal
 		e.HistoryCursor = len(e.History)
+		return nil
+
+	case "J":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
+		e.ToggleBranchHUD(d)
 		return nil
 
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":

@@ -146,7 +146,7 @@ Options:
 
 Controls:
   Navigation:   → / l / Space / Enter (next / advance edge), ← / h (prev)
-  Branching:    1-9 (follow branch option), Backspace (pop step)
+  Branching:    1-9 (follow branch option), J (fork HUD & preview), Backspace (pop step)
   Audience:     K (audience tracks & subgraph filter), [ / ] (hop along track)
   Routes:       P (preset graph routes & guided paths)
   History:      H (traversal history & visual reflog modal)
