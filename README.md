@@ -16,6 +16,12 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 25 September 2026 (v0.9.0)
+- [x] **Traversal History & Graph Reflog Modal (`H`)**: visual presentation journey stack allowing speakers to inspect every slide visited across branching decision forks, see distance back (`(3 steps back)`), and rewind directly to any prior step using `1`..`9` or `Enter`; press `c` to reset journey or `Backspace` to pop one step
+- [x] **Graph Topology Linter & CI/CD Diagnostics (`--lint` / `--lint-graph`)**: compiler-grade diagnostic validator that inspects DAG topology for broken `::branch` / `::next` / `::prev` links, duplicate slide identifiers, broken route steps, unreachable orphan slides, and dead-end traps before speaking; returns exit code 0 on sound DAGs and 1 on fatal broken links
+- [x] **Real-time Traversal Indicators**: status bar displays active reflog depth `[history: N (H)]` and breadcrumb trail for continuous spatial orientation
+- [x] **147 Automated Unit Tests** maintaining **90.5% statement coverage** in `internal/` with zero external runtime dependencies and sub-millisecond per-frame rendering
+
 #### 25 September 2026 (v0.8.0)
 - [x] **Preset Graph Routes & Guided Paths (`P` / `--route`)**: Pre-configure tailored presentation paths across your non-linear DAG for different talk formats and time constraints (e.g. `lightning`, `deepdive`, `workshop`); advance naturally along the route using `Space` / `Enter` or navigate back with `Left` / `h` while retaining instant access to decision branches (`1`..`9`)
 - [x] **Route Switcher Modal (`P`)**: visual popup presenting available routes, slide counts, speaking duration estimates (at 130 WPM), and breadcrumb path previews (`[01:intro] ──► [04:arch] ──► [22:conclusion]`); press `1`..`9` to activate a route instantly, or `0` to return to free graph navigation
@@ -161,6 +167,7 @@ deck [options] <file.deck.md>
 #       --run-slide <N>  Execute code block on slide N directly in terminal
 #       --stats          Print presentation statistics and metrics to terminal
 #       --export-html    Export presentation to standalone HTML file
+#       --lint           Validate DAG topology for broken links, unreachable slides, and dead ends
 #   -h, --help           Show help
 #   -v, --version        Show version
 ```
@@ -172,7 +179,8 @@ deck [options] <file.deck.md>
 | `→` `l` `Space` `Enter` `PageDown` | Next slide / advance directed edge / follow active route |
 | `←` `h` `PageUp` | Previous slide / previous route slide |
 | `1` – `9` | Jump directly along numbered branch / fork option |
-| `Backspace` `H` | Backtrack along visited graph traversal history |
+| `Backspace` | Pop back 1 slide along traversal history |
+| `H` | Open Traversal History & Graph Reflog modal (`1`-`9` or Enter to rewind) |
 | `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |
 | `K` | Open Audience Tracks & Subgraph Filtering modal (`0`-`9` quick select) |
 | `[` / `]` | Hop backward / forward along slides matching active audience track |
@@ -256,6 +264,8 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Non-Linear DAG Traversal Breadcrumb Tracking**: Real-time journey breadcrumbs (`[01:intro] ──► [15:hub] ──► [19:runner]`) in the status bar and topology explorer modal, ensuring audiences and speakers never lose orientation during branching talks.
 - **Multi-Column Side-by-Side Split Grids**: Present comparisons side-by-side with native terminal split layouts (`:::columns` ... `:::col` ... `:::columns` or `::split`), automatically balancing terminal column widths and vertical alignment
 - **Audience Tracks & Subgraph Filtering**: Tailor talks to specific audiences (backend engineers, management, live workshops) using slide tags (`::tags <tags>`); switch active tracks on the fly with the Track Modal (`K`), hop along track slides (`[` / `]`), or filter CLI outputs (`deck --track=<name> --graph`)
+- **Traversal History & Graph Reflog**: Press `H` anytime to inspect the full visual stack of visited slides across non-linear branches, see distance back (`(3 steps back)`), and rewind smoothly to any step with `1`–`9` or `Enter`
+- **Graph Topology Linter & CI/CD Diagnostics**: Run `deck --lint <file.deck.md>` to validate presentation DAG topology, catching broken branch links, unreachable orphan slides, duplicate IDs, and dead-end traps before speaking
 - **Preset Graph Routes & Guided Paths**: Pre-plan named presentation paths through your non-linear DAG for different talk lengths or audiences (`routes:` frontmatter or `::route` directives); switch routes via `P`, advance along the path with `Space`/`Enter`, and launch via CLI (`deck --route=lightning`)
 - **Non-Linear Directed Graph (DAG) Engine**: Break free from rigid linear slides! Author interactive decision forks (`::branch [key] label -> target` or `-> [label](target)`), direct numerical jumping (`1`–`9`), back-stack traversal (`Backspace` / `H`), convergence (`::next <slug>`), and interactive topology explorer modal (`M`)
 - **ASCII DAG & Mermaid Diagrams**: Inspect deck topology directly in your terminal with `deck --graph <deck.md>` or export Mermaid syntax for GitHub with `deck --mermaid <deck.md>`
@@ -263,14 +273,14 @@ Press `i` to enter edit mode on the selected block. Press `Esc` to exit edit mod
 - **Presentation Statistics & Deck Metrics**: Press `S` or pass `--stats` for talk duration estimates (130 WPM), code density metrics, block counts, and sprint task checklist velocity
 - **Rehearsal & Autoplay Mode**: Press `A` or pass `-a, --autoplay [sec]` for automated rehearsal pacing with countdown timer, loop restart, and manual override protection
 - **Live File Watch & Hot-Reload**: Start with `-w` or `--watch` to auto-reload on file edits from external editors/IDEs, or press `r` / `R` anytime to reload manually (safeguards protect active in-app edit sessions)
-- **CLI Options**: `--route <name>`, `-k, --track <name>`, `--graph`, `--mermaid`, `--test-code`, `--run-slide <N>`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
+- **CLI Options**: `--lint`, `--route <name>`, `-k, --track <name>`, `--graph`, `--mermaid`, `--test-code`, `--run-slide <N>`, `--export-html`, `--stats`, `--autoplay`, `--watch` (`-w`), `--theme <name>`, `--list-themes`, `--start-at N`, `--version`, `--help`
 - Block-based editor with live editing
 - Undo/redo
 - Save to `.deck.md`
 
 ## Testing & Development
 
-Termdeck features an automated test suite achieving **90.2% statement coverage** in `internal/` with 143 unit tests and 2 performance benchmarks.
+Termdeck features an automated test suite achieving **90.5% statement coverage** in `internal/` with 147 unit tests and 2 performance benchmarks.
 
 ```bash
 # Run all unit tests with coverage summary

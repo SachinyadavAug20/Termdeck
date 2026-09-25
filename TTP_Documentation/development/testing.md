@@ -46,6 +46,7 @@ Tests the Bubble Tea model lifecycle and CLI bootstrapping logic:
 - `TestPrintHelpLiveRunnerAndFocus`: Asserts --test-code, --run-slide, X, and f shortcuts are documented in help output.
 - `TestPrintHelpTrack`: Asserts `-k, --track`, `K`, and `[ / ]` audience track options are documented in help output.
 - `TestPrintHelpRoute`: Asserts `--route`, `P`, and `0` route controls are documented in help output.
+- `TestPrintHelpLint`: Asserts `--lint` and `--lint-graph` CI/CD topology checker flags are documented in help output.
 - `TestModelExecFinishedMsg`: Verifies `ExecFinishedMsg` delivers results cleanly to editor state without crashing.
 - `TestThemeFlagAndListThemes`: Tests `--theme <name>` and `--list-themes` CLI flags.
 - `TestModelUpdateTickMsg`: Verifies Bubble Tea model dispatches `TickCmd()` only when timer is enabled, avoiding background polling overhead.
@@ -87,6 +88,7 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorExportHTMLKeyNav`: Verifies pressing `E` in navigation mode invokes HTML exporter and sets status bar confirmation.
 - `TestEditorAutoplay`: Validates toggling autoplay with `A`, per-second countdown ticking, automatic slide advancing, looping to start, and manual navigation reset.
 - `TestEditorBranchAndGraphNavigation`: Validates numeric branch jumping (`1`..`9`), `enter` on focused branch cards, `Backspace` / `H` history backtracking stack, and `M` graph map modal cursor navigation and jumping.
+- `TestEditorHistoryModal`: Validates opening traversal history modal (`H`), navigating steps (`j`/`k`/`g`/`G`), rewinding directly to any step (`Enter`), quick numeric jump (`1`..`9`), clearing history (`c`), and dismissing (`Esc`/`q`/`H`).
 - `TestEditorFocusModeAndLiveRunner`: Validates toggling Focus Mode (`f`), line numbering, vertical scrolling (`j`/`k`), running code via Bubble Tea command (`X`/`x`), yanking runner output (`y`), and dismissing runner card (`Esc`).
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
@@ -122,6 +124,7 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestAutoplayView`: Validates status bar `[▶ auto: 8s (4s)]` badge, `A auto` status hint, and help modal documentation.
 - `TestRenderBranchBlock`: Verifies rendering of `BlockBranch` cards with key badge (`[1]`), bold label, arrow (`──►`), target `#id`, and cursor highlighting.
 - `TestRenderGraphModal`: Tests interactive presentation DAG topology map rendering, active slide indicator, and visited path breadcrumbs (`Path: [01] ──► [02]`).
+- `TestRenderHistoryModal`: Validates rendering of the interactive traversal history reflog modal (`H`), step badges `[1]`, `(N steps back)`, `● CURRENT` marker, and list truncation.
 - `TestNavStatusForkAndHistory`: Verifies `[fork: N paths]`, `[history: N]`, and `M map` badges in the status bar.
 - `TestHelpModalGraphShortcuts`: Asserts `1 - 9`, `Backspace / H`, and `M` shortcuts are documented in help modal.
 - `TestRenderRunnerCardAndView`: Verifies rendering of live code execution output cards with exit code badges, execution duration, and stdout/stderr blocks.
@@ -185,6 +188,7 @@ Tests presentation graph construction, traversal analysis, and diagram export:
 - `TestGraphCycleAndOrphans`: Validates cycle detection algorithms and unreferenced detached slide detection with warnings.
 - `TestReachableNodesOutOfBounds`: Asserts safety against out-of-bounds start indices.
 - `TestShortestPathAndBreadcrumbs`: Validates BFS shortest path calculation on presentation DAG and real-time breadcrumb trail formatting.
+- `TestLintGraph`: Tests presentation DAG topology diagnostics, catching broken branch targets, broken routes, duplicate IDs, orphan slides, dead ends, and CLI diagnostic formatting.
 
 ### J. Live Code Runner Subsystem — `internal/runner_test.go`
 Tests subprocess execution, execution timeouts, output truncation, language whitelisting, and CI deck testing:
@@ -236,13 +240,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (138 unit tests):
+Statement coverage across packages (147 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
 | `deck` (root) | 18.2% | Covers model, update loop, flags, live watch loop, runner messages (excluding `main()` process exit) |
-| `deck/internal` | 90.2% | Meets $\ge 90\%$ target across all core modules |
-| **Total Project** | **85.7%** | **PASSED** |
+| `deck/internal` | 90.5% | Meets $\ge 90\%$ target across all core modules |
+| **Total Project** | **85.9%** | **PASSED** |
 
 ---
 

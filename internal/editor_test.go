@@ -1528,10 +1528,11 @@ Summary of all modules.`
 		t.Errorf("expected history len 1, got %+v", ed.History)
 	}
 
-	// 5. Press 'H' to pop history -> returns to slide 0
+	// 5. Press 'H' to open history modal and '1' to rewind -> returns to slide 0
 	sendTestKey(&ed, &d, "H")
+	sendTestKey(&ed, &d, "1")
 	if ed.SlideIdx != 0 {
-		t.Errorf("expected return to slide 0 via H, got %d", ed.SlideIdx)
+		t.Errorf("expected return to slide 0 via H -> 1, got %d", ed.SlideIdx)
 	}
 	if len(ed.History) != 0 {
 		t.Errorf("expected empty history, got %+v", ed.History)
@@ -2125,5 +2126,133 @@ routes:
 	sendTestKey(&ed, &d, "backspace")
 	if ed.SlideIdx != 1 {
 		t.Errorf("expected backspace to pop to slide 1, got %d", ed.SlideIdx)
+	}
+}
+
+func TestEditorHistoryModal(t *testing.T) {
+	src := `---
+title: History Editor Test
+---
+
+::id s1
+# Slide 1
+::branch [1] To Slide 2 -> s2
+
+---
+
+::id s2
+# Slide 2
+::branch [1] To Slide 3 -> s3
+
+---
+
+::id s3
+# Slide 3
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// 1. Direct JumpToHistory calls
+	ed.History = []int{0, 1}
+	ed.SlideIdx = 2
+
+	// Out of bounds step index
+	if ed.JumpToHistory(-1, &d) || ed.JumpToHistory(5, &d) {
+		t.Errorf("expected out of bounds JumpToHistory to return false")
+	}
+
+	// Rewind to step 0 (slide 0)
+	if !ed.JumpToHistory(0, &d) {
+		t.Fatalf("expected JumpToHistory(0) to succeed")
+	}
+	if ed.SlideIdx != 0 || len(ed.History) != 0 {
+		t.Fatalf("expected rewound to slide 0 with empty history, got slide=%d hist=%v", ed.SlideIdx, ed.History)
+	}
+
+	// 2. Traversal & History Modal key interactions
+	// Build history: slide 0 -> branch 1 -> slide 1 -> branch 1 -> slide 2
+	sendTestKey(&ed, &d, "1")
+	if ed.SlideIdx != 1 || len(ed.History) != 1 {
+		t.Fatalf("expected on slide 1 with 1 history entry, got slide=%d hist=%v", ed.SlideIdx, ed.History)
+	}
+	sendTestKey(&ed, &d, "1")
+	if ed.SlideIdx != 2 || len(ed.History) != 2 {
+		t.Fatalf("expected on slide 2 with 2 history entries, got slide=%d hist=%v", ed.SlideIdx, ed.History)
+	}
+
+	// Press 'H' to open History Modal
+	sendTestKey(&ed, &d, "H")
+	if !ed.ShowHistoryModal {
+		t.Fatalf("expected ShowHistoryModal true after 'H'")
+	}
+	if ed.HistoryCursor != 2 {
+		t.Errorf("expected HistoryCursor 2, got %d", ed.HistoryCursor)
+	}
+
+	// Navigate up/down with k/j
+	sendTestKey(&ed, &d, "k")
+	if ed.HistoryCursor != 1 {
+		t.Errorf("expected HistoryCursor 1 after 'k', got %d", ed.HistoryCursor)
+	}
+	sendTestKey(&ed, &d, "k")
+	if ed.HistoryCursor != 0 {
+		t.Errorf("expected HistoryCursor 0 after second 'k', got %d", ed.HistoryCursor)
+	}
+	sendTestKey(&ed, &d, "k")
+	if ed.HistoryCursor != 0 {
+		t.Errorf("expected HistoryCursor clamped at 0, got %d", ed.HistoryCursor)
+	}
+	sendTestKey(&ed, &d, "j")
+	if ed.HistoryCursor != 1 {
+		t.Errorf("expected HistoryCursor 1 after 'j', got %d", ed.HistoryCursor)
+	}
+
+	// Quick jump via '1' in modal to step 0 (slide 0)
+	sendTestKey(&ed, &d, "1")
+	if ed.ShowHistoryModal || ed.SlideIdx != 0 || len(ed.History) != 0 {
+		t.Fatalf("expected modal closed and rewound to slide 0 after '1', got slide=%d hist=%v", ed.SlideIdx, ed.History)
+	}
+
+	// Rebuild history and test Enter on cursor
+	sendTestKey(&ed, &d, "1")  // to slide 1
+	sendTestKey(&ed, &d, "1")  // to slide 2
+	sendTestKey(&ed, &d, "H")  // open modal
+	sendTestKey(&ed, &d, "up") // cursor on step 1 (slide 1)
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowHistoryModal || ed.SlideIdx != 1 || len(ed.History) != 1 {
+		t.Fatalf("expected rewound to slide 1 after Enter, got slide=%d hist=%v", ed.SlideIdx, ed.History)
+	}
+
+	// Test backspace inside modal
+	sendTestKey(&ed, &d, "H")
+	sendTestKey(&ed, &d, "backspace")
+	if ed.SlideIdx != 0 || len(ed.History) != 0 {
+		t.Fatalf("expected backspace in modal to pop history, got slide=%d hist=%v", ed.SlideIdx, ed.History)
+	}
+
+	// Test clear history via 'c'
+	ed.History = []int{0, 1}
+	sendTestKey(&ed, &d, "c")
+	if len(ed.History) != 0 || ed.ShowHistoryModal {
+		t.Fatalf("expected history cleared after 'c', got %v", ed.History)
+	}
+
+	// Test dismiss via esc / q / H
+	sendTestKey(&ed, &d, "H")
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowHistoryModal {
+		t.Errorf("expected modal closed after esc")
+	}
+
+	sendTestKey(&ed, &d, "H")
+	sendTestKey(&ed, &d, "q")
+	if ed.ShowHistoryModal {
+		t.Errorf("expected modal closed after q")
+	}
+
+	sendTestKey(&ed, &d, "H")
+	sendTestKey(&ed, &d, "H")
+	if ed.ShowHistoryModal {
+		t.Errorf("expected modal closed after H toggle")
 	}
 }

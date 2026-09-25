@@ -138,6 +138,7 @@ Options:
       --mermaid        Print presentation topology as Mermaid diagram syntax
       --stats          Print presentation statistics and deck metrics to terminal
       --export-html    Export presentation to standalone HTML file
+      --lint           Validate DAG topology for broken links, unreachable slides, and dead ends
       --test-code      Execute and verify all code snippets in presentation
       --run-slide <N>  Execute code block on slide N and print output
   -v, --version        Show version information
@@ -145,9 +146,10 @@ Options:
 
 Controls:
   Navigation:   → / l / Space / Enter (next / advance edge), ← / h (prev)
-  Branching:    1-9 (follow branch option), Backspace / H (backtrack traversal)
+  Branching:    1-9 (follow branch option), Backspace (pop step)
   Audience:     K (audience tracks & subgraph filter), [ / ] (hop along track)
   Routes:       P (preset graph routes & guided paths)
+  History:      H (traversal history & visual reflog modal)
   Graph Map:    M (presentation graph map & DAG explorer)
   Pointer:      ↓ / j (down), ↑ / k (up)
   Jumps:        / (jump to slide by number/search), g (first), G (last)
@@ -190,6 +192,7 @@ func main() {
 	var runSlideNum int
 	var cliTrack string
 	var cliRoute string
+	var lintDAG bool
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -219,6 +222,8 @@ func main() {
 			}
 		case strings.HasPrefix(arg, "--route="):
 			cliRoute = strings.TrimPrefix(arg, "--route=")
+		case arg == "--lint" || arg == "--lint-graph":
+			lintDAG = true
 		case arg == "-a" || arg == "--autoplay":
 			autoplayMode = true
 			if i+1 < len(args) && !strings.HasPrefix(args[i+1], "-") && !strings.HasSuffix(args[i+1], ".deck.md") && !strings.HasSuffix(args[i+1], ".md") {
@@ -389,6 +394,32 @@ func main() {
 			fmt.Print(g.ToMermaidWithTrack(cliTrack))
 		} else {
 			fmt.Print(g.ToMermaid())
+		}
+		return
+	}
+
+	if lintDAG {
+		if len(fileArgs) < 1 {
+			fmt.Fprintln(os.Stderr, "error: missing deck file for --lint")
+			os.Exit(1)
+		}
+		deckFile := fileArgs[0]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
+			os.Exit(1)
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		issues := internal.LintGraph(d)
+		theme := internal.ResolveTheme(d.Theme)
+		if cliTheme != "" {
+			theme = internal.ResolveTheme(cliTheme)
+		}
+		out, errCount := internal.FormatLintCLI(issues, theme, deckFile)
+		fmt.Print(out)
+		if errCount > 0 {
+			os.Exit(1)
 		}
 		return
 	}

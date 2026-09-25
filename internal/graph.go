@@ -708,3 +708,206 @@ func BranchSummary(slide Slide) string {
 	}
 	return strings.Join(items, "  ")
 }
+
+// LintSeverity indicates whether a graph issue is fatal or advisory.
+type LintSeverity int
+
+const (
+	SeverityError LintSeverity = iota
+	SeverityWarning
+)
+
+// LintIssue represents a single DAG topology diagnostic issue.
+type LintIssue struct {
+	Severity LintSeverity
+	SlideIdx int // 0-indexed slide, or -1 for deck-level issue
+	Title    string
+	Message  string
+}
+
+// LintGraph analyzes deck graph topology for broken links, unreachable slides, dead ends, and route errors.
+func LintGraph(d Deck) []LintIssue {
+	var issues []LintIssue
+	if len(d.Slides) == 0 {
+		issues = append(issues, LintIssue{
+			Severity: SeverityError,
+			SlideIdx: -1,
+			Message:  "deck contains no slides",
+		})
+		return issues
+	}
+
+	// 1. Duplicate IDs
+	seenIDs := make(map[string]int)
+	for i, s := range d.Slides {
+		if s.ID != "" {
+			idLower := strings.ToLower(strings.TrimSpace(s.ID))
+			if prevIdx, exists := seenIDs[idLower]; exists {
+				issues = append(issues, LintIssue{
+					Severity: SeverityError,
+					SlideIdx: i,
+					Title:    s.Title(),
+					Message:  fmt.Sprintf("duplicate slide id %q (already defined on slide %d)", s.ID, prevIdx+1),
+				})
+			} else {
+				seenIDs[idLower] = i
+			}
+		}
+	}
+
+	// 2. Broken branch targets, broken next/prev
+	for i, s := range d.Slides {
+		for _, b := range s.Branches() {
+			if strings.TrimSpace(b.Target) == "" {
+				issues = append(issues, LintIssue{
+					Severity: SeverityError,
+					SlideIdx: i,
+					Title:    s.Title(),
+					Message:  fmt.Sprintf("branch [%s] has empty target", b.Key),
+				})
+			} else if d.FindSlideByID(b.Target) == -1 {
+				issues = append(issues, LintIssue{
+					Severity: SeverityError,
+					SlideIdx: i,
+					Title:    s.Title(),
+					Message:  fmt.Sprintf("branch [%s] points to nonexistent target %q", b.Key, b.Target),
+				})
+			}
+		}
+
+		if s.NextID != "" && !strings.EqualFold(s.NextID, "none") && !strings.EqualFold(s.NextID, "end") {
+			if d.FindSlideByID(s.NextID) == -1 {
+				issues = append(issues, LintIssue{
+					Severity: SeverityError,
+					SlideIdx: i,
+					Title:    s.Title(),
+					Message:  fmt.Sprintf("::next points to nonexistent target %q", s.NextID),
+				})
+			}
+		}
+
+		if s.PrevID != "" && !strings.EqualFold(s.PrevID, "none") {
+			if d.FindSlideByID(s.PrevID) == -1 {
+				issues = append(issues, LintIssue{
+					Severity: SeverityError,
+					SlideIdx: i,
+					Title:    s.Title(),
+					Message:  fmt.Sprintf("::prev points to nonexistent target %q", s.PrevID),
+				})
+			}
+		}
+	}
+
+	// 3. Check routes
+	for routeName, slugs := range d.Routes {
+		if len(slugs) == 0 {
+			issues = append(issues, LintIssue{
+				Severity: SeverityWarning,
+				SlideIdx: -1,
+				Message:  fmt.Sprintf("route %q contains no target slides", routeName),
+			})
+			continue
+		}
+		for stepIdx, slug := range slugs {
+			if d.FindSlideByID(slug) == -1 {
+				issues = append(issues, LintIssue{
+					Severity: SeverityError,
+					SlideIdx: -1,
+					Message:  fmt.Sprintf("route %q step %d points to nonexistent target %q", routeName, stepIdx+1, slug),
+				})
+			}
+		}
+	}
+
+	// 4. Reachability from root slide 0
+	g := BuildGraph(d)
+	reachableSlice := g.ReachableNodes(0)
+	reachable := make(map[int]bool, len(reachableSlice))
+	for _, idx := range reachableSlice {
+		reachable[idx] = true
+	}
+	for i, s := range d.Slides {
+		if i > 0 && !reachable[i] {
+			issues = append(issues, LintIssue{
+				Severity: SeverityWarning,
+				SlideIdx: i,
+				Title:    s.Title(),
+				Message:  "slide is unreachable from the opening slide",
+			})
+		}
+	}
+
+	// 5. Dead-ends: reachable slides before the last slide that have 0 outgoing edges
+	for i := 0; i < len(d.Slides)-1; i++ {
+		s := d.Slides[i]
+		if reachable[i] && len(g.Nodes[i].OutEdges) == 0 {
+			issues = append(issues, LintIssue{
+				Severity: SeverityWarning,
+				SlideIdx: i,
+				Title:    s.Title(),
+				Message:  "slide is a dead end with no outgoing edges before presentation conclusion",
+			})
+		}
+	}
+
+	return issues
+}
+
+// FormatLintCLI formats graph diagnostics into a clean compiler-style terminal report.
+func FormatLintCLI(issues []LintIssue, theme Theme, filePath string) (string, int) {
+	var b strings.Builder
+
+	titleStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Accent))
+	dimStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Muted))
+	errBadge := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color("#ef4444")).Padding(0, 1).Render("✖ ERROR")
+	warnBadge := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color("#f59e0b")).Padding(0, 1).Render("⚠ WARN ")
+	slideBadge := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color(theme.Secondary))
+	successStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#10b981"))
+
+	b.WriteString(titleStyle.Render("Termdeck Presentation Graph Diagnostics (DAG Linter)") + "\n")
+	if filePath != "" {
+		b.WriteString(dimStyle.Render("Target: "+filePath) + "\n")
+	}
+	b.WriteString(dimStyle.Render("──────────────────────────────────────────────────") + "\n\n")
+
+	errCount := 0
+	warnCount := 0
+
+	for _, issue := range issues {
+		if issue.Severity == SeverityError {
+			errCount++
+			b.WriteString(errBadge)
+		} else {
+			warnCount++
+			b.WriteString(warnBadge)
+		}
+
+		if issue.SlideIdx >= 0 {
+			b.WriteString("  " + slideBadge.Render(fmt.Sprintf("[slide %02d]", issue.SlideIdx+1)))
+			if issue.Title != "" {
+				b.WriteString(dimStyle.Render(" (" + issue.Title + ")"))
+			}
+		} else {
+			b.WriteString("  " + slideBadge.Render("[deck]"))
+		}
+		b.WriteString(" " + issue.Message + "\n")
+	}
+
+	b.WriteString("\n")
+	if errCount == 0 && warnCount == 0 {
+		b.WriteString(successStyle.Render("✔ Presentation DAG topology is sound! 0 errors, 0 warnings.") + "\n")
+	} else if errCount == 0 {
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#f59e0b")).Render(fmt.Sprintf("✔ No fatal DAG errors found (%d warning%s).", warnCount, plural(warnCount))) + "\n")
+	} else {
+		b.WriteString(lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ef4444")).Render(fmt.Sprintf("✖ Failed DAG verification: %d error%s, %d warning%s.", errCount, plural(errCount), warnCount, plural(warnCount))) + "\n")
+	}
+
+	return b.String(), errCount
+}
+
+func plural(n int) string {
+	if n == 1 {
+		return ""
+	}
+	return "s"
+}

@@ -86,6 +86,8 @@ type Editor struct {
 	RouteStep         int
 	ShowRouteModal    bool
 	RouteCursor       int
+	ShowHistoryModal  bool
+	HistoryCursor     int
 }
 
 func NewEditor(filePath string) Editor {
@@ -208,6 +210,22 @@ func (e *Editor) BackHistory(d *Deck) bool {
 		e.SlideIdx = prevIdx
 		e.BlockIdx = 0
 		e.ClampBlockIdx(d)
+		return true
+	}
+	return false
+}
+
+func (e *Editor) JumpToHistory(stepIndex int, d *Deck) bool {
+	if stepIndex < 0 || stepIndex >= len(e.History) {
+		return false
+	}
+	targetIdx := e.History[stepIndex]
+	e.History = e.History[:stepIndex]
+	if d != nil && targetIdx >= 0 && targetIdx < len(d.Slides) {
+		e.SlideIdx = targetIdx
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		e.Message = fmt.Sprintf("rewound to slide %d/%d", e.SlideIdx+1, len(d.Slides))
 		return true
 	}
 	return false
@@ -1062,6 +1080,61 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 	}
 
+	if e.ShowHistoryModal {
+		totalSteps := len(e.History) + 1
+		switch key {
+		case "esc", "q", "H":
+			e.ShowHistoryModal = false
+			return nil
+		case "up", "k":
+			if e.HistoryCursor > 0 {
+				e.HistoryCursor--
+			}
+			return nil
+		case "down", "j":
+			if e.HistoryCursor < totalSteps-1 {
+				e.HistoryCursor++
+			}
+			return nil
+		case "g", "home":
+			e.HistoryCursor = 0
+			return nil
+		case "G", "end":
+			if totalSteps > 0 {
+				e.HistoryCursor = totalSteps - 1
+			}
+			return nil
+		case "c", "C":
+			e.History = nil
+			e.HistoryCursor = 0
+			e.Message = "traversal history cleared"
+			e.ShowHistoryModal = false
+			return nil
+		case "backspace":
+			if e.BackHistory(d) {
+				if e.HistoryCursor > len(e.History) {
+					e.HistoryCursor = len(e.History)
+				}
+				e.Message = fmt.Sprintf("back to slide %d/%d", e.SlideIdx+1, len(d.Slides))
+			}
+			return nil
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			step := int(key[0]-'0') - 1
+			if step < len(e.History) {
+				e.JumpToHistory(step, d)
+				e.ShowHistoryModal = false
+				return nil
+			}
+		case "enter", " ":
+			if e.HistoryCursor < len(e.History) {
+				e.JumpToHistory(e.HistoryCursor, d)
+			}
+			e.ShowHistoryModal = false
+			return nil
+		}
+		return nil
+	}
+
 	if e.FocusMode {
 		switch key {
 		case "esc", "f", "F", "q", "ctrl+c":
@@ -1221,9 +1294,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		if e.ShowRunner {
 			e.ShowRunner = false
 		}
-		if e.BackHistory(d) {
-			e.Message = fmt.Sprintf("back to slide %d/%d", e.SlideIdx+1, len(d.Slides))
-		}
+		e.ShowHistoryModal = !e.ShowHistoryModal
+		e.HistoryCursor = len(e.History)
+		return nil
 
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":
 		if e.ShowRunner {

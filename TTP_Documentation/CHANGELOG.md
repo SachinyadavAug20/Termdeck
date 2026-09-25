@@ -1,5 +1,33 @@
 # Changelog
 
+## v0.9 — 25 September 2026
+
+### Added
+- **Traversal History & Graph Reflog Modal (`H`)**:
+  - Visual presentation journey stack explorer allowing presenters to review every slide visited across branching decision forks and guided paths.
+  - Interactive Modal:
+    - Lists visited slides in exact temporal order with step numbering (`[1]`, `[2]`, ...).
+    - Relative distance indicator for prior steps (`(3 steps back)`).
+    - Highlights current slide with `● CURRENT` badge.
+    - Rewind to any prior historical step by pressing `1`..`9` or selecting with cursor and hitting `Enter`.
+    - Instant stack clear (`c`) or step pop (`Backspace`).
+    - Dismiss via `Esc`, `q`, or `H`.
+  - Traversal Stack Helpers (`JumpToHistory`): rewinds presenter to target slide and cleanly truncates forward stack.
+- **Graph Topology Linter & CI/CD Diagnostics (`--lint` / `--lint-graph`)**:
+  - Static DAG validation engine (`internal.LintGraph`) detecting:
+    - Broken branch targets (`::branch ... -> missing`)
+    - Broken edge targets (`::next missing`, `::prev missing`)
+    - Broken route steps (`routes:` referencing nonexistent slide slugs)
+    - Duplicate slide identifiers (`::id duplicate`)
+    - Unreachable orphan slides (isolated from root slide 0)
+    - Dead-end slides (slides before final conclusion with zero outgoing edges)
+  - Compiler-style terminal diagnostics reporter (`internal.FormatLintCLI`) with `✖ ERROR` and `⚠ WARN` badges.
+  - Returns exit code 0 when DAG is valid, or exit code 1 when fatal errors exist, making it ideal for automated GitHub Actions and CI pre-presentation checks.
+- **Traversal Indicators & Navigation Synergy**:
+  - Status bar indicator: `[history: N (H)]` and real-time breadcrumb journey trail `[path: [01:intro] ──► [15:hub] ──► [22:history]]`.
+  - Dual history controls: `Backspace` pops 1 step immediately, while `H` opens the Visual Reflog Modal.
+- Expanded automated test suite to **147 tests** maintaining **90.5% statement coverage** in `deck/internal` with zero external runtime dependencies and sub-millisecond per-frame rendering.
+
 ## v0.8 — 25 September 2026
 
 ### Added

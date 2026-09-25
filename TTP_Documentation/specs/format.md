@@ -282,7 +282,8 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `→`, `l`, `Space`, `Enter`, `PageDown` | Next slide / advance directed edge / follow active route |
 | `←`, `h`, `PageUp` | Previous slide / previous route slide |
 | `1` – `9` | Jump directly along numbered branch option |
-| `Backspace`, `H` | Backtrack along visited graph traversal history |
+| `Backspace` | Pop back 1 slide along traversal history |
+| `H` | Open Traversal History & Graph Reflog modal (`1`-`9` or Enter to rewind) |
 | `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |
 | `K` | Open Audience Tracks & Subgraph Filtering modal (`0`-`9` quick select) |
 | `[`, `]` | Hop backward / forward along slides matching active audience track |

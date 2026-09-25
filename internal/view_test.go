@@ -1086,7 +1086,7 @@ title: Branch Status Deck
 	if !strings.Contains(status, "[fork: 1 paths") || !strings.Contains(status, "Next Part") {
 		t.Errorf("expected fork badge in nav status, got:\n%s", status)
 	}
-	if !strings.Contains(status, "[history: 1]") {
+	if !strings.Contains(status, "[history: 1 (H)]") {
 		t.Errorf("expected history badge in nav status, got:\n%s", status)
 	}
 	if !strings.Contains(status, "M map") {
@@ -1100,8 +1100,8 @@ func TestHelpModalGraphShortcuts(t *testing.T) {
 	if !strings.Contains(help, "1 - 9") {
 		t.Errorf("expected '1 - 9' in help modal, got:\n%s", help)
 	}
-	if !strings.Contains(help, "Backspace / H") {
-		t.Errorf("expected 'Backspace / H' in help modal, got:\n%s", help)
+	if !strings.Contains(help, "Backspace") || !strings.Contains(help, "H") {
+		t.Errorf("expected 'Backspace' and 'H' in help modal, got:\n%s", help)
 	}
 	if !strings.Contains(help, "M") || !strings.Contains(help, "graph map") {
 		t.Errorf("expected 'M' graph map in help modal, got:\n%s", help)
@@ -1403,6 +1403,45 @@ Summary and thank you.
 	}
 	if !strings.Contains(graphView, "#1") {
 		t.Fatalf("expected #1 route step badge in graph modal, got:\n%s", graphView)
+	}
+}
+
+func TestRenderHistoryModal(t *testing.T) {
+	// 1. Empty history
+	d := Deck{
+		Slides: []Slide{
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Intro"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Architecture"}}},
+			{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Conclusion"}}},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	emptyModal := stripANSI(renderHistoryModal(d, ed, 100, 30))
+	if !strings.Contains(emptyModal, "Presentation Traversal History") || !strings.Contains(emptyModal, "start of your presentation traversal") {
+		t.Fatalf("expected empty history modal message, got:\n%s", emptyModal)
+	}
+
+	// 2. Populated history
+	ed.History = []int{0, 1}
+	ed.SlideIdx = 2
+	ed.ShowHistoryModal = true
+
+	modalView := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(modalView, "Presentation Traversal History") {
+		t.Fatalf("expected title in modalView, got:\n%s", modalView)
+	}
+	if !strings.Contains(modalView, "Intro") || !strings.Contains(modalView, "Architecture") || !strings.Contains(modalView, "Conclusion") {
+		t.Fatalf("expected slide titles in history modal, got:\n%s", modalView)
+	}
+	if !strings.Contains(modalView, "● CURRENT") || !strings.Contains(modalView, "step back") {
+		t.Fatalf("expected CURRENT and step back badges, got:\n%s", modalView)
+	}
+
+	// 3. navStatus with history
+	ed.ShowHistoryModal = false
+	status := stripANSI(navStatus(d, ed, 200))
+	if !strings.Contains(status, "[history: 2 (H)]") || !strings.Contains(status, "H history") {
+		t.Fatalf("expected history status and H hint in navStatus, got:\n%s", status)
 	}
 }
 

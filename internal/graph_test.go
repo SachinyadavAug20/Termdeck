@@ -409,3 +409,139 @@ routes:
 		t.Fatalf("expected no step badges when route is empty, got:\n%s", cliNoRoute)
 	}
 }
+
+func TestLintGraph(t *testing.T) {
+	theme := ResolveTheme("tokyo-night")
+
+	// 1. Empty deck
+	emptyDeck := Deck{}
+	emptyIssues := LintGraph(emptyDeck)
+	if len(emptyIssues) != 1 || emptyIssues[0].Severity != SeverityError {
+		t.Fatalf("expected 1 error for empty deck, got %+v", emptyIssues)
+	}
+
+	// 2. Sound deck
+	soundSrc := `---
+title: Sound Deck
+routes:
+  quick: intro -> end
+---
+
+::id intro
+# Intro
+::next end
+
+---
+
+::id end
+# End
+`
+	soundDeck := ParseDeck(soundSrc)
+	soundIssues := LintGraph(soundDeck)
+	if len(soundIssues) != 0 {
+		t.Fatalf("expected 0 issues for sound deck, got %+v", soundIssues)
+	}
+	soundOut, soundErrCount := FormatLintCLI(soundIssues, theme, "sound.deck.md")
+	if soundErrCount != 0 || !strings.Contains(soundOut, "topology is sound") {
+		t.Fatalf("unexpected FormatLintCLI output for sound deck: %s", soundOut)
+	}
+
+	// 3. Problematic deck with duplicate IDs, broken branch, broken next, broken prev, broken route, unreachable, dead end
+	badSrc := `---
+title: Broken Deck
+routes:
+  missing-step: intro -> ghost
+  empty-route:
+---
+
+::id intro
+# Intro
+::branch [1] Broken Fork -> non-existent
+::next bad-next
+::prev bad-prev
+
+---
+
+::id intro
+# Duplicate ID Intro
+
+---
+
+::id orphan
+# Unreachable Slide
+::next none
+
+---
+
+::id end
+# Final Slide
+`
+	badDeck := ParseDeck(badSrc)
+	// Add an empty branch target explicitly
+	badDeck.Slides[0].Blocks = append(badDeck.Slides[0].Blocks, Block{
+		Kind:         BlockBranch,
+		BranchKey:    "2",
+		BranchTarget: "",
+	})
+	// Make sure empty route has 0 slugs
+	badDeck.Routes["empty-route"] = []string{}
+
+	badIssues := LintGraph(badDeck)
+	if len(badIssues) == 0 {
+		t.Fatalf("expected multiple issues for broken deck, got 0")
+	}
+
+	hasDuplicateID := false
+	hasBrokenBranch := false
+	hasEmptyBranch := false
+	hasBrokenNext := false
+	hasBrokenPrev := false
+	hasBrokenRoute := false
+	hasEmptyRoute := false
+	hasUnreachable := false
+
+	for _, issue := range badIssues {
+		if strings.Contains(issue.Message, "duplicate slide id") {
+			hasDuplicateID = true
+		}
+		if strings.Contains(issue.Message, "nonexistent target \"non-existent\"") {
+			hasBrokenBranch = true
+		}
+		if strings.Contains(issue.Message, "empty target") {
+			hasEmptyBranch = true
+		}
+		if strings.Contains(issue.Message, "::next points to nonexistent") {
+			hasBrokenNext = true
+		}
+		if strings.Contains(issue.Message, "::prev points to nonexistent") {
+			hasBrokenPrev = true
+		}
+		if strings.Contains(issue.Message, "route \"missing-step\" step 2") {
+			hasBrokenRoute = true
+		}
+		if strings.Contains(issue.Message, "route \"empty-route\" contains no target") {
+			hasEmptyRoute = true
+		}
+		if strings.Contains(issue.Message, "unreachable from the opening slide") {
+			hasUnreachable = true
+		}
+	}
+
+	if !hasDuplicateID || !hasBrokenBranch || !hasEmptyBranch || !hasBrokenNext || !hasBrokenPrev || !hasBrokenRoute || !hasEmptyRoute || !hasUnreachable {
+		t.Fatalf("missing expected diagnostics in badIssues: %+v", badIssues)
+	}
+
+	badOut, badErrCount := FormatLintCLI(badIssues, theme, "bad.deck.md")
+	if badErrCount == 0 || !strings.Contains(badOut, "✖ ERROR") || !strings.Contains(badOut, "⚠ WARN") {
+		t.Fatalf("expected formatted error output with badges: %s", badOut)
+	}
+
+	// 4. Test warnings only output formatting
+	warnOnlyIssues := []LintIssue{
+		{Severity: SeverityWarning, SlideIdx: 1, Title: "Warn", Message: "advisory warning"},
+	}
+	warnOut, warnErrCount := FormatLintCLI(warnOnlyIssues, theme, "warn.deck.md")
+	if warnErrCount != 0 || !strings.Contains(warnOut, "No fatal DAG errors") {
+		t.Fatalf("unexpected warning-only FormatLintCLI output: %s", warnOut)
+	}
+}

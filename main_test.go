@@ -387,3 +387,7 @@ func TestPrintHelpTrack(t *testing.T) {
 func TestPrintHelpRoute(t *testing.T) {
 	printHelp()
 }
+
+func TestPrintHelpLint(t *testing.T) {
+	printHelp()
+}

@@ -1130,7 +1130,8 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(currentTheme.HelpHeaderStyle.Render("  NAVIGATION") + "\n")
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Next slide / Advance graph edge")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h"), currentTheme.HelpDescStyle.Render("Previous slide")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Backspace / H"), currentTheme.HelpDescStyle.Render("Backtrack along traversal history")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Backspace"), currentTheme.HelpDescStyle.Render("Pop back 1 slide along traversal history")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("H"), currentTheme.HelpDescStyle.Render("Traversal history & visual reflog modal")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Follow branch option shortcut")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks & subgraph filter")))
@@ -1833,6 +1834,90 @@ func renderRouteModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderHistoryModal(d Deck, e Editor, w, h int) string {
+	modalW := 68
+	if modalW > w-4 {
+		modalW = w - 4
+	}
+	if modalW < 36 {
+		modalW = 36
+	}
+
+	var sb strings.Builder
+	title := currentTheme.HelpTitleStyle.Render("⏮   Presentation Traversal History (Reflog)")
+	sb.WriteString(title + "\n")
+	sb.WriteString(dimStyle.Render("Your path through the directed graph (rewind or jump to any step):") + "\n\n")
+
+	totalSteps := len(e.History) + 1
+	cursor := e.HistoryCursor
+	if cursor < 0 {
+		cursor = 0
+	}
+	if cursor >= totalSteps {
+		cursor = totalSteps - 1
+	}
+
+	if len(e.History) == 0 {
+		curTitle := "Slide"
+		if e.SlideIdx >= 0 && e.SlideIdx < len(d.Slides) {
+			curTitle = d.Slides[e.SlideIdx].Title()
+		}
+		sb.WriteString("  " + currentTheme.HelpKeyStyle.Render("[1]") + "  " + currentTheme.H1Style.Render(fmt.Sprintf("[%02d] %s", e.SlideIdx+1, curTitle)) + "  " + currentTheme.ProgressLineFilledStyle.Render("● CURRENT") + "\n\n")
+		sb.WriteString(dimStyle.Render("  You are at the start of your presentation traversal.\n  Taking branches (1-9) or links builds your history stack.\n"))
+	} else {
+		for i := 0; i < totalSteps; i++ {
+			isCurrent := i == len(e.History)
+			isCursor := cursor == i
+			sIdx := e.SlideIdx
+			if !isCurrent {
+				sIdx = e.History[i]
+			}
+
+			sTitle := "Slide"
+			sID := ""
+			if sIdx >= 0 && sIdx < len(d.Slides) {
+				sTitle = d.Slides[sIdx].Title()
+				sID = d.Slides[sIdx].ID
+			}
+
+			ptr := "  "
+			if isCursor {
+				ptr = currentTheme.LaserPointerStyle.Render("▶ ")
+			}
+
+			keyBadge := fmt.Sprintf("[%d]", i+1)
+			if i >= 9 {
+				keyBadge = "   "
+			}
+			if isCurrent {
+				keyBadge = "[•]"
+			}
+
+			label := fmt.Sprintf("[%02d] %s", sIdx+1, sTitle)
+			if sID != "" {
+				label += "  #" + sID
+			}
+			if isCurrent {
+				label += "  " + currentTheme.ProgressLineFilledStyle.Render("● CURRENT")
+			} else {
+				stepsBack := len(e.History) - i
+				label += "  " + dimStyle.Render(fmt.Sprintf("(%d step%s back)", stepsBack, plural(stepsBack)))
+			}
+
+			if isCursor {
+				sb.WriteString(ptr + currentTheme.HelpKeyStyle.Render(keyBadge) + "  " + currentTheme.H1Style.Render(label) + "\n")
+			} else {
+				sb.WriteString(ptr + dimBoldStyle.Render(keyBadge) + "  " + currentTheme.TableCellStyle.Render(label) + "\n")
+			}
+		}
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("1-9: rewind to step  ·  ▲/▼ or j/k: navigate  ·  Enter: jump  ·  c: clear  ·  Esc/H: close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 func renderBlankScreen(w, h int) string {
 	msg := dimStyle.Render("●  presentation paused  ·  press any key to resume")
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
@@ -1884,6 +1969,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowRouteModal {
 		return renderRouteModal(d, e, width, height)
+	}
+
+	if e.ShowHistoryModal {
+		return renderHistoryModal(d, e, width, height)
 	}
 
 	if e.Mode == ModePrompt {
@@ -2065,7 +2154,7 @@ func navStatus(d Deck, e Editor, w int) string {
 		}
 	}
 	if len(e.History) > 0 {
-		left += fmt.Sprintf("  ·  [history: %d]", len(e.History))
+		left += fmt.Sprintf("  ·  [history: %d (H)]", len(e.History))
 		trail := BreadcrumbTrail(e.History, e.SlideIdx, d)
 		if trail != "" {
 			left += "  ·  [path: " + trail + "]"
@@ -2081,7 +2170,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · M map · K track · P route · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · K track · P route · H history · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

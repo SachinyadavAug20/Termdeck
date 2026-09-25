@@ -5,8 +5,8 @@ title: termdeck demo
 theme: tokyo-night
 routes:
   lightning: intro -> why-terminal -> arch-comparison -> conclusion
-  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> conclusion
-  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> conclusion
+  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> conclusion
+  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> conclusion
 ---
 
 ::id intro
@@ -325,8 +325,10 @@ Presenters dynamically steer the presentation based on audience choice:
 
 ::branch [6] Deep Dive: Preset Routes & Guided Paths -> routes-deepdive
 
+::branch [7] Deep Dive: Traversal History & DAG Linter -> history-deepdive
+
 > [!TIP]
-> Press `1`-`6` to take a branch immediately, `P` for preset paths, or `M` to explore DAG topology!
+> Press `1`-`7` to take a branch immediately, `H` for reflog, `P` for paths, or `M` for topology!
 
 ---
 
@@ -480,6 +482,35 @@ Pre-configure tailored presentation paths across your non-linear DAG:
 
 > [!TIP]
 > Press `P` right now to preview and activate preset talk routes, or press `M` to see the route highlighted on the DAG!
+
+---
+
+::id history-deepdive
+::tags arch,demo,history
+::next conclusion
+::align left
+# Traversal History & Graph Reflog
+
+Inspect and rewind your presentation journey through the non-linear DAG:
+
+:::columns
+### Visual Journey Stack (`H`)
+- Press `H` to open Traversal History modal
+- Lists all visited slides in exact path order
+- Shows distance back (`(3 steps back)`)
+- Rewind to any step with `1`-`9` or `Enter`
+- Press `c` to reset traversal history
+:::col
+### DAG Linter & CI/CD (`--lint`)
+- Validates presentation graph topology
+- Detects broken `::branch` / `::next` targets
+- Catches duplicate slide identifiers
+- Identifies unreachable slides & dead ends
+- CLI validation: `deck --lint demo.deck.md`
+:::
+
+> [!TIP]
+> Press `H` anytime to see your reflog trail, or run `deck --lint` before your talk to guarantee zero broken links!
 
 ---
 
