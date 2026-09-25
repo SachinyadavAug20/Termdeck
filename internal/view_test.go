@@ -1653,6 +1653,131 @@ title: Waypoint Pathfinder View Test
 	}
 }
 
+func TestRenderRadarModal(t *testing.T) {
+	src := `---
+title: Radar View Test
+---
+
+::id hub
+# Hub Slide
+::branch [1] Branch A -> bA
+::branch [2] Branch B -> bB
+::branch [3] Branch C -> bC
+::branch [4] Branch D -> bD
+::branch [5] Branch E -> bE
+::branch [6] Branch F -> bF
+::branch [7] Branch G -> bG
+
+---
+
+::id bA
+# Slide A
+::next conclusion
+
+---
+
+::id bB
+# Slide B
+::next conclusion
+
+---
+
+::id bC
+# Slide C
+::next conclusion
+
+---
+
+::id bD
+# Slide D
+::next conclusion
+
+---
+
+::id bE
+# Slide E
+::next conclusion
+
+---
+
+::id bF
+# Slide F
+::next conclusion
+
+---
+
+::id bG
+# Slide G
+::next conclusion
+
+---
+
+::id conclusion
+# Conclusion
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// 1. Render normal View with ShowRadarModal = true
+	ed.SlideIdx = 0
+	ed.ShowRadarModal = true
+	viewModal := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewModal, "Graph Exploration Radar & Branch Coverage") {
+		t.Fatalf("expected radar title in view, got:\n%s", viewModal)
+	}
+	if !strings.Contains(viewModal, "Coverage:") || !strings.Contains(viewModal, "Speaking:") {
+		t.Fatalf("expected coverage and speaking stats, got:\n%s", viewModal)
+	}
+	if !strings.Contains(viewModal, "Fork [01] #hub: Hub Slide") {
+		t.Fatalf("expected fork header in modal, got:\n%s", viewModal)
+	}
+	if !strings.Contains(viewModal, "[1] Branch A") || !strings.Contains(viewModal, "[2] Branch B") {
+		t.Fatalf("expected branch rows, got:\n%s", viewModal)
+	}
+
+	// 2. Cursor scrolling and pagination (> 5 branches)
+	ed.RadarCursor = 6
+	viewPaginated := stripANSI(renderRadarModal(d, ed, 100, 30))
+	if !strings.Contains(viewPaginated, "showing") || !strings.Contains(viewPaginated, "branches") {
+		t.Fatalf("expected pagination indicator in radar modal, got:\n%s", viewPaginated)
+	}
+
+	// 3. Linear deck with no branches
+	linearDeck := Deck{Slides: []Slide{{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Linear"}}}}}
+	soloEd := NewEditor("test.deck.md")
+	viewLinear := stripANSI(renderRadarModal(linearDeck, soloEd, 100, 30))
+	if !strings.Contains(viewLinear, "No branching decision points in presentation") {
+		t.Fatalf("expected strictly linear notice, got:\n%s", viewLinear)
+	}
+
+	// 4. Small terminal width constraint
+	smallView := stripANSI(renderRadarModal(d, ed, 30, 20))
+	if !strings.Contains(smallView, "Graph Exploration Radar") {
+		t.Fatalf("expected radar rendered in small terminal, got:\n%s", smallView)
+	}
+
+	// 5. Navigation status bar with radar badge and fork return
+	ed.ShowRadarModal = false
+	ed.SlideIdx = 1
+	ed.History = []int{0}
+	status := stripANSI(navStatus(d, ed, 240))
+	if !strings.Contains(status, "[U: return to fork]") {
+		t.Fatalf("expected '[U: return to fork]' in navStatus, got:\n%s", status)
+	}
+	if !strings.Contains(status, "radar:") || !strings.Contains(status, "(V)") {
+		t.Fatalf("expected radar badge in navStatus, got:\n%s", status)
+	}
+	if !strings.Contains(status, "V radar") || !strings.Contains(status, "U fork") {
+		t.Fatalf("expected 'V radar' and 'U fork' hints in navStatus, got:\n%s", status)
+	}
+
+	// 6. Help modal documents V and U
+	help := stripANSI(renderHelpModal(100, 40))
+	if !strings.Contains(help, "Graph exploration radar") || !strings.Contains(help, "Return to upstream branch fork") {
+		t.Fatalf("expected V and U documented in help modal, got:\n%s", help)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

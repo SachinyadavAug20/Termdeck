@@ -2523,3 +2523,145 @@ Target Goal
 		t.Fatalf("expected history to record slide 0, got %v", ed.History)
 	}
 }
+
+func TestEditorRadarAndForkReturn(t *testing.T) {
+	// 1. Boundary cases
+	ed := NewEditor("test.deck.md")
+	if ed.ReturnToUpstreamFork(nil) {
+		t.Fatalf("expected false for nil deck")
+	}
+	emptyDeck := Deck{}
+	if ed.ReturnToUpstreamFork(&emptyDeck) {
+		t.Fatalf("expected false for empty deck")
+	}
+	if ed.FindLastForkIndex(nil) != -1 || ed.FindLastForkIndex(&emptyDeck) != -1 {
+		t.Fatalf("expected -1 for empty deck fork search")
+	}
+
+	ed.ToggleRadarModal(nil)
+	if ed.ShowRadarModal {
+		t.Fatalf("expected ShowRadarModal false for nil deck")
+	}
+	ed.ToggleRadarModal(&emptyDeck)
+	if ed.ShowRadarModal {
+		t.Fatalf("expected ShowRadarModal false for empty deck")
+	}
+	if ed.JumpToRadarBranch(BranchCoverageItem{TargetIdx: -1}, &emptyDeck) {
+		t.Fatalf("expected false for invalid branch target")
+	}
+
+	// 2. Setup presentation with decision hub
+	src := `---
+title: Radar & Fork Deck
+---
+
+::id hub
+# Hub Slide
+::branch [1] Arch -> arch
+::branch [2] Runner -> runner
+
+---
+
+::id arch
+# Arch Slide
+::next conclusion
+
+---
+
+::id runner
+# Runner Slide
+::next conclusion
+
+---
+
+::id conclusion
+# Conclusion
+`
+	d := ParseDeck(src)
+	ed = NewEditor("test.deck.md")
+
+	// 3. Open Radar Modal with 'V'
+	sendTestKey(&ed, &d, "V")
+	if !ed.ShowRadarModal {
+		t.Fatalf("expected ShowRadarModal true after 'V'")
+	}
+	if ed.RadarCursor != 0 {
+		t.Fatalf("expected initial cursor 0, got %d", ed.RadarCursor)
+	}
+
+	// Navigation within modal
+	sendTestKey(&ed, &d, "down")
+	if ed.RadarCursor != 1 {
+		t.Fatalf("expected cursor 1 after down, got %d", ed.RadarCursor)
+	}
+	sendTestKey(&ed, &d, "up")
+	if ed.RadarCursor != 0 {
+		t.Fatalf("expected cursor 0 after up, got %d", ed.RadarCursor)
+	}
+	sendTestKey(&ed, &d, "G")
+	if ed.RadarCursor != 1 {
+		t.Fatalf("expected cursor 1 after G, got %d", ed.RadarCursor)
+	}
+	sendTestKey(&ed, &d, "g")
+	if ed.RadarCursor != 0 {
+		t.Fatalf("expected cursor 0 after g, got %d", ed.RadarCursor)
+	}
+
+	// Dismiss via 'V'
+	sendTestKey(&ed, &d, "V")
+	if ed.ShowRadarModal {
+		t.Fatalf("expected modal closed after toggle V")
+	}
+
+	// 4. Select branch 2 via numeric key '2' inside radar modal
+	sendTestKey(&ed, &d, "V")
+	sendTestKey(&ed, &d, "2")
+	if ed.ShowRadarModal {
+		t.Fatalf("expected modal closed after selecting branch '2'")
+	}
+	if ed.SlideIdx != 2 {
+		t.Fatalf("expected jumped to runner (slide 2), got slide=%d", ed.SlideIdx)
+	}
+	if len(ed.History) != 1 || ed.History[0] != 0 {
+		t.Fatalf("expected history to contain hub (0), got %v", ed.History)
+	}
+
+	// 5. Test ReturnToUpstreamFork via 'U'
+	sendTestKey(&ed, &d, "U")
+	if ed.SlideIdx != 0 {
+		t.Fatalf("expected returned to hub (slide 0), got slide=%d", ed.SlideIdx)
+	}
+	if !strings.Contains(ed.Message, "returned to upstream fork") {
+		t.Fatalf("expected return message, got %q", ed.Message)
+	}
+
+	// Pressing U again when no forks in history
+	sendTestKey(&ed, &d, "U")
+	if !strings.Contains(ed.Message, "no prior fork found") {
+		t.Fatalf("expected no prior fork message, got %q", ed.Message)
+	}
+
+	// 6. Test 'u' inside Radar Modal
+	// Jump to slide 1 (arch) with history [0]
+	ed.SlideIdx = 1
+	ed.History = []int{0}
+	sendTestKey(&ed, &d, "V")
+	sendTestKey(&ed, &d, "u")
+	if ed.ShowRadarModal {
+		t.Fatalf("expected modal closed after 'u'")
+	}
+	if ed.SlideIdx != 0 {
+		t.Fatalf("expected jumped to fork slide 0 via 'u', got %d", ed.SlideIdx)
+	}
+
+	// 7. Test Enter on focused branch in Radar Modal
+	sendTestKey(&ed, &d, "V")
+	sendTestKey(&ed, &d, "g") // cursor on branch 1 (Arch)
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowRadarModal || ed.SlideIdx != 1 {
+		t.Fatalf("expected jumped to slide 1 via enter, got slide=%d", ed.SlideIdx)
+	}
+	if !strings.Contains(ed.Message, "jumped to branch [1]") {
+		t.Fatalf("expected branch jump message, got %q", ed.Message)
+	}
+}

@@ -1176,3 +1176,268 @@ func GetForkOptions(slideIdx int, d Deck, activeTrack string, activeRoute string
 
 	return options
 }
+
+// BranchCoverageItem represents exploration status of a specific branch in the presentation DAG.
+type BranchCoverageItem struct {
+	ForkSlideIdx   int
+	ForkTitle      string
+	ForkID         string
+	BranchKey      string
+	BranchLabel    string
+	TargetIdx      int
+	TargetTitle    string
+	TargetID       string
+	SubtreeTotal   int
+	SubtreeVisited int
+	SubtreeEstMin  int
+	IsComplete     bool
+	IsUnvisited    bool
+	IsCurrent      bool
+}
+
+// GraphRadarStats contains holistic presentation DAG exploration telemetry and completion metrics.
+type GraphRadarStats struct {
+	TotalSlides       int
+	VisitedSlides     int
+	CoveragePct       float64
+	TotalDeckEstMin   int
+	VisitedEstMin     int
+	UnvisitedEstMin   int
+	ForkCount         int
+	CompletedBranches int
+	TotalBranches     int
+	Items             []BranchCoverageItem
+}
+
+// CalculateRadarStats computes graph coverage and per-branch completion metrics.
+func (g DeckGraph) CalculateRadarStats(d Deck, visitedMap map[int]bool, currentIdx int) GraphRadarStats {
+	stats := GraphRadarStats{
+		TotalSlides: len(d.Slides),
+	}
+	if len(d.Slides) == 0 {
+		return stats
+	}
+
+	vMap := make(map[int]bool)
+	for k, v := range visitedMap {
+		if v && k >= 0 && k < len(d.Slides) {
+			vMap[k] = true
+		}
+	}
+	if currentIdx >= 0 && currentIdx < len(d.Slides) {
+		vMap[currentIdx] = true
+	}
+	if len(vMap) == 0 {
+		vMap[0] = true
+	}
+
+	stats.VisitedSlides = len(vMap)
+	if stats.TotalSlides > 0 {
+		stats.CoveragePct = (float64(stats.VisitedSlides) / float64(stats.TotalSlides)) * 100.0
+	}
+
+	totalWords := 0
+	visitedWords := 0
+	for i, s := range d.Slides {
+		sWords := 0
+		for _, b := range s.Blocks {
+			switch b.Kind {
+			case BlockHeading, BlockParagraph, BlockCallout, BlockList:
+				sWords += len(strings.Fields(b.Text))
+			case BlockCode, BlockTable:
+				for _, line := range b.Lines {
+					sWords += len(strings.Fields(line))
+				}
+			}
+		}
+		totalWords += sWords
+		if vMap[i] {
+			visitedWords += sWords
+		}
+	}
+
+	if totalWords > 0 {
+		stats.TotalDeckEstMin = (totalWords + 129) / 130
+	} else if len(d.Slides) > 0 {
+		stats.TotalDeckEstMin = 1
+	}
+	if visitedWords > 0 {
+		stats.VisitedEstMin = (visitedWords + 129) / 130
+	}
+	stats.UnvisitedEstMin = stats.TotalDeckEstMin - stats.VisitedEstMin
+	if stats.UnvisitedEstMin < 0 {
+		stats.UnvisitedEstMin = 0
+	}
+
+	for forkIdx, forkSlide := range d.Slides {
+		branches := forkSlide.Branches()
+		if len(branches) <= 1 {
+			continue
+		}
+		stats.ForkCount++
+
+		type branchReach struct {
+			branch    Branch
+			targetIdx int
+			reachSet  map[int]bool
+		}
+		var bReaches []branchReach
+		for _, b := range branches {
+			tIdx := d.FindSlideByID(b.Target)
+			if tIdx >= 0 && tIdx < len(d.Slides) {
+				subNodes := g.ReachableNodes(tIdx)
+				rSet := make(map[int]bool)
+				for _, n := range subNodes {
+					rSet[n] = true
+				}
+				bReaches = append(bReaches, branchReach{branch: b, targetIdx: tIdx, reachSet: rSet})
+			}
+		}
+
+		for bIdx, br := range bReaches {
+			stats.TotalBranches++
+			var exclusive []int
+			for node := range br.reachSet {
+				isShared := false
+				for oIdx, other := range bReaches {
+					if oIdx != bIdx && other.reachSet[node] {
+						isShared = true
+						break
+					}
+				}
+				if !isShared {
+					exclusive = append(exclusive, node)
+				}
+			}
+			if len(exclusive) == 0 {
+				exclusive = []int{br.targetIdx}
+			}
+
+			subVisited := 0
+			unvisitedWords := 0
+			for _, nIdx := range exclusive {
+				if vMap[nIdx] {
+					subVisited++
+				} else if nIdx >= 0 && nIdx < len(d.Slides) {
+					for _, b := range d.Slides[nIdx].Blocks {
+						switch b.Kind {
+						case BlockHeading, BlockParagraph:
+							unvisitedWords += len(strings.Fields(b.Text))
+						case BlockCode:
+							for _, line := range b.Lines {
+								unvisitedWords += len(strings.Fields(line))
+							}
+						}
+					}
+				}
+			}
+
+			subEstMin := 0
+			if unvisitedWords > 0 {
+				subEstMin = (unvisitedWords + 129) / 130
+			} else if subVisited < len(exclusive) {
+				subEstMin = 1
+			}
+
+			targetSlide := d.Slides[br.targetIdx]
+			item := BranchCoverageItem{
+				ForkSlideIdx:   forkIdx,
+				ForkTitle:      forkSlide.Title(),
+				ForkID:         forkSlide.ID,
+				BranchKey:      br.branch.Key,
+				BranchLabel:    br.branch.Label,
+				TargetIdx:      br.targetIdx,
+				TargetTitle:    targetSlide.Title(),
+				TargetID:       targetSlide.ID,
+				SubtreeTotal:   len(exclusive),
+				SubtreeVisited: subVisited,
+				SubtreeEstMin:  subEstMin,
+				IsComplete:     subVisited == len(exclusive),
+				IsUnvisited:    subVisited == 0,
+				IsCurrent:      br.targetIdx == currentIdx,
+			}
+			if item.BranchKey == "" {
+				item.BranchKey = fmt.Sprintf("%d", bIdx+1)
+			}
+			if item.IsComplete {
+				stats.CompletedBranches++
+			}
+			stats.Items = append(stats.Items, item)
+		}
+	}
+
+	return stats
+}
+
+// FormatRadarCLI formats presentation graph exploration telemetry as an ASCII CLI report.
+func FormatRadarCLI(d Deck, visitedMap map[int]bool, currentIdx int) string {
+	bg := BuildGraph(d)
+	stats := bg.CalculateRadarStats(d, visitedMap, currentIdx)
+
+	var sb strings.Builder
+	sb.WriteString("Termdeck Presentation Graph Exploration Radar\n")
+	title := ""
+	if d.Meta != nil && d.Meta["title"] != "" {
+		title = d.Meta["title"]
+	}
+	if title != "" {
+		sb.WriteString(fmt.Sprintf("Title: %s\n", title))
+	}
+	sb.WriteString("──────────────────────────────────────────────────\n")
+
+	barLen := 20
+	filled := int(float64(barLen) * (stats.CoveragePct / 100.0))
+	if filled > barLen {
+		filled = barLen
+	}
+	bar := strings.Repeat("█", filled) + strings.Repeat("░", barLen-filled)
+
+	inProgress := 0
+	unvisited := 0
+	for _, item := range stats.Items {
+		if item.IsUnvisited {
+			unvisited++
+		} else if !item.IsComplete {
+			inProgress++
+		}
+	}
+
+	sb.WriteString(fmt.Sprintf("Graph Coverage:  %s  %.1f%% (%d/%d slides)\n", bar, stats.CoveragePct, stats.VisitedSlides, stats.TotalSlides))
+	sb.WriteString(fmt.Sprintf("Speaking Time:   ~%dm visited / ~%dm total (~%dm unvisited)\n", stats.VisitedEstMin, stats.TotalDeckEstMin, stats.UnvisitedEstMin))
+	sb.WriteString(fmt.Sprintf("Decision Forks:  %d fork%s · %d branches (%d complete, %d in-progress, %d unvisited)\n\n",
+		stats.ForkCount, plural(stats.ForkCount), stats.TotalBranches, stats.CompletedBranches, inProgress, unvisited))
+
+	if len(stats.Items) == 0 {
+		sb.WriteString("No decision forks found in presentation (linear deck).\n")
+	} else {
+		sb.WriteString("Branch Completion Matrix:\n")
+		curFork := -1
+		for _, item := range stats.Items {
+			if item.ForkSlideIdx != curFork {
+				curFork = item.ForkSlideIdx
+				forkSlug := ""
+				if item.ForkID != "" {
+					forkSlug = " #" + item.ForkID
+				}
+				sb.WriteString(fmt.Sprintf("  Fork [%02d]%s: %s\n", item.ForkSlideIdx+1, forkSlug, item.ForkTitle))
+			}
+			marker := "○"
+			statusText := fmt.Sprintf("%d/%d slides · Unvisited · ~%dm", item.SubtreeVisited, item.SubtreeTotal, item.SubtreeEstMin)
+			if item.IsComplete {
+				marker = "✔"
+				statusText = fmt.Sprintf("%d/%d slides · 100%% complete", item.SubtreeVisited, item.SubtreeTotal)
+			} else if !item.IsUnvisited {
+				pct := int((float64(item.SubtreeVisited) / float64(item.SubtreeTotal)) * 100.0)
+				marker = "◐"
+				statusText = fmt.Sprintf("%d/%d slides · %d%% in-progress · ~%dm left", item.SubtreeVisited, item.SubtreeTotal, pct, item.SubtreeEstMin)
+			}
+			targetSlug := ""
+			if item.TargetID != "" {
+				targetSlug = " ──► #" + item.TargetID
+			}
+			sb.WriteString(fmt.Sprintf("    %s [%s] %s%s (%s)\n", marker, item.BranchKey, item.BranchLabel, targetSlug, statusText))
+		}
+	}
+
+	return sb.String()
+}

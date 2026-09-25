@@ -93,6 +93,8 @@ type Editor struct {
 	ShowWaypointModal bool
 	WaypointCursor    int
 	WaypointQuery     string
+	ShowRadarModal    bool
+	RadarCursor       int
 }
 
 func NewEditor(filePath string) Editor {
@@ -485,6 +487,95 @@ func (e *Editor) StepWaypointPath(cand WaypointCandidate, d *Deck) bool {
 	e.ClampBlockIdx(d)
 	e.ShowWaypointModal = false
 	e.Message = fmt.Sprintf("stepped along path to [%02d] %s (target: [%02d] %s)", e.SlideIdx+1, d.Slides[e.SlideIdx].Title(), cand.SlideIndex+1, cand.Title)
+	return true
+}
+
+func (e Editor) BuildVisitedMap() map[int]bool {
+	visited := make(map[int]bool)
+	visited[0] = true
+	for _, sIdx := range e.History {
+		visited[sIdx] = true
+	}
+	visited[e.SlideIdx] = true
+	return visited
+}
+
+func (e *Editor) FindLastForkIndex(d *Deck) int {
+	if d == nil || len(d.Slides) == 0 {
+		return -1
+	}
+	for i := len(e.History) - 1; i >= 0; i-- {
+		sIdx := e.History[i]
+		if sIdx >= 0 && sIdx < len(d.Slides) && sIdx != e.SlideIdx {
+			s := d.Slides[sIdx]
+			if len(s.Branches()) > 1 {
+				return sIdx
+			}
+		}
+	}
+	return -1
+}
+
+func (e *Editor) ReturnToUpstreamFork(d *Deck) bool {
+	if d == nil || len(d.Slides) == 0 {
+		return false
+	}
+	forkIdx := e.FindLastForkIndex(d)
+	if forkIdx < 0 {
+		e.Message = "no prior fork found in traversal history"
+		return false
+	}
+
+	lastStep := -1
+	for i := len(e.History) - 1; i >= 0; i-- {
+		if e.History[i] == forkIdx {
+			lastStep = i
+			break
+		}
+	}
+	if lastStep >= 0 {
+		e.History = e.History[:lastStep]
+	}
+	e.SlideIdx = forkIdx
+	e.BlockIdx = 0
+	e.ClampBlockIdx(d)
+	e.Message = fmt.Sprintf("⤺ returned to upstream fork: [%02d] %s", forkIdx+1, d.Slides[forkIdx].Title())
+	return true
+}
+
+func (e *Editor) ToggleRadarModal(d *Deck) {
+	if d == nil || len(d.Slides) == 0 {
+		e.Message = "exploration radar: presentation has no slides"
+		return
+	}
+	e.ShowRadarModal = !e.ShowRadarModal
+	if e.ShowRadarModal {
+		e.RadarCursor = 0
+		e.ShowHelp = false
+		e.ShowStats = false
+		e.ShowOverview = false
+		e.ShowGraphMap = false
+		e.ShowTrackModal = false
+		e.ShowRouteModal = false
+		e.ShowHistoryModal = false
+		e.ShowBranchHUD = false
+		e.ShowWaypointModal = false
+		e.Message = "graph exploration radar: browse branches (arrows/jk, enter: jump, u: fork, esc: close)"
+	} else {
+		e.Message = "exploration radar closed"
+	}
+}
+
+func (e *Editor) JumpToRadarBranch(item BranchCoverageItem, d *Deck) bool {
+	if d == nil || item.TargetIdx < 0 || item.TargetIdx >= len(d.Slides) {
+		return false
+	}
+	e.History = append(e.History, e.SlideIdx)
+	e.SlideIdx = item.TargetIdx
+	e.BlockIdx = 0
+	e.ClampBlockIdx(d)
+	e.ShowRadarModal = false
+	e.Message = fmt.Sprintf("jumped to branch [%s] %s", item.BranchKey, item.TargetTitle)
 	return true
 }
 
@@ -1339,6 +1430,65 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 	}
 
+	if e.ShowRadarModal {
+		bg := BuildGraph(*d)
+		visitedMap := e.BuildVisitedMap()
+		radar := bg.CalculateRadarStats(*d, visitedMap, e.SlideIdx)
+		switch key {
+		case "esc", "q", "V":
+			e.ShowRadarModal = false
+			e.Message = "graph exploration radar closed"
+			return nil
+		case "up", "k":
+			if e.RadarCursor > 0 {
+				e.RadarCursor--
+			}
+			return nil
+		case "down", "j":
+			if e.RadarCursor < len(radar.Items)-1 {
+				e.RadarCursor++
+			}
+			return nil
+		case "g", "home":
+			e.RadarCursor = 0
+			return nil
+		case "G", "end":
+			if len(radar.Items) > 0 {
+				e.RadarCursor = len(radar.Items) - 1
+			}
+			return nil
+		case "u", "U":
+			if len(radar.Items) > 0 && e.RadarCursor >= 0 && e.RadarCursor < len(radar.Items) {
+				item := radar.Items[e.RadarCursor]
+				e.History = append(e.History, e.SlideIdx)
+				e.SlideIdx = item.ForkSlideIdx
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				e.ShowRadarModal = false
+				e.Message = fmt.Sprintf("jumped to fork: [%02d] %s", item.ForkSlideIdx+1, item.ForkTitle)
+			}
+			return nil
+		case "1", "2", "3", "4", "5", "6", "7", "8", "9":
+			for _, item := range radar.Items {
+				if item.BranchKey == key {
+					e.JumpToRadarBranch(item, d)
+					return nil
+				}
+			}
+			idx := int(key[0] - '1')
+			if idx >= 0 && idx < len(radar.Items) {
+				e.JumpToRadarBranch(radar.Items[idx], d)
+				return nil
+			}
+		case "enter", " ":
+			if len(radar.Items) > 0 && e.RadarCursor >= 0 && e.RadarCursor < len(radar.Items) {
+				e.JumpToRadarBranch(radar.Items[e.RadarCursor], d)
+			}
+			return nil
+		}
+		return nil
+	}
+
 	if e.FocusMode {
 		switch key {
 		case "esc", "f", "F", "q", "ctrl+c":
@@ -1514,6 +1664,20 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.ShowRunner = false
 		}
 		e.ToggleWaypointModal(d)
+		return nil
+
+	case "V":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
+		e.ToggleRadarModal(d)
+		return nil
+
+	case "U":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
+		e.ReturnToUpstreamFork(d)
 		return nil
 
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":

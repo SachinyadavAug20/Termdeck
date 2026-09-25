@@ -1135,6 +1135,8 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Follow branch option shortcut")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("J"), currentTheme.HelpDescStyle.Render("Branch fork HUD & destination preview picker")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("W"), currentTheme.HelpDescStyle.Render("Waypoint pathfinder & shortest-path graph router")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("V"), currentTheme.HelpDescStyle.Render("Graph exploration radar & branch coverage")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("U"), currentTheme.HelpDescStyle.Render("Return to upstream branch fork")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks & subgraph filter")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("[ / ]"), currentTheme.HelpDescStyle.Render("Hop backward / forward along track")))
@@ -2191,6 +2193,131 @@ func renderWaypointModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderRadarModal(d Deck, e Editor, w, h int) string {
+	modalW := 78
+	if modalW > w-4 {
+		modalW = w - 4
+	}
+	if modalW < 36 {
+		modalW = 36
+	}
+
+	bg := BuildGraph(d)
+	visitedMap := e.BuildVisitedMap()
+	stats := bg.CalculateRadarStats(d, visitedMap, e.SlideIdx)
+
+	var sb strings.Builder
+	title := currentTheme.HelpTitleStyle.Render("📡   Graph Exploration Radar & Branch Coverage")
+	sb.WriteString(title + "\n")
+
+	barLen := 24
+	filled := int(float64(barLen) * (stats.CoveragePct / 100.0))
+	if filled > barLen {
+		filled = barLen
+	}
+	bar := currentTheme.H1Style.Render(strings.Repeat("█", filled)) + dimStyle.Render(strings.Repeat("░", barLen-filled))
+
+	gaugeLine := fmt.Sprintf("Coverage: %s  %s  (%d/%d unique slides)",
+		bar,
+		currentTheme.HelpKeyStyle.Render(fmt.Sprintf("%.1f%%", stats.CoveragePct)),
+		stats.VisitedSlides, stats.TotalSlides,
+	)
+	sb.WriteString(gaugeLine + "\n")
+
+	inProgress := 0
+	unvisited := 0
+	for _, item := range stats.Items {
+		if item.IsUnvisited {
+			unvisited++
+		} else if !item.IsComplete {
+			inProgress++
+		}
+	}
+
+	statsLine := fmt.Sprintf("Speaking: ~%dm visited / ~%dm total (~%dm unvisited)  ·  Forks: %d  ·  Branches: %d (%d complete, %d in-progress, %d unvisited)",
+		stats.VisitedEstMin, stats.TotalDeckEstMin, stats.UnvisitedEstMin,
+		stats.ForkCount, stats.TotalBranches, stats.CompletedBranches, inProgress, unvisited,
+	)
+	sb.WriteString(dimStyle.Render(statsLine) + "\n\n")
+
+	if len(stats.Items) == 0 {
+		sb.WriteString(dimStyle.Render("  No branching decision points in presentation (strictly linear deck).\n"))
+	} else {
+		cursor := e.RadarCursor
+		if cursor < 0 {
+			cursor = 0
+		}
+		if cursor >= len(stats.Items) {
+			cursor = len(stats.Items) - 1
+		}
+
+		maxVisible := 5
+		startIdx := 0
+		if cursor >= maxVisible {
+			startIdx = cursor - maxVisible + 1
+		}
+		endIdx := startIdx + maxVisible
+		if endIdx > len(stats.Items) {
+			endIdx = len(stats.Items)
+		}
+
+		curFork := -1
+		for i := startIdx; i < endIdx; i++ {
+			item := stats.Items[i]
+			isCursor := cursor == i
+
+			if item.ForkSlideIdx != curFork {
+				curFork = item.ForkSlideIdx
+				forkSlug := ""
+				if item.ForkID != "" {
+					forkSlug = " #" + item.ForkID
+				}
+				forkHeader := fmt.Sprintf("Fork [%02d]%s: %s", item.ForkSlideIdx+1, forkSlug, item.ForkTitle)
+				sb.WriteString(currentTheme.HelpHeaderStyle.Render(forkHeader) + "\n")
+			}
+
+			ptr := "  "
+			if isCursor {
+				ptr = currentTheme.LaserPointerStyle.Render("▶ ")
+			}
+
+			marker := "○"
+			statusText := fmt.Sprintf("%d/%d slides · Unvisited · ~%dm", item.SubtreeVisited, item.SubtreeTotal, item.SubtreeEstMin)
+			if item.IsComplete {
+				marker = "✔"
+				statusText = fmt.Sprintf("%d/%d slides · 100%% complete", item.SubtreeVisited, item.SubtreeTotal)
+			} else if !item.IsUnvisited {
+				pct := int((float64(item.SubtreeVisited) / float64(item.SubtreeTotal)) * 100.0)
+				marker = "◐"
+				statusText = fmt.Sprintf("%d/%d slides · %d%% in-progress · ~%dm left", item.SubtreeVisited, item.SubtreeTotal, pct, item.SubtreeEstMin)
+			}
+
+			targetSlug := ""
+			if item.TargetID != "" {
+				targetSlug = " ──► #" + item.TargetID
+			}
+
+			branchRow := fmt.Sprintf("%s [%s] %s%s", marker, item.BranchKey, item.BranchLabel, targetSlug)
+			if isCursor {
+				sb.WriteString(ptr + currentTheme.H1Style.Render(branchRow) + "\n")
+				sb.WriteString(fmt.Sprintf("       %s\n", currentTheme.HelpDescStyle.Render(statusText)))
+			} else {
+				sb.WriteString(ptr + currentTheme.TableCellStyle.Render(branchRow) + "\n")
+				sb.WriteString(fmt.Sprintf("       %s\n", dimStyle.Render(statusText)))
+			}
+		}
+
+		if len(stats.Items) > maxVisible {
+			sb.WriteString(dimStyle.Render(fmt.Sprintf("  ... showing %d-%d of %d branches ...\n", startIdx+1, endIdx, len(stats.Items))))
+		}
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("Enter: jump to branch  ·  u: return to fork  ·  1-9: quick jump  ·  j/k: browse  ·  Esc/V: close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 func renderBlankScreen(w, h int) string {
 	msg := dimStyle.Render("●  presentation paused  ·  press any key to resume")
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
@@ -2254,6 +2381,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowWaypointModal {
 		return renderWaypointModal(d, e, width, height)
+	}
+
+	if e.ShowRadarModal {
+		return renderRadarModal(d, e, width, height)
 	}
 
 	if e.Mode == ModePrompt {
@@ -2448,10 +2579,23 @@ func navStatus(d Deck, e Editor, w int) string {
 		indices := d.RouteSlideIndices(e.ActiveRoute)
 		left += fmt.Sprintf("  ·  [⚡ route: %s (%d/%d)]", e.ActiveRoute, e.RouteStep+1, len(indices))
 	}
+	if e.FindLastForkIndex(&d) >= 0 {
+		left += "  ·  [U: return to fork]"
+	}
+	if len(d.Slides) > 0 {
+		bg := BuildGraph(d)
+		if len(bg.Edges) > len(d.Slides)-1 {
+			visitedMap := e.BuildVisitedMap()
+			radar := bg.CalculateRadarStats(d, visitedMap, e.SlideIdx)
+			if radar.TotalBranches > 0 {
+				left += fmt.Sprintf("  ·  [radar: %.0f%% (V)]", radar.CoveragePct)
+			}
+		}
+	}
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · M map · K track · P route · H history · J fork · W waypoint · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · K track · P route · H history · J fork · W waypoint · V radar · U fork · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

@@ -16,6 +16,12 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 25 September 2026 (v0.12.0)
+- [x] **Graph Exploration Radar & Branch Completion Matrix (`V` / `--radar` / `--coverage`)**: global presentation DAG exploration telemetry gauge and completion matrix; displays visual progress bar of unique slides visited, speaking time budgeting (~130 WPM), and branch completion indicators (`✔` complete, `◐` in-progress, `○` unvisited)
+- [x] **Upstream Decision Fork Fast-Return (`U`)**: one-key instant backtrack teleporting presenter back to the nearest upstream decision fork where branches diverged, eliminating tedious sequential `Backspace` tapping
+- [x] **Interactive Radar Navigation & Fork Teleporting**: browse branches with `j`/`k`/arrows, jump to selected branch with `Enter`, or jump to parent fork hub with `u`
+- [x] **152 Automated Unit Tests** maintaining **90.9% statement coverage** in `internal/` with zero external runtime dependencies and sub-millisecond per-frame rendering (< 0.26ms)
+
 #### 25 September 2026 (v0.11.0)
 - [x] **Interactive Waypoint Pathfinder & Shortest-Path Graph Router (`W`)**: dynamic BFS shortest-path graph solver allowing presenters and audience members to navigate between any slides across non-linear DAG presentations without spoilers or awkward backtracks
 - [x] **Live Candidate Search & Traversal Breadcrumb Trails**: search candidates by title, slide ID (`#id`), tags (`::tags`), or slide number (`1`-`N`); visualizes multi-hop edge transitions (`[01:hub] ──[1]──► [04:arch] ──(next)──► [09:target]`), hop counts, and estimated speaking duration (~130 WPM)
@@ -194,6 +200,8 @@ deck [options] <file.deck.md>
 | `1` – `9` | Jump directly along numbered branch / fork option |
 | `J` | Open interactive Branch Decision Fork HUD with live target previews & metrics |
 | `W` | Open Waypoint Pathfinder & Shortest-Path Graph Router (Enter to route, w to step 1 hop) |
+| `V` | Open Graph Exploration Radar & Branch Completion Matrix (Enter to jump, u to fork) |
+| `U` | Fast-return to nearest upstream branch fork in traversal history |
 | `Backspace` | Pop back 1 slide along traversal history |
 | `H` | Open Traversal History & Graph Reflog modal (`1`-`9` or Enter to rewind) |
 | `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |

@@ -743,3 +743,116 @@ The End
 		t.Fatalf("expected 0 candidates for nonexistent-query, got %d", len(noMatchCands))
 	}
 }
+
+func TestCalculateRadarStatsAndCLI(t *testing.T) {
+	// 1. Empty deck
+	emptyG := DeckGraph{}
+	emptyStats := emptyG.CalculateRadarStats(Deck{}, nil, 0)
+	if emptyStats.TotalSlides != 0 {
+		t.Fatalf("expected 0 slides in empty stats, got %d", emptyStats.TotalSlides)
+	}
+
+	// 2. Linear deck (no forks)
+	srcLinear := `---
+title: Linear Deck
+---
+
+# Slide 1
+Intro
+
+---
+
+# Slide 2
+Body
+`
+	dLinear := ParseDeck(srcLinear)
+	gLinear := BuildGraph(dLinear)
+	statsLinear := gLinear.CalculateRadarStats(dLinear, map[int]bool{0: true}, 0)
+	if statsLinear.ForkCount != 0 || statsLinear.TotalBranches != 0 {
+		t.Fatalf("expected 0 forks in linear deck, got forks=%d branches=%d", statsLinear.ForkCount, statsLinear.TotalBranches)
+	}
+	cliLinear := FormatRadarCLI(dLinear, map[int]bool{0: true}, 0)
+	if !strings.Contains(cliLinear, "No decision forks found") {
+		t.Fatalf("expected linear notice in CLI report, got:\n%s", cliLinear)
+	}
+
+	// 3. Branching deck with mixed completion
+	srcBranch := `---
+title: Radar Test Deck
+---
+
+::id hub
+# Hub Slide
+::branch [1] Arch Track -> a1
+::branch [2] Perf Track -> p1
+
+---
+
+::id a1
+# Arch Step 1
+::next a2
+
+---
+
+::id a2
+# Arch Step 2
+::next conclusion
+
+---
+
+::id p1
+# Perf Step 1
+::next conclusion
+
+---
+
+::id conclusion
+# Conclusion
+`
+	dBranch := ParseDeck(srcBranch)
+	gBranch := BuildGraph(dBranch)
+
+	// Hub + Arch Step 1 + Arch Step 2 visited (slides 0, 1, 2)
+	visited := map[int]bool{0: true, 1: true, 2: true}
+	stats := gBranch.CalculateRadarStats(dBranch, visited, 2)
+
+	if stats.TotalSlides != 5 {
+		t.Fatalf("expected 5 total slides, got %d", stats.TotalSlides)
+	}
+	if stats.VisitedSlides != 3 {
+		t.Fatalf("expected 3 visited slides, got %d", stats.VisitedSlides)
+	}
+	if stats.CoveragePct != 60.0 {
+		t.Fatalf("expected 60.0%% coverage, got %.1f", stats.CoveragePct)
+	}
+	if stats.ForkCount != 1 || stats.TotalBranches != 2 {
+		t.Fatalf("expected 1 fork with 2 branches, got forks=%d branches=%d", stats.ForkCount, stats.TotalBranches)
+	}
+	if len(stats.Items) != 2 {
+		t.Fatalf("expected 2 items, got %d", len(stats.Items))
+	}
+
+	// Branch 1 (Arch) should be 2/2 and complete
+	item1 := stats.Items[0]
+	if !item1.IsComplete || item1.SubtreeVisited != 2 || item1.SubtreeTotal != 2 {
+		t.Fatalf("expected Arch branch to be complete (2/2), got %+v", item1)
+	}
+
+	// Branch 2 (Perf) should be 0/1 and unvisited
+	item2 := stats.Items[1]
+	if !item2.IsUnvisited || item2.SubtreeVisited != 0 || item2.SubtreeTotal != 1 {
+		t.Fatalf("expected Perf branch to be unvisited (0/1), got %+v", item2)
+	}
+
+	// 4. Test FormatRadarCLI
+	cliOut := FormatRadarCLI(dBranch, visited, 2)
+	if !strings.Contains(cliOut, "Termdeck Presentation Graph Exploration Radar") {
+		t.Fatalf("expected header in CLI output, got:\n%s", cliOut)
+	}
+	if !strings.Contains(cliOut, "60.0% (3/5 slides)") {
+		t.Fatalf("expected 60.0%% in CLI output, got:\n%s", cliOut)
+	}
+	if !strings.Contains(cliOut, "✔ [1] Arch Track") || !strings.Contains(cliOut, "○ [2] Perf Track") {
+		t.Fatalf("expected complete and unvisited marks in CLI output, got:\n%s", cliOut)
+	}
+}

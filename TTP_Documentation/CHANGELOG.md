@@ -1,5 +1,32 @@
 # Changelog
 
+## v0.12 — 25 September 2026
+
+### Added
+- **Graph Exploration Radar & Branch Completion Matrix (`V` / `--radar` / `--coverage`)**:
+  - Presentation DAG exploration telemetry gauge and completion matrix designed to solve non-linear presentation spatial tracking and time budgeting.
+  - **Global Graph Exploration Gauge**:
+    - High-contrast Unicode progress bar rendering visited unique slide percentage (`████░░░░ 44.4%`).
+    - Speaking time budgeting: tracks estimated minutes delivered (~130 WPM) vs total deck speaking time and unvisited remaining budget.
+    - Decision fork summary: tallies total forks, branches, completed paths, in-progress paths, and unvisited paths.
+  - **Branch Completion Matrix**:
+    - Evaluates every outgoing branch from presentation decision hubs and partitions branch-exclusive nodes from common downstream convergence points.
+    - Status indicators: `✔` Completed (`100%`), `◐` In-progress (`X%`), and `○` Unvisited (`~Nm remaining`).
+    - Destination IDs (`──► #slug`) and remaining duration estimates per branch.
+  - **Interactive Radar Navigation**:
+    - Browse branches with `j`/`k`/arrow keys, `g`/`G` for top/bottom.
+    - `Enter`: Jumps directly into selected branch destination.
+    - `u`: Jumps immediately to that branch's parent decision fork hub.
+    - `1`..`9`: Instant numeric branch execution.
+    - `Esc`/`q`/`V`: Dismisses radar modal.
+- **Upstream Decision Fork Fast-Return (`U`)**:
+  - One-key instant backtrack (`U`) that teleports the presenter back to the nearest upstream decision fork where branches diverged.
+  - Eliminates tedious sequential `Backspace` tapping during live Q&A deep-dives and modular demos.
+  - Status bar prompt: displays `[U: return to fork]` when inside a sub-branch.
+- **CLI Graph Exploration Radar (`--radar` / `--coverage`)**:
+  - Terminal ASCII diagnostics reporter printing the Graph Exploration Matrix and branch completion summary for automated verification or talk rehearsal.
+- Expanded automated test suite to **152 tests** maintaining **90.9% statement coverage** in `deck/internal` with zero external runtime dependencies and sub-millisecond per-frame rendering (< 0.26ms).
+
 ## v0.11 — 25 September 2026
 
 ### Added

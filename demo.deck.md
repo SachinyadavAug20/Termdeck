@@ -5,8 +5,8 @@ title: termdeck demo
 theme: tokyo-night
 routes:
   lightning: intro -> why-terminal -> arch-comparison -> conclusion
-  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> conclusion
-  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> conclusion
+  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> radar-deepdive -> conclusion
+  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> radar-deepdive -> conclusion
 ---
 
 ::id intro
@@ -331,8 +331,10 @@ Presenters dynamically steer the presentation based on audience choice:
 
 ::branch [9] Deep Dive: Waypoint Pathfinder & Router -> waypoint-deepdive
 
+::branch [v] Deep Dive: Graph Exploration Radar & Coverage -> radar-deepdive
+
 > [!TIP]
-> Press `1`-`9` to branch, `J` for Fork HUD, `W` for Waypoints, `H` for reflog, `P` for paths, or `M` for topology!
+> Press `1`-`9`/`v` to branch, `J` for Fork HUD, `W` for Waypoints, `V` for Radar, `U` to return to fork, or `M` for topology!
 
 ---
 
@@ -573,6 +575,38 @@ Dynamically navigate complex presentation graphs using real-time graph pathfindi
 
 > [!TIP]
 > Press `W` anytime to find and navigate the shortest path to any slide in your deck!
+
+---
+
+::id radar-deepdive
+::tags arch,demo,radar
+::next conclusion
+::align left
+# Graph Exploration Radar & Upstream Fork Return
+
+Monitor graph coverage, track unvisited branches, and fast-return to decision hubs:
+
+:::columns
+### Exploration Radar (`V`)
+- Press `V` anywhere to open the Exploration Radar modal
+- Global coverage bar: `Visited 8 / 18 unique slides (44.4%)`
+- Time budget tracking: `~12m visited / ~25m total deck talk time`
+- Per-branch completion status:
+  - `✔` Completed branches (`3/3 slides · 100%`)
+  - `◐` In-progress branches (`1/2 slides · 50%`)
+  - `○` Unvisited branches (`0/2 slides · Unvisited · ~2m`)
+- Direct jumping: `Enter` jumps to selected branch
+:::col
+### Upstream Fork Fast-Return (`U`)
+- Press `U` anywhere inside a deep sub-branch
+- Teleports speaker directly back to the upstream decision fork
+- Zero tedious `Backspace` tapping or reflog math
+- Perfect for Q&A: explore a sub-branch, then `U` back to the hub
+- Status bar hints: `[U: return to fork]` & `[radar: 44% (V)]`
+:::
+
+> [!TIP]
+> Press `V` to see what branches remain unvisited, or hit `U` to teleport straight back to the fork hub!
 
 ---
 
