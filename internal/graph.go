@@ -2,6 +2,7 @@ package internal
 
 import (
 	"fmt"
+	"sort"
 	"strings"
 
 	"github.com/charmbracelet/lipgloss"
@@ -648,6 +649,150 @@ func (g *DeckGraph) ShortestPath(from, to int) []int {
 	}
 	path = append([]int{from}, path...)
 	return path
+}
+
+// PathStepDetail contains transition metadata for a single hop along a graph path.
+type PathStepDetail struct {
+	FromIndex int
+	ToIndex   int
+	EdgeKind  GraphEdgeKind
+	Key       string
+	Label     string
+}
+
+// ExplainPath extracts edge transition metadata for each hop along a path sequence.
+func (g *DeckGraph) ExplainPath(path []int) []PathStepDetail {
+	if len(path) < 2 {
+		return nil
+	}
+	details := make([]PathStepDetail, len(path)-1)
+	for i := 0; i < len(path)-1; i++ {
+		u := path[i]
+		v := path[i+1]
+		detail := PathStepDetail{
+			FromIndex: u,
+			ToIndex:   v,
+			EdgeKind:  EdgeLinear,
+		}
+		if u >= 0 && u < len(g.Nodes) {
+			for _, edge := range g.Nodes[u].OutEdges {
+				if edge.ToIndex == v {
+					detail.EdgeKind = edge.Kind
+					detail.Key = edge.Key
+					detail.Label = edge.Label
+					break
+				}
+			}
+		}
+		details[i] = detail
+	}
+	return details
+}
+
+// WaypointCandidate represents a candidate destination for graph pathfinding.
+type WaypointCandidate struct {
+	SlideIndex int
+	Title      string
+	ID         string
+	Tags       []string
+	Path       []int
+	Reachable  bool
+	EstMin     int
+	HopCount   int
+	Details    []PathStepDetail
+}
+
+// FindWaypointCandidates computes shortest paths and duration metrics to all matching candidate destinations.
+func FindWaypointCandidates(originIdx int, d Deck, query string) []WaypointCandidate {
+	if len(d.Slides) == 0 || originIdx < 0 || originIdx >= len(d.Slides) {
+		return nil
+	}
+
+	g := BuildGraph(d)
+	queryLower := strings.ToLower(strings.TrimSpace(query))
+
+	var candidates []WaypointCandidate
+
+	for i, s := range d.Slides {
+		if i == originIdx {
+			continue // skip self
+		}
+
+		titleLower := strings.ToLower(s.Title())
+		idLower := strings.ToLower(s.ID)
+		idxStr := fmt.Sprintf("%d", i+1)
+
+		matchesQuery := true
+		if queryLower != "" {
+			matchesQuery = strings.Contains(titleLower, queryLower) ||
+				strings.Contains(idLower, queryLower) ||
+				idxStr == queryLower
+			if !matchesQuery {
+				for _, t := range s.Tags {
+					if strings.Contains(strings.ToLower(t), queryLower) {
+						matchesQuery = true
+						break
+					}
+				}
+			}
+		}
+
+		if !matchesQuery {
+			continue
+		}
+
+		path := g.ShortestPath(originIdx, i)
+		cand := WaypointCandidate{
+			SlideIndex: i,
+			Title:      s.Title(),
+			ID:         s.ID,
+			Tags:       s.Tags,
+			Path:       path,
+			Reachable:  len(path) > 1,
+		}
+
+		if cand.Reachable {
+			cand.HopCount = len(path) - 1
+			cand.Details = g.ExplainPath(path)
+
+			words := 0
+			for _, nodeIdx := range path {
+				if nodeIdx >= 0 && nodeIdx < len(d.Slides) {
+					slide := d.Slides[nodeIdx]
+					for _, b := range slide.Blocks {
+						if b.Kind == BlockCode {
+							words += countWords(strings.Join(b.Lines, " "))
+						} else {
+							words += countWords(b.Text)
+							for _, l := range b.Lines {
+								words += countWords(l)
+							}
+						}
+					}
+				}
+			}
+			est := (words + 129) / 130
+			if est == 0 && words > 0 {
+				est = 1
+			}
+			cand.EstMin = est
+		}
+
+		candidates = append(candidates, cand)
+	}
+
+	// Sort candidates: reachable first, then by HopCount ascending, then by SlideIndex
+	sort.SliceStable(candidates, func(i, j int) bool {
+		if candidates[i].Reachable != candidates[j].Reachable {
+			return candidates[i].Reachable
+		}
+		if candidates[i].Reachable && candidates[i].HopCount != candidates[j].HopCount {
+			return candidates[i].HopCount < candidates[j].HopCount
+		}
+		return candidates[i].SlideIndex < candidates[j].SlideIndex
+	})
+
+	return candidates
 }
 
 // BreadcrumbTrail builds a compact breadcrumb representation of the path traversed so far.

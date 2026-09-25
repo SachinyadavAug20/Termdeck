@@ -1134,6 +1134,7 @@ func renderHelpModal(w, h int) string {
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("H"), currentTheme.HelpDescStyle.Render("Traversal history & visual reflog modal")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Follow branch option shortcut")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("J"), currentTheme.HelpDescStyle.Render("Branch fork HUD & destination preview picker")))
+	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("W"), currentTheme.HelpDescStyle.Render("Waypoint pathfinder & shortest-path graph router")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks & subgraph filter")))
 	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("[ / ]"), currentTheme.HelpDescStyle.Render("Hop backward / forward along track")))
@@ -2064,6 +2065,132 @@ func renderBranchHUDModal(d Deck, e Editor, w, h int) string {
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
+func renderWaypointModal(d Deck, e Editor, w, h int) string {
+	modalW := 76
+	if modalW > w-4 {
+		modalW = w - 4
+	}
+	if modalW < 36 {
+		modalW = 36
+	}
+
+	candidates := FindWaypointCandidates(e.SlideIdx, d, e.WaypointQuery)
+	var sb strings.Builder
+
+	curTitle := "Slide"
+	if e.SlideIdx >= 0 && e.SlideIdx < len(d.Slides) {
+		curTitle = d.Slides[e.SlideIdx].Title()
+	}
+	title := currentTheme.HelpTitleStyle.Render("🧭   Waypoint Pathfinder & Graph Routing")
+	sb.WriteString(title + "\n")
+	sb.WriteString(dimStyle.Render(fmt.Sprintf("Origin: [%02d] %s", e.SlideIdx+1, curTitle)))
+
+	queryStr := e.WaypointQuery
+	if queryStr == "" {
+		queryStr = "(all destinations)"
+	}
+	sb.WriteString("  ·  " + currentTheme.HelpHeaderStyle.Render("Search: ") + currentTheme.HelpKeyStyle.Render(queryStr) + "\n\n")
+
+	if len(candidates) == 0 {
+		if e.WaypointQuery != "" {
+			sb.WriteString(dimStyle.Render(fmt.Sprintf("  No destinations matching %q.\n", e.WaypointQuery)))
+		} else {
+			sb.WriteString(dimStyle.Render("  No other slides in presentation.\n"))
+		}
+	} else {
+		cursor := e.WaypointCursor
+		if cursor < 0 {
+			cursor = 0
+		}
+		if cursor >= len(candidates) {
+			cursor = len(candidates) - 1
+		}
+
+		maxVisible := 5
+		startIdx := 0
+		if cursor >= maxVisible {
+			startIdx = cursor - maxVisible + 1
+		}
+		endIdx := startIdx + maxVisible
+		if endIdx > len(candidates) {
+			endIdx = len(candidates)
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			cand := candidates[i]
+			isCursor := cursor == i
+			ptr := "  "
+			if isCursor {
+				ptr = currentTheme.LaserPointerStyle.Render("▶ ")
+			}
+
+			destBadge := fmt.Sprintf("[%02d] %s", cand.SlideIndex+1, cand.Title)
+			if cand.ID != "" {
+				destBadge += "  #" + cand.ID
+			}
+
+			if isCursor {
+				sb.WriteString(ptr + currentTheme.H1Style.Render(destBadge) + "\n")
+			} else {
+				sb.WriteString(ptr + currentTheme.TableCellStyle.Render(destBadge) + "\n")
+			}
+
+			if cand.Reachable {
+				var pathParts []string
+				for pIdx, sIdx := range cand.Path {
+					if sIdx >= 0 && sIdx < len(d.Slides) {
+						s := d.Slides[sIdx]
+						name := s.ID
+						if name == "" {
+							name = s.Slug()
+						}
+						if len(name) > 8 {
+							name = name[:8]
+						}
+						pathParts = append(pathParts, fmt.Sprintf("[%02d:%s]", sIdx+1, name))
+						if pIdx < len(cand.Details) {
+							det := cand.Details[pIdx]
+							edgeLabel := "──►"
+							if det.Key != "" {
+								edgeLabel = fmt.Sprintf("──[%s]──►", det.Key)
+							} else if det.EdgeKind == EdgeNext {
+								edgeLabel = "──(next)──►"
+							}
+							pathParts = append(pathParts, edgeLabel)
+						}
+					}
+				}
+				trailStr := strings.Join(pathParts, " ")
+				subInfo := fmt.Sprintf("     Path: %s", trailStr)
+				metrics := fmt.Sprintf("     %d hop%s · ~%dm talk time", cand.HopCount, plural(cand.HopCount), cand.EstMin)
+				if len(cand.Tags) > 0 {
+					metrics += fmt.Sprintf("  [%s]", strings.Join(cand.Tags, ","))
+				}
+
+				if isCursor {
+					sb.WriteString(currentTheme.HelpDescStyle.Render(subInfo) + "\n")
+					sb.WriteString(currentTheme.HelpDescStyle.Render(metrics) + "\n")
+				} else {
+					sb.WriteString(dimStyle.Render(subInfo) + "\n")
+					sb.WriteString(dimStyle.Render(metrics) + "\n")
+				}
+			} else {
+				unreachMsg := "     (No downstream path from current slide · Rewind via Backspace / H)"
+				sb.WriteString(dimStyle.Render(unreachMsg) + "\n")
+			}
+		}
+
+		if len(candidates) > maxVisible {
+			sb.WriteString(dimStyle.Render(fmt.Sprintf("  ... showing %d-%d of %d candidates ...\n", startIdx+1, endIdx, len(candidates))))
+		}
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("Enter: follow optimal route  ·  w: step 1 hop  ·  Type: filter  ·  Backspace: erase  ·  Esc/W: close"))
+
+	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
+}
+
 func renderBlankScreen(w, h int) string {
 	msg := dimStyle.Render("●  presentation paused  ·  press any key to resume")
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, msg)
@@ -2123,6 +2250,10 @@ func View(d Deck, e Editor, width, height int) string {
 
 	if e.ShowBranchHUD {
 		return renderBranchHUDModal(d, e, width, height)
+	}
+
+	if e.ShowWaypointModal {
+		return renderWaypointModal(d, e, width, height)
 	}
 
 	if e.Mode == ModePrompt {
@@ -2320,7 +2451,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · M map · K track · P route · H history · J fork · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · K track · P route · H history · J fork · W waypoint · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

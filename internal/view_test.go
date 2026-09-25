@@ -1533,6 +1533,126 @@ Simple summary text.
 	}
 }
 
+func TestRenderWaypointModal(t *testing.T) {
+	src := `---
+title: Waypoint Pathfinder View Test
+---
+
+::id s1
+# Origin Slide
+::branch [1] To Mid -> s2
+
+---
+
+::id s2
+::tags arch,core
+# Mid Slide
+::next s3
+
+---
+
+::id s3
+# Goal Slide
+::next s1
+
+---
+
+::id s4
+# Slide Four
+::next s1
+
+---
+
+::id s5
+# Slide Five
+::next s1
+
+---
+
+::id s6
+# Slide Six
+::next s1
+
+---
+
+::id isolated
+# Isolated Slide
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// 1. Render normal View with ShowWaypointModal = true
+	ed.SlideIdx = 0
+	ed.ShowWaypointModal = true
+	viewModal := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewModal, "Waypoint Pathfinder & Graph Routing") {
+		t.Fatalf("expected modal title in view, got:\n%s", viewModal)
+	}
+	if !strings.Contains(viewModal, "Origin: [01] Origin Slide") {
+		t.Fatalf("expected origin slide in modal, got:\n%s", viewModal)
+	}
+	if !strings.Contains(viewModal, "Search: (all destinations)") {
+		t.Fatalf("expected all destinations search prompt, got:\n%s", viewModal)
+	}
+	if !strings.Contains(viewModal, "[02] Mid Slide") || !strings.Contains(viewModal, "──[1]──►") {
+		t.Fatalf("expected Mid Slide with branch key edge trail, got:\n%s", viewModal)
+	}
+	if !strings.Contains(viewModal, "talk time") || !strings.Contains(viewModal, "[arch,core]") {
+		t.Fatalf("expected metrics and tags, got:\n%s", viewModal)
+	}
+
+	// 2. Cursor scrolling and pagination (> maxVisible)
+	ed.WaypointCursor = 5
+	viewScroll := stripANSI(renderWaypointModal(d, ed, 100, 30))
+	if !strings.Contains(viewScroll, "showing") || !strings.Contains(viewScroll, "candidates") {
+		t.Fatalf("expected candidate pagination indicator, got:\n%s", viewScroll)
+	}
+	if !strings.Contains(viewScroll, "No downstream path from current slide") {
+		t.Fatalf("expected isolated slide to be marked unreachable, got:\n%s", viewScroll)
+	}
+
+	// 3. Search query with matches and without matches
+	ed.WaypointQuery = "Goal"
+	ed.WaypointCursor = 0
+	viewQueryMatch := stripANSI(renderWaypointModal(d, ed, 100, 30))
+	if !strings.Contains(viewQueryMatch, "Search: Goal") || !strings.Contains(viewQueryMatch, "[03] Goal Slide") {
+		t.Fatalf("expected Goal Slide query match, got:\n%s", viewQueryMatch)
+	}
+
+	ed.WaypointQuery = "nonexistent-query-string"
+	viewNoMatch := stripANSI(renderWaypointModal(d, ed, 100, 30))
+	if !strings.Contains(viewNoMatch, `No destinations matching "nonexistent-query-string"`) {
+		t.Fatalf("expected no matches message, got:\n%s", viewNoMatch)
+	}
+
+	// 4. Single-slide deck empty candidate display
+	singleDeck := Deck{Slides: []Slide{{Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Solo"}}}}}
+	soloEd := NewEditor("test.deck.md")
+	viewSolo := stripANSI(renderWaypointModal(singleDeck, soloEd, 100, 30))
+	if !strings.Contains(viewSolo, "No other slides in presentation") {
+		t.Fatalf("expected no other slides message in solo deck, got:\n%s", viewSolo)
+	}
+
+	// 5. Small terminal dimensions constraint
+	smallView := stripANSI(renderWaypointModal(d, ed, 30, 20))
+	if !strings.Contains(smallView, "Waypoint Pathfinder") {
+		t.Fatalf("expected waypoint rendered in small terminal, got:\n%s", smallView)
+	}
+
+	// 6. Navigation status bar contains W waypoint
+	ed.ShowWaypointModal = false
+	status := stripANSI(navStatus(d, ed, 240))
+	if !strings.Contains(status, "W waypoint") {
+		t.Fatalf("expected 'W waypoint' in navStatus, got:\n%s", status)
+	}
+
+	// 7. Help modal documents Waypoint Pathfinder
+	help := stripANSI(renderHelpModal(100, 40))
+	if !strings.Contains(help, "Waypoint pathfinder") {
+		t.Fatalf("expected W documented in help modal, got:\n%s", help)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

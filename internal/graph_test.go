@@ -641,3 +641,105 @@ Another branch with code.
 		t.Fatalf("expected 0 fork options on terminal slide, got %d", len(termOpts))
 	}
 }
+
+func TestWaypointPathfinder(t *testing.T) {
+	// 1. ExplainPath boundary cases
+	g := DeckGraph{}
+	if g.ExplainPath(nil) != nil || g.ExplainPath([]int{0}) != nil {
+		t.Fatalf("expected nil for paths < 2 nodes")
+	}
+
+	src := `---
+title: Pathfinder Deck
+---
+
+::id s1
+# Slide 1
+::branch [1] To Step 2 -> s2
+
+---
+
+::id s2
+::tags arch,core
+# Slide 2
+` + "```go\nfunc step2() {}\n```" + `
+::next s3
+
+---
+
+::id s3
+# Slide 3
+The End
+::next s1
+
+---
+
+::id isolated
+# Isolated Slide
+`
+	d := ParseDeck(src)
+	bg := BuildGraph(d)
+
+	// Explain valid path [0, 1, 2]
+	path := []int{0, 1, 2}
+	details := bg.ExplainPath(path)
+	if len(details) != 2 {
+		t.Fatalf("expected 2 details, got %d", len(details))
+	}
+	if details[0].FromIndex != 0 || details[0].ToIndex != 1 || details[0].Key != "1" {
+		t.Fatalf("unexpected detail[0]: %+v", details[0])
+	}
+	if details[1].FromIndex != 1 || details[1].ToIndex != 2 || details[1].EdgeKind != EdgeNext {
+		t.Fatalf("unexpected detail[1]: %+v", details[1])
+	}
+
+	// 2. FindWaypointCandidates boundaries
+	if cands := FindWaypointCandidates(-1, d, ""); cands != nil {
+		t.Fatalf("expected nil for negative origin")
+	}
+	if cands := FindWaypointCandidates(0, Deck{}, ""); cands != nil {
+		t.Fatalf("expected nil for empty deck")
+	}
+
+	// 3. Find candidates from slide 0
+	allCands := FindWaypointCandidates(0, d, "")
+	if len(allCands) != 3 {
+		t.Fatalf("expected 3 candidates (excluding slide 0), got %d", len(allCands))
+	}
+
+	// Reachable ones must be sorted first
+	if !allCands[0].Reachable || allCands[0].SlideIndex != 1 {
+		t.Fatalf("expected slide 1 (1 hop) to be first candidate, got %+v", allCands[0])
+	}
+	if allCands[0].HopCount != 1 || allCands[0].EstMin <= 0 {
+		t.Fatalf("unexpected candidate 0: %+v", allCands[0])
+	}
+
+	if !allCands[1].Reachable || allCands[1].SlideIndex != 2 {
+		t.Fatalf("expected slide 2 (2 hops) to be second candidate, got %+v", allCands[1])
+	}
+	if allCands[1].HopCount != 2 {
+		t.Fatalf("expected 2 hops for slide 2, got %d", allCands[1].HopCount)
+	}
+
+	// Isolated slide is unreachable
+	if allCands[2].Reachable || allCands[2].SlideIndex != 3 {
+		t.Fatalf("expected slide 3 to be unreachable, got %+v", allCands[2])
+	}
+
+	// 4. Query filtering (by title, tag, ID, slide number)
+	tagCands := FindWaypointCandidates(0, d, "core")
+	if len(tagCands) != 1 || tagCands[0].SlideIndex != 1 {
+		t.Fatalf("expected 1 candidate matching tag 'core', got %+v", tagCands)
+	}
+
+	numCands := FindWaypointCandidates(0, d, "3")
+	if len(numCands) != 1 || numCands[0].SlideIndex != 2 {
+		t.Fatalf("expected 1 candidate matching slide '3', got %+v", numCands)
+	}
+
+	noMatchCands := FindWaypointCandidates(0, d, "nonexistent-query")
+	if len(noMatchCands) != 0 {
+		t.Fatalf("expected 0 candidates for nonexistent-query, got %d", len(noMatchCands))
+	}
+}

@@ -5,8 +5,8 @@ title: termdeck demo
 theme: tokyo-night
 routes:
   lightning: intro -> why-terminal -> arch-comparison -> conclusion
-  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> conclusion
-  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> conclusion
+  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> conclusion
+  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> conclusion
 ---
 
 ::id intro
@@ -329,8 +329,10 @@ Presenters dynamically steer the presentation based on audience choice:
 
 ::branch [8] Deep Dive: Decision Fork HUD & Previews -> fork-hud-deepdive
 
+::branch [9] Deep Dive: Waypoint Pathfinder & Router -> waypoint-deepdive
+
 > [!TIP]
-> Press `1`-`8` to branch, `J` for Fork HUD, `H` for reflog, `P` for paths, or `M` for topology!
+> Press `1`-`9` to branch, `J` for Fork HUD, `W` for Waypoints, `H` for reflog, `P` for paths, or `M` for topology!
 
 ---
 
@@ -542,6 +544,35 @@ Preview destinations and inspect downstream path depth before branching:
 
 > [!TIP]
 > Press `J` whenever you reach a fork to see live previews and time estimates for every branch!
+
+---
+
+::id waypoint-deepdive
+::tags arch,demo,routing
+::next conclusion
+::align left
+# Waypoint Pathfinder & Shortest-Path Graph Router
+
+Dynamically navigate complex presentation graphs using real-time graph pathfinding:
+
+:::columns
+### Interactive Pathfinder (`W`)
+- Press `W` anywhere to summon the Pathfinder modal
+- Live shortest-path routing via BFS graph traversal
+- Real-time search by title, slide `#id`, or `::tags`
+- Detailed hop breadcrumb trail (`[01:hub] ──[9]──► [10:waypoint]`)
+- Talk duration calculation (~130 WPM) per path
+:::col
+### Dynamic Route Execution
+- `Enter`: Locks optimal path into a dynamic presentation route
+- `w`: Steps immediately 1 hop along the shortest path
+- Reachability checking prevents routing to dead ends
+- Unreachable slides flagged with rewind recommendations
+- Zero presentation spoilers or awkward backtracks
+:::
+
+> [!TIP]
+> Press `W` anytime to find and navigate the shortest path to any slide in your deck!
 
 ---
 

@@ -283,6 +283,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `←`, `h`, `PageUp` | Previous slide / previous route slide |
 | `1` – `9` | Jump directly along numbered branch option |
 | `J` | Open interactive Branch Decision Fork HUD with live target previews & metrics |
+| `W` | Open Waypoint Pathfinder & Shortest-Path Graph Router (Enter to route, w to step 1 hop) |
 | `Backspace` | Pop back 1 slide along traversal history |
 | `H` | Open Traversal History & Graph Reflog modal (`1`-`9` or Enter to rewind) |
 | `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |

@@ -148,7 +148,7 @@ Controls:
   Navigation:   → / l / Space / Enter (next / advance edge), ← / h (prev)
   Branching:    1-9 (follow branch option), J (fork HUD & preview), Backspace (pop step)
   Audience:     K (audience tracks & subgraph filter), [ / ] (hop along track)
-  Routes:       P (preset graph routes & guided paths)
+  Routes:       P (preset graph routes & guided paths), W (waypoint pathfinder)
   History:      H (traversal history & visual reflog modal)
   Graph Map:    M (presentation graph map & DAG explorer)
   Pointer:      ↓ / j (down), ↑ / k (up)

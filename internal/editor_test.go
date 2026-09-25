@@ -2378,3 +2378,148 @@ Path B details
 		t.Errorf("expected terminal slide message, got %q", ed.Message)
 	}
 }
+
+func TestEditorWaypointModal(t *testing.T) {
+	src := `---
+title: Waypoint Editor Test
+---
+
+::id s1
+# Slide 1
+::branch [1] To Step 2 -> s2
+
+---
+
+::id s2
+# Slide 2
+::next s3
+
+---
+
+::id s3
+# Slide 3
+Target Goal
+::next s1
+
+---
+
+::id isolated
+# Isolated Slide
+`
+	d := ParseDeck(src)
+	ed := NewEditor("test.deck.md")
+
+	// 1. Boundary & Helper tests
+	ed.ToggleWaypointModal(nil)
+	if ed.ShowWaypointModal {
+		t.Fatalf("expected ShowWaypointModal false for nil deck")
+	}
+
+	singleDeck := Deck{Slides: []Slide{{}}}
+	ed.ToggleWaypointModal(&singleDeck)
+	if ed.ShowWaypointModal || !strings.Contains(ed.Message, "multiple slides") {
+		t.Fatalf("expected multiple slides message for single deck")
+	}
+
+	// ApplyWaypointPath & StepWaypointPath with unreachable candidate
+	unreachCand := WaypointCandidate{SlideIndex: 3, Reachable: false}
+	if ed.ApplyWaypointPath(unreachCand, &d) || ed.StepWaypointPath(unreachCand, &d) {
+		t.Fatalf("expected failure for unreachable candidate")
+	}
+
+	// 2. Open modal with 'W'
+	sendTestKey(&ed, &d, "W")
+	if !ed.ShowWaypointModal {
+		t.Fatalf("expected ShowWaypointModal true after 'W'")
+	}
+	if ed.WaypointCursor != 0 {
+		t.Errorf("expected initial WaypointCursor 0, got %d", ed.WaypointCursor)
+	}
+
+	// 3. Navigation with down/up/j/k/G/g
+	sendTestKey(&ed, &d, "down")
+	if ed.WaypointCursor != 1 {
+		t.Errorf("expected cursor 1 after 'down', got %d", ed.WaypointCursor)
+	}
+	sendTestKey(&ed, &d, "j")
+	if ed.WaypointCursor != 2 {
+		t.Errorf("expected cursor 2 after 'j', got %d", ed.WaypointCursor)
+	}
+	sendTestKey(&ed, &d, "j")
+	if ed.WaypointCursor != 2 {
+		t.Errorf("expected cursor clamped at 2, got %d", ed.WaypointCursor)
+	}
+	sendTestKey(&ed, &d, "up")
+	if ed.WaypointCursor != 1 {
+		t.Errorf("expected cursor 1 after 'up', got %d", ed.WaypointCursor)
+	}
+	sendTestKey(&ed, &d, "g")
+	if ed.WaypointCursor != 0 {
+		t.Errorf("expected cursor 0 after 'g', got %d", ed.WaypointCursor)
+	}
+	sendTestKey(&ed, &d, "G")
+	if ed.WaypointCursor != 2 {
+		t.Errorf("expected cursor 2 after 'G', got %d", ed.WaypointCursor)
+	}
+
+	// 4. Dismiss via esc / W
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowWaypointModal {
+		t.Fatalf("expected modal closed after 'esc'")
+	}
+	sendTestKey(&ed, &d, "W")
+	sendTestKey(&ed, &d, "W")
+	if ed.ShowWaypointModal {
+		t.Fatalf("expected modal closed after toggle 'W'")
+	}
+
+	// 5. Query filtering with typing and backspace
+	sendTestKey(&ed, &d, "W")
+	sendTestKey(&ed, &d, "3")
+	if ed.WaypointQuery != "3" {
+		t.Errorf("expected query '3', got %q", ed.WaypointQuery)
+	}
+	sendTestKey(&ed, &d, "backspace")
+	if ed.WaypointQuery != "" {
+		t.Errorf("expected empty query after backspace, got %q", ed.WaypointQuery)
+	}
+	// Backspace on empty query closes modal
+	sendTestKey(&ed, &d, "backspace")
+	if ed.ShowWaypointModal {
+		t.Fatalf("expected modal closed after backspace on empty query")
+	}
+
+	// 6. Enter on unreachable candidate produces message
+	sendTestKey(&ed, &d, "W")
+	sendTestKey(&ed, &d, "G") // cursor on isolated slide
+	sendTestKey(&ed, &d, "enter")
+	if !strings.Contains(ed.Message, "not reachable downstream") {
+		t.Errorf("expected not reachable message, got %q", ed.Message)
+	}
+	if !ed.ShowWaypointModal {
+		t.Errorf("expected modal to stay open on invalid target")
+	}
+
+	// 7. Enter on reachable candidate applies route
+	sendTestKey(&ed, &d, "g") // cursor on slide 1 (s2)
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowWaypointModal {
+		t.Fatalf("expected modal closed after valid Enter")
+	}
+	if !strings.Contains(ed.ActiveRoute, "waypoint-") {
+		t.Errorf("expected active waypoint route, got %q", ed.ActiveRoute)
+	}
+
+	// 8. Test step 1 hop via 'w'
+	ed.SlideIdx = 0
+	ed.History = nil
+	sendTestKey(&ed, &d, "W")
+	sendTestKey(&ed, &d, "g") // target slide 1
+	sendTestKey(&ed, &d, "w")
+	if ed.ShowWaypointModal || ed.SlideIdx != 1 {
+		t.Fatalf("expected stepped to slide 1 via 'w', got slide=%d", ed.SlideIdx)
+	}
+	if len(ed.History) != 1 || ed.History[0] != 0 {
+		t.Fatalf("expected history to record slide 0, got %v", ed.History)
+	}
+}

@@ -90,6 +90,9 @@ type Editor struct {
 	HistoryCursor     int
 	ShowBranchHUD     bool
 	BranchHUDCursor   int
+	ShowWaypointModal bool
+	WaypointCursor    int
+	WaypointQuery     string
 }
 
 func NewEditor(filePath string) Editor {
@@ -427,6 +430,61 @@ func (e *Editor) JumpToForkOption(opt BranchForkOption, d *Deck) bool {
 	} else {
 		e.Message = fmt.Sprintf("jumped to slide %d/%d", e.SlideIdx+1, len(d.Slides))
 	}
+	return true
+}
+
+func (e *Editor) ToggleWaypointModal(d *Deck) {
+	if d == nil || len(d.Slides) <= 1 {
+		e.Message = "waypoint pathfinder: presentation must have multiple slides"
+		return
+	}
+	e.ShowWaypointModal = !e.ShowWaypointModal
+	if e.ShowWaypointModal {
+		e.WaypointCursor = 0
+		e.WaypointQuery = ""
+		e.Message = "waypoint pathfinder: select destination (arrows/jk, enter: follow path, w: step, esc: close)"
+	} else {
+		e.Message = "waypoint pathfinder closed"
+	}
+}
+
+func (e *Editor) ApplyWaypointPath(cand WaypointCandidate, d *Deck) bool {
+	if d == nil || !cand.Reachable || len(cand.Path) < 2 {
+		return false
+	}
+	routeName := fmt.Sprintf("waypoint-%d", cand.SlideIndex+1)
+	var slugs []string
+	for _, nodeIdx := range cand.Path {
+		if nodeIdx >= 0 && nodeIdx < len(d.Slides) {
+			s := d.Slides[nodeIdx]
+			slug := s.ID
+			if slug == "" {
+				slug = s.Slug()
+			}
+			slugs = append(slugs, slug)
+		}
+	}
+	if d.Routes == nil {
+		d.Routes = make(map[string][]string)
+	}
+	d.Routes[routeName] = slugs
+	e.SelectRoute(routeName, d)
+	e.ShowWaypointModal = false
+	e.Message = fmt.Sprintf("following optimal path to slide %d: %s (%d hops · ~%dm)", cand.SlideIndex+1, cand.Title, cand.HopCount, cand.EstMin)
+	return true
+}
+
+func (e *Editor) StepWaypointPath(cand WaypointCandidate, d *Deck) bool {
+	if d == nil || !cand.Reachable || len(cand.Path) < 2 {
+		return false
+	}
+	nextIdx := cand.Path[1]
+	e.History = append(e.History, e.SlideIdx)
+	e.SlideIdx = nextIdx
+	e.BlockIdx = 0
+	e.ClampBlockIdx(d)
+	e.ShowWaypointModal = false
+	e.Message = fmt.Sprintf("stepped along path to [%02d] %s (target: [%02d] %s)", e.SlideIdx+1, d.Slides[e.SlideIdx].Title(), cand.SlideIndex+1, cand.Title)
 	return true
 }
 
@@ -1218,6 +1276,69 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 	}
 
+	if e.ShowWaypointModal {
+		candidates := FindWaypointCandidates(e.SlideIdx, *d, e.WaypointQuery)
+		switch key {
+		case "esc", "W":
+			e.ShowWaypointModal = false
+			e.Message = "waypoint pathfinder closed"
+			return nil
+		case "up", "k":
+			if e.WaypointCursor > 0 {
+				e.WaypointCursor--
+			}
+			return nil
+		case "down", "j":
+			if e.WaypointCursor < len(candidates)-1 {
+				e.WaypointCursor++
+			}
+			return nil
+		case "g", "home":
+			e.WaypointCursor = 0
+			return nil
+		case "G", "end":
+			if len(candidates) > 0 {
+				e.WaypointCursor = len(candidates) - 1
+			}
+			return nil
+		case "backspace":
+			if len(e.WaypointQuery) > 0 {
+				e.WaypointQuery = e.WaypointQuery[:len(e.WaypointQuery)-1]
+				e.WaypointCursor = 0
+			} else {
+				e.ShowWaypointModal = false
+				e.Message = "waypoint pathfinder closed"
+			}
+			return nil
+		case "enter":
+			if e.WaypointCursor >= 0 && e.WaypointCursor < len(candidates) {
+				cand := candidates[e.WaypointCursor]
+				if cand.Reachable {
+					e.ApplyWaypointPath(cand, d)
+				} else {
+					e.Message = fmt.Sprintf("target [%02d] %s is not reachable downstream from current slide", cand.SlideIndex+1, cand.Title)
+				}
+			}
+			return nil
+		case "w":
+			if e.WaypointCursor >= 0 && e.WaypointCursor < len(candidates) {
+				cand := candidates[e.WaypointCursor]
+				if cand.Reachable {
+					e.StepWaypointPath(cand, d)
+				} else {
+					e.Message = fmt.Sprintf("target [%02d] %s is not reachable downstream", cand.SlideIndex+1, cand.Title)
+				}
+			}
+			return nil
+		default:
+			if len(key) == 1 && key[0] >= 32 {
+				e.WaypointQuery += key
+				e.WaypointCursor = 0
+			}
+			return nil
+		}
+	}
+
 	if e.FocusMode {
 		switch key {
 		case "esc", "f", "F", "q", "ctrl+c":
@@ -1386,6 +1507,13 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.ShowRunner = false
 		}
 		e.ToggleBranchHUD(d)
+		return nil
+
+	case "W":
+		if e.ShowRunner {
+			e.ShowRunner = false
+		}
+		e.ToggleWaypointModal(d)
 		return nil
 
 	case "1", "2", "3", "4", "5", "6", "7", "8", "9":

@@ -16,6 +16,12 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 25 September 2026 (v0.11.0)
+- [x] **Interactive Waypoint Pathfinder & Shortest-Path Graph Router (`W`)**: dynamic BFS shortest-path graph solver allowing presenters and audience members to navigate between any slides across non-linear DAG presentations without spoilers or awkward backtracks
+- [x] **Live Candidate Search & Traversal Breadcrumb Trails**: search candidates by title, slide ID (`#id`), tags (`::tags`), or slide number (`1`-`N`); visualizes multi-hop edge transitions (`[01:hub] ──[1]──► [04:arch] ──(next)──► [09:target]`), hop counts, and estimated speaking duration (~130 WPM)
+- [x] **Dual Execution Modes**: `Enter` locks the optimal shortest path into a temporary dynamic presentation route (`waypoint-N`) for smooth step-by-step traversal with `Space`/`Enter`; `w` steps immediately 1 hop along the path
+- [x] **151 Automated Unit Tests** maintaining **90.8% statement coverage** in `internal/` with zero external runtime dependencies and sub-millisecond per-frame rendering (< 0.25ms)
+
 #### 25 September 2026 (v0.10.0)
 - [x] **Branch Decision Fork HUD & Target Preview Picker (`J`)**: interactive floating HUD invoked at decision forks displaying all outgoing branch options, target slide IDs, and real-time syntax-highlighted **code & text previews** of destination slides before committing
 - [x] **Downstream Reachable Subgraph Metrics & Time Budgeting**: calculates reachable slide depth, estimated speaking duration (~130 WPM), and executable code block counts for every outgoing branch path, allowing presenters and audience to make informed branching decisions
@@ -187,6 +193,7 @@ deck [options] <file.deck.md>
 | `←` `h` `PageUp` | Previous slide / previous route slide |
 | `1` – `9` | Jump directly along numbered branch / fork option |
 | `J` | Open interactive Branch Decision Fork HUD with live target previews & metrics |
+| `W` | Open Waypoint Pathfinder & Shortest-Path Graph Router (Enter to route, w to step 1 hop) |
 | `Backspace` | Pop back 1 slide along traversal history |
 | `H` | Open Traversal History & Graph Reflog modal (`1`-`9` or Enter to rewind) |
 | `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |

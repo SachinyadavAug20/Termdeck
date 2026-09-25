@@ -1,5 +1,27 @@
 # Changelog
 
+## v0.11 — 25 September 2026
+
+### Added
+- **Interactive Waypoint Pathfinder & Shortest-Path Graph Router (`W`)**:
+  - Dynamic BFS shortest-path graph routing engine allowing presenters and audiences to chart optimal paths across complex non-linear presentation DAGs on demand.
+  - **Interactive Modal Overlay (`W`)**:
+    - Real-time search and filter destinations by title, slide ID (`#slug`), audience tags (`::tags`), or slide number (`1`-`N`).
+    - Displays current slide as origin (`Origin: [01] Current Title`).
+    - Computes and visualizes complete multi-hop edge transitions (`[01:hub] ──[1]──► [04:arch] ──(next)──► [09:target]`).
+    - Reachable candidates sorted ascending by hop distance for instant selection of closest destinations.
+    - Unreachable destinations clearly flagged with rewind guidance (`(No downstream path from current slide · Rewind via Backspace / H)`).
+    - Speaking time budgeting: Estimates talk duration (~130 WPM) and hop counts per route.
+  - **Dual Execution Modes**:
+    - `Enter`: Locks the optimal shortest path into a temporary dynamic presentation route (`waypoint-N`), enabling guided step-by-step traversal with standard keys (`Space`, `Enter`, `Left`, `Backspace`).
+    - `w`: Steps immediately 1 hop along the optimal path without route locking.
+    - Keyboard ergonomics: `j`/`k`/arrows to scroll, `g`/`G` for top/bottom, alphanumeric typing to filter query, `Backspace` to delete query characters or close on empty query, `Esc`/`W` to dismiss.
+- **Pathfinder Integration & Navigation Synergy**:
+  - Navigation status bar footer includes `W waypoint` indicator.
+  - In-app Help modal (`?`/`F1`) and CLI help updated to document `W` waypoint pathfinder.
+  - `demo.deck.md` updated with `waypoint-deepdive` slide, branch `[9]`, and route integrations.
+- Expanded automated test suite to **151 tests** maintaining **90.8% statement coverage** in `deck/internal` with zero external runtime dependencies and sub-millisecond per-frame rendering (< 0.25ms).
+
 ## v0.10 — 25 September 2026
 
 ### Added
