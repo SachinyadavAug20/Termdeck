@@ -1669,7 +1669,9 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 				e.AdvanceLoop(e.SlideIdx, d)
 				return nil
 			}
-			exitTarget := d.Slides[e.SlideIdx].Loop.ExitTarget
+			curLoop := d.Slides[e.SlideIdx].Loop
+			loopLabel := curLoop.Label
+			exitTarget := curLoop.ExitTarget
 			if exitTarget == "" {
 				exitTarget = d.Slides[e.SlideIdx].NextID
 			}
@@ -1680,7 +1682,7 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 					e.SlideIdx = nextIdx
 					e.BlockIdx = 0
 					e.ClampBlockIdx(d)
-					e.Message = fmt.Sprintf("✔ loop [%s] completed (%d/%d) ──► %s", d.Slides[e.SlideIdx].Loop.Label, maxPasses, maxPasses, exitTarget)
+					e.Message = fmt.Sprintf("✔ loop [%s] completed (%d/%d) ──► %s", loopLabel, maxPasses, maxPasses, exitTarget)
 					return nil
 				}
 			}

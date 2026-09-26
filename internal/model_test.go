@@ -1118,6 +1118,141 @@ route.extra: arch -> end
 	}
 }
 
+func TestLoopDirectiveParsingAndSerialization(t *testing.T) {
+	src := `---
+title: Loop Test Deck
+---
+
+::id intro
+# Introduction
+Welcome to loop demo.
+
+---
+
+::id tdd-refactor
+# Refactor Slide
+Code refactoring step.
+
+::loop [r] Red-Green-Refactor -> tdd-red max=3 next=summary
+
+---
+
+::id tdd-red
+# Red Failing Test
+Write a failing test.
+
+---
+
+::id cycle-slide
+# Consensus Loop
+::cycle [c] Consensus Round => raft-req limit=5 exit=commit-log
+
+---
+
+::id minimal-loop
+# Minimal Loop
+::loop -> loop-target passes=2
+
+---
+
+::id direct-loop
+# Direct Loop
+::loop loop-target count=4 break=done
+`
+	deck := ParseDeck(src)
+	if len(deck.Slides) != 6 {
+		t.Fatalf("expected 6 slides, got %d", len(deck.Slides))
+	}
+
+	// 1. Check tdd-refactor loop
+	sRefactor := deck.Slides[1]
+	if sRefactor.Loop == nil {
+		t.Fatalf("expected sRefactor.Loop to be non-nil")
+	}
+	if sRefactor.Loop.Key != "r" {
+		t.Errorf("expected key 'r', got %q", sRefactor.Loop.Key)
+	}
+	if sRefactor.Loop.Label != "Red-Green-Refactor" {
+		t.Errorf("expected label 'Red-Green-Refactor', got %q", sRefactor.Loop.Label)
+	}
+	if sRefactor.Loop.Target != "tdd-red" {
+		t.Errorf("expected target 'tdd-red', got %q", sRefactor.Loop.Target)
+	}
+	if sRefactor.Loop.MaxPasses != 3 {
+		t.Errorf("expected max passes 3, got %d", sRefactor.Loop.MaxPasses)
+	}
+	if sRefactor.Loop.ExitTarget != "summary" {
+		t.Errorf("expected exit target 'summary', got %q", sRefactor.Loop.ExitTarget)
+	}
+	if sRefactor.NextID != "summary" {
+		t.Errorf("expected NextID to default to exit target 'summary', got %q", sRefactor.NextID)
+	}
+
+	// Branches() should include the loop branch
+	branches := sRefactor.Branches()
+	if len(branches) != 1 {
+		t.Fatalf("expected 1 branch from loop, got %d", len(branches))
+	}
+	if branches[0].Key != "r" || branches[0].Target != "tdd-red" || branches[0].Label != "Red-Green-Refactor" {
+		t.Errorf("unexpected loop branch: %+v", branches[0])
+	}
+
+	// 2. Check cycle-slide loop
+	sCycle := deck.Slides[3]
+	if sCycle.Loop == nil {
+		t.Fatalf("expected sCycle.Loop to be non-nil")
+	}
+	if sCycle.Loop.Key != "c" || sCycle.Loop.Label != "Consensus Round" || sCycle.Loop.Target != "raft-req" || sCycle.Loop.MaxPasses != 5 || sCycle.Loop.ExitTarget != "commit-log" {
+		t.Errorf("unexpected sCycle.Loop: %+v", sCycle.Loop)
+	}
+
+	// 3. Check minimal-loop
+	sMinimal := deck.Slides[4]
+	if sMinimal.Loop == nil {
+		t.Fatalf("expected sMinimal.Loop to be non-nil")
+	}
+	if sMinimal.Loop.Target != "loop-target" || sMinimal.Loop.MaxPasses != 2 || sMinimal.Loop.Label != "Loop" {
+		t.Errorf("unexpected sMinimal.Loop: %+v", sMinimal.Loop)
+	}
+	minBranches := sMinimal.Branches()
+	if len(minBranches) != 1 || minBranches[0].Key != "⟳" {
+		t.Errorf("expected default key '⟳' in branch, got: %+v", minBranches)
+	}
+
+	// 4. Check direct-loop
+	sDirect := deck.Slides[5]
+	if sDirect.Loop == nil {
+		t.Fatalf("expected sDirect.Loop to be non-nil")
+	}
+	if sDirect.Loop.Target != "loop-target" || sDirect.Loop.MaxPasses != 4 || sDirect.Loop.ExitTarget != "done" {
+		t.Errorf("unexpected sDirect.Loop: %+v", sDirect.Loop)
+	}
+
+	// 5. Test invalid directive handling
+	if lcfg, ok := parseLoopDirective("invalid"); ok || lcfg != nil {
+		t.Errorf("expected parseLoopDirective('invalid') to fail")
+	}
+	if lcfg, ok := parseLoopDirective("::loop"); ok || lcfg != nil {
+		t.Errorf("expected empty ::loop to fail")
+	}
+	if lcfg, ok := parseLoopDirective("::other foo"); ok || lcfg != nil {
+		t.Errorf("expected non-loop directive to fail")
+	}
+
+	// 6. Test round-trip serialization
+	serialized := SerializeDeck(deck)
+	if !strings.Contains(serialized, "::loop [r] Red-Green-Refactor -> tdd-red max=3 next=summary") {
+		t.Errorf("expected serialized to contain loop directive, got:\n%s", serialized)
+	}
+	reparsed := ParseDeck(serialized)
+	if len(reparsed.Slides) != 6 {
+		t.Fatalf("expected 6 slides after reparsing, got %d", len(reparsed.Slides))
+	}
+	if reparsed.Slides[1].Loop == nil || reparsed.Slides[1].Loop.Target != "tdd-red" {
+		t.Errorf("failed round-trip of loop directive: %+v", reparsed.Slides[1].Loop)
+	}
+}
+
 func BenchmarkParseDeck(b *testing.B) {
 	src := `---
 format: 0.1

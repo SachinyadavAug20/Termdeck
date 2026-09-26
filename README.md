@@ -16,6 +16,12 @@ deck demo.deck.md
 
 ## Project Status
 
+#### 26 September 2026 (v0.13.0)
+- [x] **Bounded Graph Cycles & Presentation Loop Iteration Engine (`::loop` / `::cycle`)**: model finite computational loops, algorithm iterations, TDD cycles (Red ➔ Green ➔ Refactor), and consensus rounds directly in presentation graphs without infinite loops
+- [x] **Runtime Pass Counter & Auto-Exit Guarantee**: `Space`/`Enter` advances through bounded loop passes with real-time progress indicators (`pass 1/3`); auto-exits to `next=` slide upon exhaustion
+- [x] **In-Slide Loop Status Card & Telemetry**: active iterations render styled theme-bordered loop cards with target links and key hints; completed loops display success badging
+- [x] **155 Automated Unit Tests** maintaining **90.7% statement coverage** in `internal/` with zero external runtime dependencies and sub-millisecond per-frame rendering (< 0.26ms)
+
 #### 25 September 2026 (v0.12.0)
 - [x] **Graph Exploration Radar & Branch Completion Matrix (`V` / `--radar` / `--coverage`)**: global presentation DAG exploration telemetry gauge and completion matrix; displays visual progress bar of unique slides visited, speaking time budgeting (~130 WPM), and branch completion indicators (`✔` complete, `◐` in-progress, `○` unvisited)
 - [x] **Upstream Decision Fork Fast-Return (`U`)**: one-key instant backtrack teleporting presenter back to the nearest upstream decision fork where branches diverged, eliminating tedious sequential `Backspace` tapping

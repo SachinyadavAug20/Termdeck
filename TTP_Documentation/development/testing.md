@@ -92,6 +92,7 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorBranchHUDModal`: Validates opening branch decision HUD (`J`), navigating options (arrows/jk), live preview switching, executing jump via Enter or numeric `1`..`9` keys, terminal slide handling, and dismiss keys.
 - `TestEditorWaypointModal`: Validates opening waypoint pathfinder modal (`W`), query string editing with typing and backspace, cursor navigation (`down`/`up`/`j`/`k`/`g`/`G`), locking dynamic route with `Enter`, stepping 1 hop with `w`, rejecting unreachable candidates, and dismissing with `Esc`/`W`.
 - `TestEditorRadarAndForkReturn`: Validates opening graph exploration radar (`V`), navigation (`j`/`k`/`g`/`G`), numeric branch jump (`1`..`9`), `Enter` jump, `u` teleport to fork hub, `U` upstream fork return from sub-branches, and boundary cases.
+- `TestEditorLoopIterationAndAutoExit`: Validates bounded graph loop state machine, iteration pass counter incrementing, auto-exit upon pass exhaustion, hotkey shortcuts, and reset on `g`.
 - `TestEditorFocusModeAndLiveRunner`: Validates toggling Focus Mode (`f`), line numbering, vertical scrolling (`j`/`k`), running code via Bubble Tea command (`X`/`x`), yanking runner output (`y`), and dismissing runner card (`Esc`).
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
@@ -131,6 +132,7 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestRenderBranchHUDModal`: Validates rendering of the branch decision HUD modal (`J`), outgoing choices cards, downstream slide count and duration badges, track match badges, destination live preview card, and help modal shortcuts.
 - `TestRenderWaypointModal`: Validates rendering of the waypoint pathfinder modal (`W`), origin indicator, live search prompt, transition edge hop trails (`──[1]──►`), pagination indicator, speaking time budgeting, and nav status hints.
 - `TestRenderRadarModal`: Validates rendering of the graph exploration radar modal (`V`), global progress bar, speaking time telemetry, fork headers, branch status indicators (`✔`, `◐`, `○`), status bar hints (`[U: return to fork]`, `[radar: XX%]`), and help modal shortcuts.
+- `TestRenderLoopCardAndView`: Validates rendering of the loop iteration card, active pass counter (`[pass 1/3] · 2 remaining`), completed badge (`✔ LOOP COMPLETED`), exit target routing, and navStatus loop badges.
 - `TestNavStatusForkAndHistory`: Verifies `[fork: N paths]`, `[history: N]`, and `M map` badges in the status bar.
 - `TestHelpModalGraphShortcuts`: Asserts `1 - 9`, `Backspace / H`, and `M` shortcuts are documented in help modal.
 - `TestRenderRunnerCardAndView`: Verifies rendering of live code execution output cards with exit code badges, execution duration, and stdout/stderr blocks.
@@ -152,6 +154,7 @@ Tests markdown AST parsing and serialization:
 - `TestBranchParsingAndModel`: Parsing `::branch`, `::fork`, markdown arrows (`->`, `=>`), `# Title {#slug}`, tags, and branch key lookup.
 - `TestFindSlideByID`: Multi-pass slide lookup by exact ID, title slug, 1-based index, and title substring.
 - `TestBranchSerialization`: Round-trip preservation of `::id`, `::next`, `::prev`, `::tags`, and `::branch`.
+- `TestLoopDirectiveParsingAndSerialization`: Tests parsing `::loop` and `::cycle` attributes (`max=N`, `next=ID`, `[key]`), loop branch synthesis in `Slide.Branches()`, and round-trip serialization.
 - `BenchmarkParseDeck`: Measures markdown parser throughput.
 
 ### E. Theme Engine — `internal/theme_test.go`
@@ -249,13 +252,13 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (152 unit tests):
+Statement coverage across packages (155 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|
 | `deck` (root) | 18.2% | Covers model, update loop, flags, live watch loop, runner messages (excluding `main()` process exit) |
-| `deck/internal` | 90.9% | Meets $\ge 90\%$ target across all core modules |
-| **Total Project** | **86.4%** | **PASSED** |
+| `deck/internal` | 90.7% | Meets $\ge 90\%$ target across all core modules |
+| **Total Project** | **86.3%** | **PASSED** |
 
 ---
 

@@ -333,8 +333,10 @@ Presenters dynamically steer the presentation based on audience choice:
 
 ::branch [v] Deep Dive: Graph Exploration Radar & Coverage -> radar-deepdive
 
+::branch [l] Deep Dive: Bounded Graph Cycles & Loop Engine -> loop-deepdive
+
 > [!TIP]
-> Press `1`-`9`/`v` to branch, `J` for Fork HUD, `W` for Waypoints, `V` for Radar, `U` to return to fork, or `M` for topology!
+> Press `1`-`9`/`v`/`l` to branch, `J` for Fork HUD, `W` for Waypoints, `V` for Radar, `U` to return to fork, or `M` for topology!
 
 ---
 
@@ -607,6 +609,37 @@ Monitor graph coverage, track unvisited branches, and fast-return to decision hu
 
 > [!TIP]
 > Press `V` to see what branches remain unvisited, or hit `U` to teleport straight back to the fork hub!
+
+---
+
+::id loop-deepdive
+::tags arch,demo,loop
+::next conclusion
+::align left
+# Bounded Graph Cycles & Loop Iteration
+
+Model computational workflows, algorithmic iterations, and engineering design cycles:
+
+:::columns
+### Bounded Cycle Directive (`::loop`)
+- `::loop [r] TDD Cycle -> loop-deepdive max=3 next=conclusion`
+- Supports finite presentation iterations without infinite DAG cycles
+- Tracks pass counts per loop: `pass 1/3 (2 remaining)`
+- Hotkey shortcut: press `r` or `Space`/`Enter` to iterate
+- Auto-exits to `next=` slide upon exhaustion
+:::col
+### Real-World Engineering Workflows
+- **TDD Cycles**: Red ──► Green ──► Refactor (repeat N times)
+- **Retry Backoff**: Request ──► Timeout ──► Exponential Delay
+- **Consensus Rounds**: Propose ──► Vote ──► Commit (Raft/Paxos)
+- **ML Training**: Epoch iteration over batches & validations
+- In-slide loop iteration card with real-time pass progress
+:::
+
+::loop [r] TDD Iteration Cycle -> loop-deepdive max=3 next=conclusion
+
+> [!TIP]
+> Press `Space` or `r` to execute loop passes. Notice the pass counter advancing! Once 3 passes complete, `Space` smoothly continues to the conclusion!
 
 ---
 

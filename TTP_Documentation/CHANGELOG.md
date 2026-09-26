@@ -1,5 +1,30 @@
 # Changelog
 
+## v0.13 — 26 September 2026
+
+### Added
+- **Bounded Graph Cycles & Presentation Loop Iteration Engine (`::loop` / `::cycle`)**:
+  - Extends Termdeck's presentation DAG graph with bounded cycle modeling for computational workflows, algorithmic cycles, engineering feedback loops, and state machine iterations (e.g. TDD Red-Green-Refactor, exponential retry backoff, Raft consensus rounds, ML training epochs).
+  - **Directive Syntax**:
+    - `::loop [key] Label -> target max=N next=exit_slug`
+    - `::cycle [c] Label => target limit=N exit=exit_slug`
+    - Supported parameters: `max=N` / `limit=N` / `passes=N` / `count=N` (defaults to 3 passes), `next=slug` / `exit=slug` / `break=slug` (automatic exit target upon completion).
+  - **Runtime Iteration State Machine**:
+    - `LoopCounters: map[int]int` in `Editor` tracking completed iteration passes per slide.
+    - Advancing via standard presentation keys (`Space`, `Enter`, `right`, `l`, `pgdown`) automatically increments pass count and routes back to `Target` while `pass < max`.
+    - Auto-Exit Guarantee: once passes reach the threshold (`pass >= max`), subsequent advance seamlessly exits the loop to `ExitTarget` (or linear next slide), preventing infinite presentation traps.
+    - Hotkey execution: directly trigger loop pass via optional shortcut key (e.g. `[r]` or `[1]`).
+    - Presentation restart (`g`) automatically resets all loop counters to zero.
+  - **Slide Loop Card & Navigation Badging**:
+    - Active loop card: displays styled box with theme border, current pass progress (`[pass 1/3] · 2 remaining`), target link (`──► #slug`), and navigation key hints.
+    - Completed loop card: displays success badging (`✔ LOOP COMPLETED: Label (3/3 passes)`) and exit prompts.
+    - Navigation status bar: displays real-time loop telemetry (`[⟳ loop: pass 1/3 (TDD Loop ──► tdd-red)]` or `[✔ loop: 3/3 done]`).
+  - **Offline HTML Export Integration**:
+    - Exported HTML presentations (`deck --export-html`) include styled `.loop-card` badges with interactive JavaScript click-to-jump.
+  - **Graph Topology & Linter Integration**:
+    - Loop branches integrated into `Slide.Branches()`, `BuildGraph()`, `GetForkOptions()`, and `LintGraph()`.
+- Expanded automated test suite to **155 tests** maintaining **90.7% statement coverage** in `deck/internal` with zero external runtime dependencies and sub-millisecond per-frame rendering (< 0.26ms).
+
 ## v0.12 — 25 September 2026
 
 ### Added

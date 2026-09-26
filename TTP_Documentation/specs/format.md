@@ -258,6 +258,27 @@ routes:
 Both arrow syntax (`->`, `=>`) and comma-separated syntax (`intro, setup, demo`) are supported.
 Presenters can press `P` to view available routes in the Route Switcher Modal, see estimated speaking duration and breadcrumbs, and quick-select with `1`–`9` (or `0` to clear).
 
+#### `::loop` & `::cycle`
+
+Bounded cycles and presentation iteration loops model computational processes, algorithmic iterations, engineering feedback loops, and state machines:
+
+```markdown
+::loop [r] Red-Green-Refactor -> tdd-red max=3 next=summary
+```
+
+**Attributes:**
+- `[key]` (optional): Custom keyboard shortcut (e.g. `[r]`, `[c]`, `[1]`) to trigger a loop pass directly.
+- `Label`: Human-readable description (e.g. `Red-Green-Refactor`, `Retry Backoff Cycle`).
+- `-> target` or `=> target`: Slide ID or slug to loop back to during active iteration passes.
+- `max=N` or `limit=N` or `passes=N` or `count=N`: Maximum number of iterations before automatically breaking out of the loop (default: 3).
+- `next=slug` or `exit=slug` or `break=slug`: Slide ID to transition to once all passes are completed.
+
+**Runtime Behavior:**
+- When on a slide with a loop directive, pressing standard advance keys (`Space`, `Enter`, `right`, `l`, `pgdown`) or the shortcut key executes an iteration pass while `pass < max`.
+- Real-time pass status is displayed in an in-slide card (`[pass 1/3] · 2 remaining ──► #target`) and in the navigation status bar.
+- Once `pass >= max`, the loop completes (`✔ LOOP COMPLETED`) and advancing automatically exits to the designated `next=` target (or linear next slide), preventing infinite graph loops.
+- Pressing `g` (presentation restart) automatically resets all loop counters to 0.
+
 #### `::notes`
 
 ```

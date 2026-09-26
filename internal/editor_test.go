@@ -2665,3 +2665,157 @@ title: Radar & Fork Deck
 		t.Fatalf("expected branch jump message, got %q", ed.Message)
 	}
 }
+
+func TestEditorLoopIterationAndAutoExit(t *testing.T) {
+	// 1. Boundary cases
+	ed := NewEditor("test.deck.md")
+	if pass, maxP, hasLoop := ed.CurrentLoopPass(0, nil); hasLoop || pass != 0 || maxP != 0 {
+		t.Fatalf("expected hasLoop false for nil deck")
+	}
+	emptyDeck := Deck{}
+	if pass, maxP, hasLoop := ed.CurrentLoopPass(0, &emptyDeck); hasLoop || pass != 0 || maxP != 0 {
+		t.Fatalf("expected hasLoop false for empty deck")
+	}
+	if took, _ := ed.AdvanceLoop(0, nil); took {
+		t.Fatalf("expected tookLoop false for nil deck")
+	}
+	if took, _ := ed.AdvanceLoop(0, &emptyDeck); took {
+		t.Fatalf("expected tookLoop false for empty deck")
+	}
+	ed.ResetLoopCounter(99) // Should not panic on nonexistent slide
+	ed.ResetAllLoops()
+
+	// 2. Setup presentation deck with loop
+	src := `---
+title: TDD Iteration Loop
+---
+
+::id intro
+# Intro
+
+---
+
+::id tdd-red
+# Red: Failing Test
+
+---
+
+::id tdd-green
+# Green: Make Pass
+
+---
+
+::id tdd-refactor
+# Refactor: Clean Code
+::loop [r] Red-Green-Refactor -> tdd-red max=3 next=summary
+
+---
+
+::id summary
+# Presentation Summary
+`
+	d := ParseDeck(src)
+	ed = NewEditor("test.deck.md")
+
+	// 3. Navigate to refactor slide (slide 3)
+	ed.SlideIdx = 3
+	pass, maxPasses, hasLoop := ed.CurrentLoopPass(3, &d)
+	if !hasLoop || pass != 0 || maxPasses != 3 {
+		t.Fatalf("expected pass 0/3, got %d/%d (hasLoop=%v)", pass, maxPasses, hasLoop)
+	}
+
+	// 4. First pass: Space key loops back to tdd-red (slide 1)
+	sendTestKey(&ed, &d, " ")
+	if ed.SlideIdx != 1 {
+		t.Fatalf("expected loop pass 1 to route to tdd-red (slide 1), got slide %d", ed.SlideIdx)
+	}
+	if !strings.Contains(ed.Message, "pass 1/3") {
+		t.Errorf("expected pass 1/3 in message, got %q", ed.Message)
+	}
+
+	// 5. Progress to refactor again, second pass via 'enter'
+	ed.SlideIdx = 3
+	sendTestKey(&ed, &d, "enter")
+	if ed.SlideIdx != 1 {
+		t.Fatalf("expected loop pass 2 to route to tdd-red (slide 1), got slide %d", ed.SlideIdx)
+	}
+	if !strings.Contains(ed.Message, "pass 2/3") {
+		t.Errorf("expected pass 2/3 in message, got %q", ed.Message)
+	}
+
+	// 6. Progress to refactor again, third pass via 'right'
+	ed.SlideIdx = 3
+	sendTestKey(&ed, &d, "right")
+	if ed.SlideIdx != 1 {
+		t.Fatalf("expected loop pass 3 to route to tdd-red (slide 1), got slide %d", ed.SlideIdx)
+	}
+	if !strings.Contains(ed.Message, "pass 3/3") {
+		t.Errorf("expected pass 3/3 in message, got %q", ed.Message)
+	}
+
+	// 7. Loop exhaustion: when pass count reaches 3, next advance auto-exits to 'summary' (slide 4)
+	ed.SlideIdx = 3
+	pass, maxPasses, hasLoop = ed.CurrentLoopPass(3, &d)
+	if pass != 3 || maxPasses != 3 {
+		t.Fatalf("expected pass 3/3, got %d/%d", pass, maxPasses)
+	}
+	sendTestKey(&ed, &d, " ")
+	if ed.SlideIdx != 4 {
+		t.Fatalf("expected loop to auto-exit to summary (slide 4), got slide %d", ed.SlideIdx)
+	}
+	if !strings.Contains(ed.Message, "completed") {
+		t.Errorf("expected completed in message, got %q", ed.Message)
+	}
+
+	// 8. Test loop hotkey 'r'
+	ed.ResetLoopCounter(3)
+	ed.SlideIdx = 3
+	sendTestKey(&ed, &d, "r")
+	if ed.SlideIdx != 1 {
+		t.Fatalf("expected 'r' hotkey to trigger loop pass to slide 1, got slide %d", ed.SlideIdx)
+	}
+
+	// 9. Test restart on 'g' resets all loops
+	ed.SlideIdx = 3
+	sendTestKey(&ed, &d, " ") // increments counter
+	sendTestKey(&ed, &d, "g")
+	if ed.SlideIdx != 0 {
+		t.Fatalf("expected 'g' to navigate to slide 0, got %d", ed.SlideIdx)
+	}
+	if p, _, _ := ed.CurrentLoopPass(3, &d); p != 0 {
+		t.Fatalf("expected loop counter reset to 0 after 'g', got %d", p)
+	}
+
+	// 10. Test loop without explicit exit target (falls back to next slide)
+	srcFallback := `---
+title: Fallback Loop
+---
+::id start
+# Start
+
+---
+::id loop-slide
+# Looper
+::loop start max=1
+
+---
+::id end
+# End
+`
+	dFallback := ParseDeck(srcFallback)
+	edFallback := NewEditor("test.deck.md")
+	edFallback.SlideIdx = 1
+
+	// Pass 1 -> start
+	sendTestKey(&edFallback, &dFallback, " ")
+	if edFallback.SlideIdx != 0 {
+		t.Fatalf("expected loop to slide 0, got %d", edFallback.SlideIdx)
+	}
+
+	// Return to slide 1, pass exhausted -> linear next (slide 2)
+	edFallback.SlideIdx = 1
+	sendTestKey(&edFallback, &dFallback, " ")
+	if edFallback.SlideIdx != 2 {
+		t.Fatalf("expected fallback loop exit to slide 2, got %d", edFallback.SlideIdx)
+	}
+}

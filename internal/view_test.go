@@ -1778,6 +1778,90 @@ title: Radar View Test
 	}
 }
 
+func TestRenderLoopCardAndView(t *testing.T) {
+	// 1. Boundary cases
+	if card := renderLoopCard(nil, 0, 3, 80); card != "" {
+		t.Fatalf("expected empty card for nil loop config")
+	}
+
+	lcfg := &LoopConfig{
+		Key:        "r",
+		Label:      "TDD Loop",
+		Target:     "tdd-red",
+		MaxPasses:  3,
+		ExitTarget: "tdd-summary",
+	}
+
+	// 2. Active loop card (pass 0/3)
+	activeCard := stripANSI(renderLoopCard(lcfg, 0, 3, 80))
+	if !strings.Contains(activeCard, "LOOP ITERATION: TDD Loop") || !strings.Contains(activeCard, "[pass 1/3]") {
+		t.Fatalf("expected active loop header in card, got:\n%s", activeCard)
+	}
+	if !strings.Contains(activeCard, "Loop target: ──► #tdd-red") || !strings.Contains(activeCard, "Remaining iterations: 2") {
+		t.Fatalf("expected loop target and remaining iterations in card, got:\n%s", activeCard)
+	}
+	if !strings.Contains(activeCard, "r: Loop Hotkey") {
+		t.Fatalf("expected 'r: Loop Hotkey' in card hints, got:\n%s", activeCard)
+	}
+
+	// 3. Completed loop card (pass 3/3)
+	completedCard := stripANSI(renderLoopCard(lcfg, 3, 3, 80))
+	if !strings.Contains(completedCard, "LOOP COMPLETED: TDD Loop (3/3 passes)") {
+		t.Fatalf("expected completed loop header, got:\n%s", completedCard)
+	}
+	if !strings.Contains(completedCard, "Exit target: ──► #tdd-summary") {
+		t.Fatalf("expected exit target in completed card, got:\n%s", completedCard)
+	}
+
+	// 4. Slide rendering with loop card in View
+	d := Deck{
+		Slides: []Slide{
+			{
+				ID: "tdd-refactor",
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Refactoring Phase"},
+					{Kind: BlockParagraph, Text: "Clean up code while tests are green."},
+				},
+				Loop: lcfg,
+			},
+			{
+				ID: "tdd-red",
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Failing Test Phase"},
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	ed.SlideIdx = 0
+
+	viewOutput := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(viewOutput, "LOOP ITERATION: TDD Loop") {
+		t.Fatalf("expected loop card in View, got:\n%s", viewOutput)
+	}
+
+	// Hidden in focus mode
+	ed.FocusMode = true
+	focusView := stripANSI(View(d, ed, 100, 30))
+	if strings.Contains(focusView, "LOOP ITERATION: TDD Loop") {
+		t.Fatalf("expected loop card hidden in focus mode, got:\n%s", focusView)
+	}
+	ed.FocusMode = false
+
+	// 5. navStatus badge
+	statusActive := stripANSI(navStatus(d, ed, 200))
+	if !strings.Contains(statusActive, "[⟳ loop: pass 1/3 (TDD Loop ──► tdd-red)]") {
+		t.Fatalf("expected active loop badge in navStatus, got:\n%s", statusActive)
+	}
+
+	// Completed status badge
+	ed.LoopCounters[0] = 3
+	statusDone := stripANSI(navStatus(d, ed, 200))
+	if !strings.Contains(statusDone, "[✔ loop: 3/3 done (TDD Loop)]") {
+		t.Fatalf("expected done loop badge in navStatus, got:\n%s", statusDone)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{
