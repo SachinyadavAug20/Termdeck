@@ -2,15 +2,15 @@
 author: Sachin
 format: 0.1
 title: termdeck demo
-theme: tokyo-night
-routes:
-  lightning: intro -> why-terminal -> arch-comparison -> conclusion
-  deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> radar-deepdive -> conclusion
-  live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> radar-deepdive -> conclusion
+theme: catppuccin
 ---
 
+::route deepdive: intro -> arch-comparison -> branching-hub -> arch-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> radar-deepdive -> conclusion
+::route lightning: intro -> why-terminal -> arch-comparison -> conclusion
+::route live-demo: branching-hub -> runner-deepdive -> columns-deepdive -> routes-deepdive -> history-deepdive -> fork-hud-deepdive -> waypoint-deepdive -> radar-deepdive -> conclusion
+
 ::id intro
-::tags intro,demo
+::tags intro, demo
 ::align left
 # termdeck
 
@@ -31,7 +31,7 @@ A terminal-native presentation format designed by developers, for developers.
 ---
 
 ::id why-terminal
-::tags intro,demo
+::tags intro, demo
 ::align left
 # Why Terminal?
 
@@ -74,7 +74,7 @@ Mix styles seamlessly: **bold with *italic* text** inside.
 ---
 
 ::id arch-comparison
-::tags arch,demo
+::tags arch, demo
 ::align left
 # Architecture & Comparison
 
@@ -305,7 +305,7 @@ Speaker notes are isolated from audience view.
 ---
 
 ::id branching-hub
-::tags arch,demo,tracks
+::tags arch, demo, tracks
 ::align left
 # Non-Linear Branching & DAG Engine
 
@@ -341,8 +341,8 @@ Presenters dynamically steer the presentation based on audience choice:
 ---
 
 ::id arch-deepdive
-::tags arch,demo
 ::next conclusion
+::tags arch, demo
 ::align left
 # Core Architecture & DAG Topology
 
@@ -363,8 +363,8 @@ Termdeck presentations can converge and fork anywhere:
 ---
 
 ::id autoplay-deepdive
-::tags demo
 ::next conclusion
+::tags demo
 ::align left
 # Rehearsal & Autoplay Pacing
 
@@ -384,8 +384,8 @@ Prepare talk pacing with hands-free automated rehearsal:
 ---
 
 ::id export-deepdive
-::tags demo,export
 ::next conclusion
+::tags demo, export
 ::align left
 # Offline HTML & Diagram Exports
 
@@ -405,8 +405,8 @@ Share technical ideas beyond the terminal:
 ---
 
 ::id runner-deepdive
-::tags dev,demo
 ::next conclusion
+::tags dev, demo
 ::align left
 # Live Code Runner & Zoom Focus Mode
 
@@ -424,13 +424,11 @@ Termdeck lets developers execute live code directly during presentations:
 # Live bash execution test
 uname -s -m
 echo "Termdeck presentation engine: 100% operational"
-::code
 
 ::code lang=python
 # Verified live calculation
 import math
 print(f"Verified live prime count up to 50: {len([p for p in range(2, 50) if all(p%d!=0 for d in range(2, int(p**0.5)+1))])}")
-::code
 
 > [!TIP]
 > Focus on either code block above and press `X` to run, or press `f` to enter Zoom Focus mode!
@@ -438,24 +436,33 @@ print(f"Verified live prime count up to 50: {len([p for p in range(2, 50) if all
 ---
 
 ::id columns-deepdive
-::tags arch,demo,tracks
 ::next conclusion
+::tags arch, demo, tracks
 ::align left
 # Multi-Column Split & Audience Tracks
 
 Present side-by-side technical content and tailor presentations to audience tracks:
 
 :::columns
+:::col
 ### Backend / Arch Track
+
 - Systems design & internals
+
 - Zero-alloc rendering loops
+
 - Deterministic DAG traversal
+
 - Tag with `::tags arch,backend`
 :::col
 ### Developer Experience Track
+
 - Live terminal execution (`X`)
+
 - Instant element zoom (`f`)
+
 - Non-linear branches (`1-9`, `M`)
+
 - Press `K` for audience tracks
 :::
 
@@ -465,26 +472,37 @@ Present side-by-side technical content and tailor presentations to audience trac
 ---
 
 ::id routes-deepdive
-::tags arch,demo,routes
 ::next conclusion
+::tags arch, demo, routes
 ::align left
 # Preset Graph Routes & Guided Paths
 
 Pre-configure tailored presentation paths across your non-linear DAG:
 
 :::columns
+:::col
 ### Authoring Routes
+
 - In frontmatter:
-  `routes:`
-    `lightning: intro -> summary`
+
+`routes:`
+
+`lightning: intro -> summary`
+
 - Inline: `::route name: s1 -> s2 -> s3`
+
 - Arrow (`->`) or comma (`s1, s2`) syntax
 :::col
 ### Presenter Controls
+
 - Press `P` to open Route Switcher modal
+
 - `1`-`9` selects a route instantly
+
 - `0` clears back to standard navigation
+
 - Estimated talk duration based on WPM
+
 - CLI startup: `deck --route=lightning`
 :::
 
@@ -494,26 +512,37 @@ Pre-configure tailored presentation paths across your non-linear DAG:
 ---
 
 ::id history-deepdive
-::tags arch,demo,history
 ::next conclusion
+::tags arch, demo, history
 ::align left
 # Traversal History & Graph Reflog
 
 Inspect and rewind your presentation journey through the non-linear DAG:
 
 :::columns
+:::col
 ### Visual Journey Stack (`H`)
+
 - Press `H` to open Traversal History modal
+
 - Lists all visited slides in exact path order
+
 - Shows distance back (`(3 steps back)`)
+
 - Rewind to any step with `1`-`9` or `Enter`
+
 - Press `c` to reset traversal history
 :::col
 ### DAG Linter & CI/CD (`--lint`)
+
 - Validates presentation graph topology
+
 - Detects broken `::branch` / `::next` targets
+
 - Catches duplicate slide identifiers
+
 - Identifies unreachable slides & dead ends
+
 - CLI validation: `deck --lint demo.deck.md`
 :::
 
@@ -523,26 +552,37 @@ Inspect and rewind your presentation journey through the non-linear DAG:
 ---
 
 ::id fork-hud-deepdive
-::tags arch,demo,branching
 ::next conclusion
+::tags arch, demo, branching
 ::align left
 # Decision Fork HUD & Subgraph Metrics
 
 Preview destinations and inspect downstream path depth before branching:
 
 :::columns
+:::col
 ### Interactive Fork HUD (`J`)
+
 - Press `J` on any branching slide
+
 - Real-time **code & content preview** of destinations
+
 - Displays keys `[1]`, `[2]`, `[→]` with target IDs
+
 - `j`/`k` to select target, `Enter` to jump
+
 - Direct numeric execution `1`-`9`
 :::col
 ### Downstream Metrics & Budgets
+
 - **Slide depth**: Reachable slides in subgraph
+
 - **Time estimate**: Duration based on ~130 WPM
+
 - **Code snippets**: Tally of executable blocks
+
 - **Track match**: `★ Track Match` indicators
+
 - **Route sync**: Highlights `⚡ Route Step`
 :::
 
@@ -552,26 +592,37 @@ Preview destinations and inspect downstream path depth before branching:
 ---
 
 ::id waypoint-deepdive
-::tags arch,demo,routing
 ::next conclusion
+::tags arch, demo, routing
 ::align left
 # Waypoint Pathfinder & Shortest-Path Graph Router
 
 Dynamically navigate complex presentation graphs using real-time graph pathfinding:
 
 :::columns
+:::col
 ### Interactive Pathfinder (`W`)
+
 - Press `W` anywhere to summon the Pathfinder modal
+
 - Live shortest-path routing via BFS graph traversal
+
 - Real-time search by title, slide `#id`, or `::tags`
+
 - Detailed hop breadcrumb trail (`[01:hub] ──[9]──► [10:waypoint]`)
+
 - Talk duration calculation (~130 WPM) per path
 :::col
 ### Dynamic Route Execution
+
 - `Enter`: Locks optimal path into a dynamic presentation route
+
 - `w`: Steps immediately 1 hop along the shortest path
+
 - Reachability checking prevents routing to dead ends
+
 - Unreachable slides flagged with rewind recommendations
+
 - Zero presentation spoilers or awkward backtracks
 :::
 
@@ -581,29 +632,43 @@ Dynamically navigate complex presentation graphs using real-time graph pathfindi
 ---
 
 ::id radar-deepdive
-::tags arch,demo,radar
 ::next conclusion
+::tags arch, demo, radar
 ::align left
 # Graph Exploration Radar & Upstream Fork Return
 
 Monitor graph coverage, track unvisited branches, and fast-return to decision hubs:
 
 :::columns
+:::col
 ### Exploration Radar (`V`)
+
 - Press `V` anywhere to open the Exploration Radar modal
+
 - Global coverage bar: `Visited 8 / 18 unique slides (44.4%)`
+
 - Time budget tracking: `~12m visited / ~25m total deck talk time`
+
 - Per-branch completion status:
-  - `✔` Completed branches (`3/3 slides · 100%`)
-  - `◐` In-progress branches (`1/2 slides · 50%`)
-  - `○` Unvisited branches (`0/2 slides · Unvisited · ~2m`)
+
+- `✔` Completed branches (`3/3 slides · 100%`)
+
+- `◐` In-progress branches (`1/2 slides · 50%`)
+
+- `○` Unvisited branches (`0/2 slides · Unvisited · ~2m`)
+
 - Direct jumping: `Enter` jumps to selected branch
 :::col
 ### Upstream Fork Fast-Return (`U`)
+
 - Press `U` anywhere inside a deep sub-branch
+
 - Teleports speaker directly back to the upstream decision fork
+
 - Zero tedious `Backspace` tapping or reflog math
+
 - Perfect for Q&A: explore a sub-branch, then `U` back to the hub
+
 - Status bar hints: `[U: return to fork]` & `[radar: 44% (V)]`
 :::
 
@@ -613,30 +678,39 @@ Monitor graph coverage, track unvisited branches, and fast-return to decision hu
 ---
 
 ::id loop-deepdive
-::tags arch,demo,loop
-::next conclusion
+::tags arch, demo, loop
 ::align left
+::loop [r] TDD Iteration Cycle -> loop-deepdive max=3 next=conclusion
 # Bounded Graph Cycles & Loop Iteration
 
 Model computational workflows, algorithmic iterations, and engineering design cycles:
 
 :::columns
+:::col
 ### Bounded Cycle Directive (`::loop`)
+
 - `::loop [r] TDD Cycle -> loop-deepdive max=3 next=conclusion`
+
 - Supports finite presentation iterations without infinite DAG cycles
+
 - Tracks pass counts per loop: `pass 1/3 (2 remaining)`
+
 - Hotkey shortcut: press `r` or `Space`/`Enter` to iterate
+
 - Auto-exits to `next=` slide upon exhaustion
 :::col
 ### Real-World Engineering Workflows
+
 - **TDD Cycles**: Red ──► Green ──► Refactor (repeat N times)
+
 - **Retry Backoff**: Request ──► Timeout ──► Exponential Delay
+
 - **Consensus Rounds**: Propose ──► Vote ──► Commit (Raft/Paxos)
+
 - **ML Training**: Epoch iteration over batches & validations
+
 - In-slide loop iteration card with real-time pass progress
 :::
-
-::loop [r] TDD Iteration Cycle -> loop-deepdive max=3 next=conclusion
 
 > [!TIP]
 > Press `Space` or `r` to execute loop passes. Notice the pass counter advancing! Once 3 passes complete, `Space` smoothly continues to the conclusion!
@@ -644,7 +718,7 @@ Model computational workflows, algorithmic iterations, and engineering design cy
 ---
 
 ::id conclusion
-::tags demo,summary
+::tags demo, summary
 ::align left
 # Developer Summary
 

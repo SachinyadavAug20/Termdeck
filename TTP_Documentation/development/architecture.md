@@ -21,6 +21,15 @@ This document provides a comprehensive technical breakdown of **Termdeck (`deck`
 13. [Standalone Offline HTML Export Subsystem (`--export-html` & `E`)](#13-standalone-offline-html-export-subsystem---export-html--e)
 14. [Talk Statistics & Sprint Velocity Subsystem (`S` & `--stats`)](#14-talk-statistics--sprint-velocity-subsystem-s---stats)
 15. [Auto-Advance & Rehearsal Pacing Subsystem (`A` & `--autoplay`)](#15-auto-advance--rehearsal-pacing-subsystem-a---autoplay)
+16. [Non-Linear Directed Graph (DAG) & Interactive Branching Subsystem](#16-non-linear-directed-graph-dag--interactive-branching-subsystem)
+17. [Live Code Runner Subprocess Execution & Zoom Focus Subsystems (`X`, `f`, `--test-code`)](#17-live-code-runner-subprocess-execution--zoom-focus-subsystems-x-f---test-code)
+18. [Multi-Column Split Grid & Audience Track Subsystems (`BlockColumns`, `K`, `[ / ]`, `--track`)](#18-multi-column-split-grid--audience-track-subsystems-blockcolumns-k----track)
+19. [Preset Graph Routes & Guided Paths Engine (`P`, `routes:`, `::route`, `--route`)](#19-preset-graph-routes--guided-paths-engine-p-routes-route---route)
+20. [Traversal History Reflog & DAG Topology Linter Subsystems (`H`, `--lint`, `--lint-graph`)](#20-traversal-history-reflog--dag-topology-linter-subsystems-h---lint---lint-graph)
+21. [Branch Decision Fork HUD & Subgraph Path Estimation Subsystem (`J`, `BranchForkOption`, `GetForkOptions`)](#21-branch-decision-fork-hud--subgraph-path-estimation-subsystem-j-branchforkoption-getforkoptions)
+22. [Waypoint Pathfinder & Shortest-Path Graph Routing Subsystem (`W`, `WaypointCandidate`, `FindWaypointCandidates`)](#22-waypoint-pathfinder--shortest-path-graph-routing-subsystem-w-waypointcandidate-findwaypointcandidates)
+23. [Graph Exploration Radar & Upstream Fork Fast-Return Subsystem (`V`, `U`, `CalculateRadarStats`, `ReturnToUpstreamFork`)](#23-graph-exploration-radar--upstream-fork-fast-return-subsystem-v-u-calculateradarstats-returntoupstreamfork)
+24. [Bounded Graph Cycles & Presentation Loop Iteration Engine (`::loop`, `::cycle`, `LoopCounters`, `AdvanceLoop`)](#24-bounded-graph-cycles--presentation-loop-iteration-engine-loop-cycle-loopcounters-advanceloop)
 
 ---
 
