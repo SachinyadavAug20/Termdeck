@@ -56,6 +56,7 @@ type Editor struct {
 	Message           string
 	ShowNotes         bool
 	ShowHelp          bool
+	HelpPage          int
 	ZenMode           bool
 	ShowLineNumbers   bool
 	ShowTimer         bool
@@ -1125,6 +1126,16 @@ func (e *Editor) DismissRunner() {
 	e.Message = "runner closed"
 }
 
+const TotalHelpPages = 5
+
+func (e *Editor) NextHelpPage() {
+	e.HelpPage = (e.HelpPage + 1) % TotalHelpPages
+}
+
+func (e *Editor) PrevHelpPage() {
+	e.HelpPage = (e.HelpPage - 1 + TotalHelpPages) % TotalHelpPages
+}
+
 // --- Input handling ---
 
 func (e *Editor) HandleKey(msg tea.KeyMsg, d *Deck) tea.Cmd {
@@ -1404,6 +1415,37 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 				e.JumpToHistory(e.HistoryCursor, d)
 			}
 			e.ShowHistoryModal = false
+			return nil
+		}
+		return nil
+	}
+
+	if e.ShowHelp {
+		switch key {
+		case "esc", "q", "?", "f1":
+			e.ShowHelp = false
+			e.Message = "help closed"
+			return nil
+		case "right", "l", "tab", "n", "pgdown":
+			e.NextHelpPage()
+			return nil
+		case "left", "h", "shift+tab", "p", "pgup":
+			e.PrevHelpPage()
+			return nil
+		case "1":
+			e.HelpPage = 0
+			return nil
+		case "2":
+			e.HelpPage = 1
+			return nil
+		case "3":
+			e.HelpPage = 2
+			return nil
+		case "4":
+			e.HelpPage = 3
+			return nil
+		case "5":
+			e.HelpPage = 4
 			return nil
 		}
 		return nil
@@ -2074,6 +2116,22 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 
 	case "?", "f1":
 		e.ShowHelp = !e.ShowHelp
+		if e.ShowHelp {
+			e.ShowStats = false
+			e.ShowOverview = false
+			e.ShowGraphMap = false
+			e.ShowTrackModal = false
+			e.ShowRouteModal = false
+			e.ShowHistoryModal = false
+			e.ShowBranchHUD = false
+			e.ShowWaypointModal = false
+			e.ShowRadarModal = false
+			e.DismissRunner()
+			e.Message = "help: 1-5 or tab to switch pages · esc to close"
+		} else {
+			e.Message = "help closed"
+		}
+		return nil
 
 	case "esc":
 		if e.ShowRunner {
@@ -2083,6 +2141,7 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		if e.ShowHelp {
 			e.ShowHelp = false
+			e.Message = "help closed"
 			return nil
 		}
 		if e.ShowOverview {

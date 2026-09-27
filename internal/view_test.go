@@ -1862,6 +1862,135 @@ func TestRenderLoopCardAndView(t *testing.T) {
 	}
 }
 
+func TestRenderMultiPageHelpModal(t *testing.T) {
+	// 1. Page 0: Slide Navigation
+	p0 := stripANSI(renderHelpModal(0, 100, 30))
+	if !strings.Contains(p0, "[1:Navigation]") || !strings.Contains(p0, "SLIDE NAVIGATION & CANVAS CONTROLS") {
+		t.Fatalf("expected page 0 navigation headers, got:\n%s", p0)
+	}
+	if !strings.Contains(p0, "Advance next slide") || !strings.Contains(p0, "laser pointer") {
+		t.Errorf("expected page 0 key descriptions, got:\n%s", p0)
+	}
+
+	// 2. Page 1: Directed Graph & Non-linear
+	p1 := stripANSI(renderHelpModal(1, 100, 30))
+	if !strings.Contains(p1, "[2:Graphs]") || !strings.Contains(p1, "DIRECTED GRAPH (DAG)") {
+		t.Fatalf("expected page 1 graph headers, got:\n%s", p1)
+	}
+	if !strings.Contains(p1, "Waypoint pathfinder") || !strings.Contains(p1, "Bounded cycle engine") {
+		t.Errorf("expected page 1 graph features, got:\n%s", p1)
+	}
+
+	// 3. Page 2: Live Developer Tools
+	p2 := stripANSI(renderHelpModal(2, 100, 30))
+	if !strings.Contains(p2, "[3:Tools]") || !strings.Contains(p2, "LIVE DEVELOPER TOOLS") {
+		t.Fatalf("expected page 2 tools headers, got:\n%s", p2)
+	}
+	if !strings.Contains(p2, "Execute focused code block") || !strings.Contains(p2, "Audience tracks modal") {
+		t.Errorf("expected page 2 developer tools, got:\n%s", p2)
+	}
+
+	// 4. Page 3: Live Markdown Editor
+	p3 := stripANSI(renderHelpModal(3, 100, 30))
+	if !strings.Contains(p3, "[4:Editor]") || !strings.Contains(p3, "IN-SLIDE LIVE MARKDOWN EDITOR") {
+		t.Fatalf("expected page 3 editor headers, got:\n%s", p3)
+	}
+	if !strings.Contains(p3, "Enter edit mode") || !strings.Contains(p3, "Undo / Redo") {
+		t.Errorf("expected page 3 editor shortcuts, got:\n%s", p3)
+	}
+
+	// 5. Page 4: Markdown Authoring Cheat Sheet
+	p4 := stripANSI(renderHelpModal(4, 100, 30))
+	if !strings.Contains(p4, "[5:Guide]") || !strings.Contains(p4, "MARKDOWN AUTHORING CHEAT SHEET") {
+		t.Fatalf("expected page 4 guide headers, got:\n%s", p4)
+	}
+	if !strings.Contains(p4, "::branch") || !strings.Contains(p4, ":::columns") {
+		t.Errorf("expected page 4 authoring syntax, got:\n%s", p4)
+	}
+
+	// 6. Out of bounds clamp
+	pHigh := stripANSI(renderHelpModal(99, 100, 30))
+	if !strings.Contains(pHigh, "[5:Guide]") {
+		t.Errorf("expected page 99 to clamp to page 4 [5:Guide], got:\n%s", pHigh)
+	}
+
+	// 7. Small dimensions fallback
+	pSmall := stripANSI(renderHelpModal(0, 40, 15))
+	if !strings.Contains(pSmall, "Termdeck") {
+		t.Errorf("expected render at small dimensions, got:\n%s", pSmall)
+	}
+}
+
+func TestResponsiveViewportAndAspectRatios(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Blocks: []Block{
+					{Kind: BlockHeading, Level: 1, Text: "Responsive Test Slide"},
+					{Kind: BlockParagraph, Text: "Validating responsive constraints across aspect ratios."},
+				},
+			},
+			{
+				Blocks: []Block{
+					{
+						Kind: BlockColumns,
+						Columns: [][]Block{
+							{
+								{Kind: BlockHeading, Level: 2, Text: "Column Left"},
+								{Kind: BlockParagraph, Text: "Content Left side"},
+							},
+							{
+								{Kind: BlockHeading, Level: 2, Text: "Column Right"},
+								{Kind: BlockParagraph, Text: "Content Right side"},
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+
+	// 1. Extreme small viewport safeguard
+	smallView := stripANSI(View(d, ed, 30, 5))
+	if !strings.Contains(smallView, "Terminal too small") || !strings.Contains(smallView, "Resize to at least") {
+		t.Fatalf("expected terminal too small warning for 30x5, got:\n%s", smallView)
+	}
+
+	// 2. Standard 80x24 terminal viewport
+	v80 := stripANSI(View(d, ed, 80, 24))
+	if !strings.Contains(v80, "Responsive Test Slide") || !strings.Contains(v80, "slide 1/2") {
+		t.Fatalf("expected standard rendering in 80x24 viewport, got:\n%s", v80)
+	}
+
+	// 3. Ultra-wide 16:9 / 21:9 viewport (e.g. 160x45) - canvas bounding & centering
+	v160 := stripANSI(View(d, ed, 160, 45))
+	if !strings.Contains(v160, "Responsive Test Slide") {
+		t.Fatalf("expected rendering in ultra-wide 160x45 viewport, got:\n%s", v160)
+	}
+
+	// 4. Narrow mobile/split-screen viewport with multi-columns: stacks vertically
+	ed.SlideIdx = 1
+	narrowColsView := stripANSI(View(d, ed, 45, 20))
+	if !strings.Contains(narrowColsView, "Column Left") || !strings.Contains(narrowColsView, "Column Right") {
+		t.Fatalf("expected both stacked columns in narrow viewport 45x20, got:\n%s", narrowColsView)
+	}
+
+	// 5. Left and Right alignment padding adjustments
+	d.Slides[0].Align = AlignLeft
+	ed.SlideIdx = 0
+	leftNarrow := stripANSI(View(d, ed, 60, 20))
+	if !strings.Contains(leftNarrow, "Responsive Test Slide") {
+		t.Errorf("expected left alignment at narrow width")
+	}
+
+	d.Slides[0].Align = AlignRight
+	rightWide := stripANSI(View(d, ed, 120, 30))
+	if !strings.Contains(rightWide, "Responsive Test Slide") {
+		t.Errorf("expected right alignment at wide width")
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{
