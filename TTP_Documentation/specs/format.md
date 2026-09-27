@@ -223,7 +223,7 @@ Multi-column side-by-side layouts are authored using container directives:
 :::
 ```
 
-Alternative syntax: `::columns` or `::split` containers with `::col` column separators. Inside each column, any Markdown element (headings, paragraphs, code blocks, diffs, tables, callouts, lists, images) is parsed recursively. Column widths are dynamically balanced based on terminal viewport width with configured horizontal gaps.
+Alternative syntax: `::columns` or `::split` containers with `::col` column separators. Inside each column, any Markdown element (headings, paragraphs, code blocks, diffs, tables, callouts, lists, images) is parsed recursively. Column widths are dynamically balanced based on terminal viewport width with configured horizontal gaps. On narrow terminal viewports (`colW < 20 || w < 50`), Termdeck automatically stacks columns vertically separated by subtle dashed dividers (`┄`) to preserve readability and syntax highlighting without horizontal clipping.
 
 #### `::tags`
 

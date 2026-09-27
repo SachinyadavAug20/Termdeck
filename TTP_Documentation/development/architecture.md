@@ -225,9 +225,22 @@ flowchart LR
     Compose --> Output["Rendered Terminal Canvas"]
 ```
 
-- **Left Alignment**: Uses `PaddingLeft(8)` to create a book-style left margin. This aligns bullet points vertically without jagged centering.
+- **Left Alignment**: Uses `padLeft` (2 spaces on compact viewports < 70 columns, 4 on standard/wide terminals) to create a book-style left margin. This aligns bullet points vertically without jagged centering.
 - **Center Alignment**: Standard presentation centering for title slides and quotes.
-- **Right Alignment**: Uses `PaddingRight(8)` for asymmetrical slide layouts.
+- **Right Alignment**: Uses `padRight` (2 or 4 spaces) for asymmetrical slide layouts.
+- **Responsive Viewport Bounding & Centering**:
+  - Monitors and terminal windows vary widely (80x24 standard, 16:9 widescreen, 21:9 ultrawide). Unchecked line lengths impair typographic readability.
+  - Termdeck clamps the inner slide stage canvas width `canvasW` to an optimal measure:
+    $$\text{maxCanvasW} = \begin{cases} 124 & \text{if slide contains BlockColumns} \\ 104 & \text{otherwise} \end{cases}$$
+    $$\text{canvasW} = \text{clamp}(w - 4, 32, \text{maxCanvasW})$$
+  - When terminal width exceeds `canvasW`, the entire rendered body block is centered horizontally on the terminal display via `lipgloss.PlaceHorizontal(width, lipgloss.Center, body)`.
+- **Vertical Overflow Protection**:
+  - Vertical alignment defaults to `lipgloss.Center` for balanced vertical framing.
+  - If content height meets or exceeds available `bodyHeight`, vertical alignment automatically falls back to `lipgloss.Top` (`vAlign = lipgloss.Top`), guaranteeing slide headings and first blocks are never pushed offscreen.
+- **Responsive Multi-Column Grids**:
+  - When rendering side-by-side columns (`:::columns`), if terminal width is narrow or column width falls below threshold (`colW < 20 || w < 50`), `renderColumns` automatically stacks columns vertically separated by subtle dashed dividers (`┄`), preventing text truncation.
+- **Terminal Dimension Guard**:
+  - On viewports smaller than `36x6`, Termdeck renders a centered warning message prompting the user to resize, avoiding corrupted terminal states.
 
 ### 2. Tailored Dynamic Code Box Sizing
 
@@ -319,6 +332,28 @@ Pressing `/` opens an interactive centered popup modal for fast slide navigation
 - **Numeric Jump**: Entering a number (e.g. `5` or `12`) jumps directly to slide $N$ upon pressing Enter.
 - **Live Search**: Entering text performs live case-insensitive substring matching against slide titles and content blocks.
 - **Match Preview**: Displays a list of matching slide numbers and titles with the laser pointer marker (`▶ `) indicating the selected target.
+
+### 11. Interactive 5-Page Learning Hub (`renderHelpModal`)
+
+Pressing `?` or `F1` opens a full-screen interactive tabbed learning and onboarding modal designed to introduce new users to Termdeck without cognitive overload:
+
+```mermaid
+flowchart TD
+    Hub["Learning Hub Modal (?)"]
+    Hub --> P0["Tab 1: Navigation\nCanvas, Pointer, Jump, Overview, Blank, Stopwatch, Zen"]
+    Hub --> P1["Tab 2: Graphs\nDAG Branches, Fork HUD (J), Waypoints (W), Radar (V), Loops"]
+    Hub --> P2["Tab 3: Tools\nCode Runner (X), Zoom (F), Routes (P), Tracks (K), HTML Export (E)"]
+    Hub --> P3["Tab 4: Editor\nIn-Place Edit (i), Block Mutators (^N, ^D, ^K, ^J), Undo/Redo"]
+    Hub --> P4["Tab 5: Guide\nMarkdown Directives (::branch, ::loop, ::next, :::columns, routes:)"]
+```
+
+- **Tabbed State Machine**: Managed via `e.HelpPage int` (0 to 4) and bounded by `TotalHelpPages = 5`.
+- **Keyboard Navigation**:
+  - `Tab`, `l`, `→`, `n`, `pgdown`: Calls `e.NextHelpPage()`, cycling forward through tabs with modular wrapping.
+  - `Shift+Tab`, `h`, `←`, `p`, `pgup`: Calls `e.PrevHelpPage()`, cycling backward with modular wrapping.
+  - `1` – `5`: Direct jump to corresponding tab page (`e.HelpPage = key - '1'`).
+  - `Esc`, `q`, `?`, `F1`: Closes the hub and restores active presentation canvas.
+- **Modal Collision Shielding**: Activating `ShowHelp` automatically resets all other modal flags (`ShowStats`, `ShowOverview`, `ShowGraphMap`, `ShowTrackModal`, `ShowRouteModal`, `ShowHistoryModal`, `ShowBranchHUD`, `ShowWaypointModal`, `ShowRadarModal`, and `DismissRunner()`), preventing visual overlap and key contention.
 
 ---
 

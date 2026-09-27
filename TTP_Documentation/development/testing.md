@@ -93,6 +93,7 @@ Tests the navigation, editing, jumping, and toggling state machine:
 - `TestEditorWaypointModal`: Validates opening waypoint pathfinder modal (`W`), query string editing with typing and backspace, cursor navigation (`down`/`up`/`j`/`k`/`g`/`G`), locking dynamic route with `Enter`, stepping 1 hop with `w`, rejecting unreachable candidates, and dismissing with `Esc`/`W`.
 - `TestEditorRadarAndForkReturn`: Validates opening graph exploration radar (`V`), navigation (`j`/`k`/`g`/`G`), numeric branch jump (`1`..`9`), `Enter` jump, `u` teleport to fork hub, `U` upstream fork return from sub-branches, and boundary cases.
 - `TestEditorLoopIterationAndAutoExit`: Validates bounded graph loop state machine, iteration pass counter incrementing, auto-exit upon pass exhaustion, hotkey shortcuts, and reset on `g`.
+- `TestEditorMultiPageHelpHub`: Validates interactive help modal state machine, tab navigation (`Tab`, `Shift+Tab`, `l`/`h`, `right`/`left`), direct tab jump keys `1`–`5`, cycle wrapping, and dismiss keys (`Esc`, `q`, `?`, `F1`).
 - `TestEditorFocusModeAndLiveRunner`: Validates toggling Focus Mode (`f`), line numbering, vertical scrolling (`j`/`k`), running code via Bubble Tea command (`X`/`x`), yanking runner output (`y`), and dismissing runner card (`Esc`).
 
 ### C. View & Syntax Highlighter — `internal/view_test.go`
@@ -133,6 +134,8 @@ Tests visual layout, card rendering, and terminal text styling:
 - `TestRenderWaypointModal`: Validates rendering of the waypoint pathfinder modal (`W`), origin indicator, live search prompt, transition edge hop trails (`──[1]──►`), pagination indicator, speaking time budgeting, and nav status hints.
 - `TestRenderRadarModal`: Validates rendering of the graph exploration radar modal (`V`), global progress bar, speaking time telemetry, fork headers, branch status indicators (`✔`, `◐`, `○`), status bar hints (`[U: return to fork]`, `[radar: XX%]`), and help modal shortcuts.
 - `TestRenderLoopCardAndView`: Validates rendering of the loop iteration card, active pass counter (`[pass 1/3] · 2 remaining`), completed badge (`✔ LOOP COMPLETED`), exit target routing, and navStatus loop badges.
+- `TestRenderMultiPageHelpModal`: Validates rendering of all 5 tabbed help pages (`[1:Navigation]`, `[2:Graphs]`, `[3:Tools]`, `[4:Editor]`, `[5:Guide]`), out-of-bounds page clamping, and compact viewport handling.
+- `TestResponsiveViewportAndAspectRatios`: Validates terminal dimension safeguards (`< 36x6`), standard 80x24 layout, ultrawide 160x45 canvas bounding and horizontal centering, responsive multi-column vertical stacking on narrow terminals (`< 50` cols), and adaptive margin padding.
 - `TestNavStatusForkAndHistory`: Verifies `[fork: N paths]`, `[history: N]`, and `M map` badges in the status bar.
 - `TestHelpModalGraphShortcuts`: Asserts `1 - 9`, `Backspace / H`, and `M` shortcuts are documented in help modal.
 - `TestRenderRunnerCardAndView`: Verifies rendering of live code execution output cards with exit code badges, execution duration, and stdout/stderr blocks.
@@ -252,7 +255,7 @@ make help
 
 ## 4. Coverage Metrics
 
-Statement coverage across packages (155 unit tests):
+Statement coverage across packages (158 unit tests):
 
 | Package | Statement Coverage | Status |
 |---|---|---|

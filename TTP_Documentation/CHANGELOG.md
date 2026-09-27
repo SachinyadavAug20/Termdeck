@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.14 — 27 September 2026
+
+### Added
+- **Responsive Viewport & Screen Aspect Ratio Adaptation Engine**:
+  - **Stage Canvas Bounding & Horizontal Centering**: Implements standard TUI best practices for widescreen, 16:9, and 21:9 ultrawide monitors. Clamps maximum presentation canvas width to optimal reading typography widths (`maxCanvasW = 104` standard, `124` for multi-column grids) and centers the slide horizontally via `lipgloss.PlaceHorizontal`, eliminating awkward text stretching on wide monitors.
+  - **Responsive Multi-Column Fallback**: In `renderColumns`, automatically stacks side-by-side columns vertically with subtle dashed dividers (`┄`) whenever terminal width is narrow or column width drops below threshold (`colW < 20 || w < 50`), preserving code and table readability without horizontal clipping.
+  - **Dynamic Indentation Padding**: Automatically adjusts left/right alignment padding (`padLeft/Right = 2` on compact terminals < 70 columns, `4` on standard/wide screens).
+  - **Vertical Centering Overflow Safeguard**: Retains centered vertical alignment by default, but dynamically shifts to top alignment (`lipgloss.Top`) when slide content height meets or exceeds terminal body height, ensuring titles and top blocks never get pushed offscreen.
+  - **Small Terminal Dimensions Guard**: Safeguards against unreadable viewports (`width < 36 || height < 6`), displaying a clear resize prompt rather than garbled frames.
+- **5-Page Interactive Learning & Help Hub (`?` / `F1`)**:
+  - Replaces the single-page shortcuts popup with a full-fledged, multi-page onboarding and learning hub with tabbed navigation:
+    - **Tab 1: `[1:Navigation]`**: Slide advancement, laser pointer cursor, title/number jump modal, 2D thumbnail grid overview, blackout screen, presentation talk timer, zen mode, line numbers, image card viewer.
+    - **Tab 2: `[2:Graphs]`**: Non-linear DAG branching, branch decision fork preview HUD (`J`), shortest-path waypoint pathfinder (`W`), graph exploration radar & budget gauge (`V`), upstream fork fast-return (`U`), traversal history reflog modal (`H`), ASCII topology map (`M`), audience track hops (`[`/`]`), bounded cycle engine (`::loop`).
+    - **Tab 3: `[3:Tools]`**: Live subprocess code runner (`X`), interactive task checklist toggle (`x`), element viewport zoom & focus mode (`f`), preset talk routes (`P`), audience tracks (`K`), standalone HTML export (`E`), speaking pace metrics & stats (`S`), hands-free auto-advance (`A`), ANSI OSC 52 clipboard copy (`y`), color theme cycles (`t`).
+    - **Tab 4: `[4:Editor]`**: Live in-slide editor (`i`), confirm edit (`Enter`), cancel (`Esc`), block additions (`^n`), block deletions (`^d`), reordering (`^k`/`^j`), undo/redo (`u`/`^r`), manual save (`^s`).
+    - **Tab 5: `[5:Guide]`**: Complete Markdown authoring syntax cheat sheet (`---`, `{#slug}`, `::branch`, `::loop`, `::next`, `:::columns`, `::tags`, frontmatter `routes:`, code blocks, modern callout cards `[!TIP]`, private speaker notes `::notes`).
+  - **Fluid Keyboard State Machine**:
+    - `Tab` / `l` / `→` / `n` / `pgdown`: Next tab with cycle wrap
+    - `Shift+Tab` / `h` / `←` / `p` / `pgup`: Previous tab with cycle wrap
+    - `1` – `5`: Direct jump to corresponding tab page
+    - `Esc` / `q` / `?` / `F1`: Close hub
+- Expanded automated unit test suite to **158 tests** maintaining **90.7% statement coverage** in `deck/internal` with zero external runtime dependencies and sub-millisecond per-frame rendering (< 0.26ms).
+
 ## v0.13 — 26 September 2026
 
 ### Added
