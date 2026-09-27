@@ -609,6 +609,35 @@ func renderColumns(cols [][]Block, w int, maxBlockH int, baseDir string, isCurso
 	}
 	colW := availW / numCols
 
+	// Responsive adaptation: on narrow viewports where columns cannot fit side-by-side,
+	// stack columns vertically to preserve readability and syntax highlighting.
+	if colW < 20 || w < 50 {
+		var stackBuilder strings.Builder
+		for i, colBlocks := range cols {
+			if i > 0 {
+				divW := w - 4
+				if divW < 12 {
+					divW = 12
+				}
+				stackBuilder.WriteString("\n" + dimStyle.Render(strings.Repeat("┄", divW)) + "\n")
+			}
+			for j, blk := range colBlocks {
+				if j > 0 {
+					stackBuilder.WriteString("\n")
+				}
+				rendered := renderBlock(blk, w-4, maxBlockH, baseDir, false, false, "", 0, showLineNumbers)
+				lines := strings.Split(rendered, "\n")
+				for lineIdx, line := range lines {
+					if lineIdx > 0 {
+						stackBuilder.WriteString("\n")
+					}
+					stackBuilder.WriteString(strings.TrimPrefix(line, "  "))
+				}
+			}
+		}
+		return stackBuilder.String()
+	}
+
 	colOutputs := make([]string, numCols)
 	for i, colBlocks := range cols {
 		var colBuilder strings.Builder
@@ -1183,8 +1212,24 @@ func renderNotesOverlay(notes string, width, maxHeight int) string {
 	return notesBoxStyle.BorderForeground(lipgloss.Color(currentTheme.Accent)).Width(boxW).MaxHeight(maxHeight).Render(inner)
 }
 
-func renderHelpModal(w, h int) string {
-	boxW := 66
+const totalHelpPages = 5
+
+func renderHelpModal(args ...int) string {
+	page := -1 // default to all-pages if called with 2 args (w, h)
+	w := 80
+	h := 24
+	if len(args) == 2 {
+		w = args[0]
+		h = args[1]
+	} else if len(args) >= 3 {
+		page = args[0]
+		w = args[1]
+		h = args[2]
+	} else if len(args) == 1 {
+		page = args[0]
+	}
+
+	boxW := 76
 	if boxW > w-4 {
 		boxW = w - 4
 	}
@@ -1193,57 +1238,165 @@ func renderHelpModal(w, h int) string {
 	}
 
 	var sb strings.Builder
-	sb.WriteString(currentTheme.HelpTitleStyle.Render("Termdeck Keyboard Controls"))
-	sb.WriteString("\n" + dimStyle.Render("Press '?' or 'Esc' to close") + "\n\n")
 
-	sb.WriteString(currentTheme.HelpHeaderStyle.Render("  NAVIGATION") + "\n")
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Next slide / Advance graph edge")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h"), currentTheme.HelpDescStyle.Render("Previous slide")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Backspace"), currentTheme.HelpDescStyle.Render("Pop back 1 slide along traversal history")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("H"), currentTheme.HelpDescStyle.Render("Traversal history & visual reflog modal")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Follow branch option shortcut")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("J"), currentTheme.HelpDescStyle.Render("Branch fork HUD & destination preview picker")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("W"), currentTheme.HelpDescStyle.Render("Waypoint pathfinder & shortest-path graph router")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("V"), currentTheme.HelpDescStyle.Render("Graph exploration radar & branch coverage")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("U"), currentTheme.HelpDescStyle.Render("Return to upstream branch fork")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks & subgraph filter")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("[ / ]"), currentTheme.HelpDescStyle.Render("Hop backward / forward along track")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("P"), currentTheme.HelpDescStyle.Render("Preset graph routes & guided paths")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("/"), currentTheme.HelpDescStyle.Render("Jump to slide (number or search)")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("o / O"), currentTheme.HelpDescStyle.Render("Slide overview & grid sorter")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j"), currentTheme.HelpDescStyle.Render("Move laser pointer down")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↑, k"), currentTheme.HelpDescStyle.Render("Move laser pointer up")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("g / G"), currentTheme.HelpDescStyle.Render("First / Last slide")))
+	if page < 0 {
+		// All-in-one comprehensive reference mode (backward-compatible)
+		title := currentTheme.HelpTitleStyle.Render("Termdeck Keyboard Controls")
+		sb.WriteString(title + "\n")
+		sb.WriteString(dimStyle.Render("Press '?' or 'Esc' to close") + "\n\n")
 
-	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  PRESENTATION") + "\n")
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t, T, ctrl+t, f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("z"), currentTheme.HelpDescStyle.Render("Toggle distraction-free zen mode")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("b / B"), currentTheme.HelpDescStyle.Render("Blank presentation screen")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("y / Y"), currentTheme.HelpDescStyle.Render("Copy block to clipboard (OSC 52)")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("c / C"), currentTheme.HelpDescStyle.Render("Toggle presentation timer / Reset timer")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("r / R"), currentTheme.HelpDescStyle.Render("Reload deck file from disk")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("f / F"), currentTheme.HelpDescStyle.Render("Toggle element zoom & focus mode")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("X / ctrl+x"), currentTheme.HelpDescStyle.Render("Execute focused code block in terminal runner")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("x"), currentTheme.HelpDescStyle.Render("Run code (on code block) / Toggle task item")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("E"), currentTheme.HelpDescStyle.Render("Export presentation to HTML")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("S"), currentTheme.HelpDescStyle.Render("Presentation statistics & deck metrics")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("A"), currentTheme.HelpDescStyle.Render("Toggle auto-advance / rehearsal pacing")))
+		sb.WriteString(currentTheme.HelpHeaderStyle.Render("  NAVIGATION") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Next slide / Advance graph edge")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h"), currentTheme.HelpDescStyle.Render("Previous slide")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Backspace"), currentTheme.HelpDescStyle.Render("Pop back 1 slide along traversal history")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("H"), currentTheme.HelpDescStyle.Render("Traversal history & visual reflog modal")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Follow branch option shortcut")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("J"), currentTheme.HelpDescStyle.Render("Branch fork HUD & destination preview picker")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("W"), currentTheme.HelpDescStyle.Render("Waypoint pathfinder & shortest-path graph router")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("V"), currentTheme.HelpDescStyle.Render("Graph exploration radar & branch coverage")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("U"), currentTheme.HelpDescStyle.Render("Return to upstream branch fork")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map & DAG explorer")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks & subgraph filter")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("[ / ]"), currentTheme.HelpDescStyle.Render("Hop backward / forward along track")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("P"), currentTheme.HelpDescStyle.Render("Preset graph routes & guided paths")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("/"), currentTheme.HelpDescStyle.Render("Jump to slide (number or search)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("o / O"), currentTheme.HelpDescStyle.Render("Slide overview & grid sorter")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j"), currentTheme.HelpDescStyle.Render("Move laser pointer down")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↑, k"), currentTheme.HelpDescStyle.Render("Move laser pointer up")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("g / G"), currentTheme.HelpDescStyle.Render("First / Last slide")))
 
-	sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  LIVE EDITOR") + "\n")
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("i"), currentTheme.HelpDescStyle.Render("Edit focused block")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+t / f2"), currentTheme.HelpDescStyle.Render("Cycle color theme while editing")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Enter"), currentTheme.HelpDescStyle.Render("Confirm edit & auto-save")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Esc"), currentTheme.HelpDescStyle.Render("Cancel edit / Close help")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+n / ctrl+d"), currentTheme.HelpDescStyle.Render("Add / Delete block")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+k / ctrl+j"), currentTheme.HelpDescStyle.Render("Move block up / down")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("u / ctrl+r"), currentTheme.HelpDescStyle.Render("Undo / Redo")))
-	sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+s"), currentTheme.HelpDescStyle.Render("Save file manually")))
+		sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  PRESENTATION") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t, T, ctrl+t, f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("z"), currentTheme.HelpDescStyle.Render("Toggle distraction-free zen mode")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("b / B"), currentTheme.HelpDescStyle.Render("Blank presentation screen")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("y / Y"), currentTheme.HelpDescStyle.Render("Copy block to clipboard (OSC 52)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("c / C"), currentTheme.HelpDescStyle.Render("Toggle presentation timer / Reset timer")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("r / R"), currentTheme.HelpDescStyle.Render("Reload deck file from disk")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("f / F"), currentTheme.HelpDescStyle.Render("Toggle element zoom & focus mode")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("X / ctrl+x"), currentTheme.HelpDescStyle.Render("Execute focused code block in terminal runner")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("x"), currentTheme.HelpDescStyle.Render("Run code (on code block) / Toggle task item")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle speaker notes overlay")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle alignment (left/center/right)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open image in system viewer")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("E"), currentTheme.HelpDescStyle.Render("Export presentation to HTML")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("S"), currentTheme.HelpDescStyle.Render("Presentation statistics & deck metrics")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("A"), currentTheme.HelpDescStyle.Render("Toggle auto-advance / rehearsal pacing")))
 
-	sb.WriteString("\n" + fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("q / ctrl+c"), currentTheme.HelpDescStyle.Render("Quit (auto-saves changes)")))
+		sb.WriteString("\n" + currentTheme.HelpHeaderStyle.Render("  LIVE EDITOR") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("i"), currentTheme.HelpDescStyle.Render("Edit focused block")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+t / f2"), currentTheme.HelpDescStyle.Render("Cycle color theme while editing")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Enter"), currentTheme.HelpDescStyle.Render("Confirm edit & auto-save")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Esc"), currentTheme.HelpDescStyle.Render("Cancel edit / Close help")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+n / ctrl+d"), currentTheme.HelpDescStyle.Render("Add / Delete block")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+k / ctrl+j"), currentTheme.HelpDescStyle.Render("Move block up / down")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("u / ctrl+r"), currentTheme.HelpDescStyle.Render("Undo / Redo")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+s"), currentTheme.HelpDescStyle.Render("Save file manually")))
+
+		sb.WriteString("\n" + fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("q / ctrl+c"), currentTheme.HelpDescStyle.Render("Quit (auto-saves changes)")))
+
+		box := currentTheme.HelpBoxStyle.Width(boxW).Render(sb.String())
+		return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
+	}
+
+	if page >= totalHelpPages {
+		page = totalHelpPages - 1
+	}
+
+	tabNames := []string{
+		"1:Navigation",
+		"2:Graphs",
+		"3:Tools",
+		"4:Editor",
+		"5:Guide",
+	}
+
+	title := currentTheme.HelpTitleStyle.Render("Termdeck Keyboard Controls & Interactive Learning Hub")
+	sb.WriteString(title + "\n\n")
+
+	var tabStrs []string
+	for i, name := range tabNames {
+		if i == page {
+			activeTab := currentTheme.HelpKeyStyle.Bold(true).Render("[" + name + "]")
+			tabStrs = append(tabStrs, activeTab)
+		} else {
+			inactiveTab := dimStyle.Render(" " + name + " ")
+			tabStrs = append(tabStrs, inactiveTab)
+		}
+	}
+	sb.WriteString("  " + strings.Join(tabStrs, dimStyle.Render("│")) + "\n\n")
+
+	switch page {
+	case 0:
+		sb.WriteString(currentTheme.HelpHeaderStyle.Render("  SLIDE NAVIGATION & CANVAS CONTROLS") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("→, l, Space, Enter"), currentTheme.HelpDescStyle.Render("Advance next slide / Follow graph edge / Loop pass")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("←, h"), currentTheme.HelpDescStyle.Render("Go back to previous slide")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("↓, j / ↑, k"), currentTheme.HelpDescStyle.Render("Move laser pointer down / up to focus audience attention")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("/"), currentTheme.HelpDescStyle.Render("Quick jump modal (jump by slide number or search title)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("o / O"), currentTheme.HelpDescStyle.Render("Slide overview & 2D thumbnail grid sorter")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("g / G"), currentTheme.HelpDescStyle.Render("First slide (resets loops to pass 0) / Last slide")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("b / B"), currentTheme.HelpDescStyle.Render("Blank screen (presentation blackout to focus on speaker)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("c / C"), currentTheme.HelpDescStyle.Render("Toggle presentation talk timer / Reset timer to 00:00")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("z"), currentTheme.HelpDescStyle.Render("Toggle distraction-free zen mode (hides all status bars)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle text alignment (left → center → right, auto-saves)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("L"), currentTheme.HelpDescStyle.Render("Toggle code block line numbers on / off")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open focused image presentation card in system viewer")))
+
+	case 1:
+		sb.WriteString(currentTheme.HelpHeaderStyle.Render("  DIRECTED GRAPH (DAG) & NON-LINEAR PRESENTATION") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("J"), currentTheme.HelpDescStyle.Render("Branch fork HUD: live destination syntax & text previews")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("1 - 9"), currentTheme.HelpDescStyle.Render("Direct branch jump shortcuts (follow numbered path)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("W"), currentTheme.HelpDescStyle.Render("Waypoint pathfinder: dynamic BFS shortest-path graph solver")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("V"), currentTheme.HelpDescStyle.Render("Graph exploration radar: branch completion matrix & budget")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("U"), currentTheme.HelpDescStyle.Render("Return to upstream branch fork: 1-key instant backtrack")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Backspace"), currentTheme.HelpDescStyle.Render("Pop back 1 slide along visited traversal history")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("H"), currentTheme.HelpDescStyle.Render("Traversal history reflog modal: inspect journey & rewind")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("M"), currentTheme.HelpDescStyle.Render("Presentation graph map: visual ASCII topology map modal")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("[ / ]"), currentTheme.HelpDescStyle.Render("Hop backward / forward along slides in active audience track")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("::loop"), currentTheme.HelpDescStyle.Render("Bounded cycle engine: models TDD / retry loops with auto-exit")))
+
+	case 2:
+		sb.WriteString(currentTheme.HelpHeaderStyle.Render("  LIVE DEVELOPER TOOLS & PRESENTATION MODES") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("X / ctrl+x"), currentTheme.HelpDescStyle.Render("Execute focused code block (Bash, Go, Python, Node, Ruby) live")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("x"), currentTheme.HelpDescStyle.Render("Run code (on code block) / Toggle interactive checklist item")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("f / F"), currentTheme.HelpDescStyle.Render("Element Zoom & Focus mode: full-viewport zoom with j/k scroll")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("P"), currentTheme.HelpDescStyle.Render("Preset graph routes: pre-planned paths (lightning vs deep-dive)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("K"), currentTheme.HelpDescStyle.Render("Audience tracks modal: filter presentation for targeted groups")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("E"), currentTheme.HelpDescStyle.Render("Export presentation to standalone single-file offline HTML deck")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("S"), currentTheme.HelpDescStyle.Render("Presentation stats: word count, 130 WPM speaking pace, metrics")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("A"), currentTheme.HelpDescStyle.Render("Toggle auto-advance / hands-free rehearsal pacing mode")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("y / Y"), currentTheme.HelpDescStyle.Render("Copy block text or runner output to clipboard via ANSI OSC 52")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("t, T, ctrl+t, f2"), currentTheme.HelpDescStyle.Render(fmt.Sprintf("Cycle color theme (%s)", currentTheme.Name))))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("r / R"), currentTheme.HelpDescStyle.Render("Reload deck from disk (live file watcher supported with -w)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("n"), currentTheme.HelpDescStyle.Render("Toggle private speaker notes overlay (hidden from audience)")))
+
+	case 3:
+		sb.WriteString(currentTheme.HelpHeaderStyle.Render("  IN-SLIDE LIVE MARKDOWN EDITOR") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("i"), currentTheme.HelpDescStyle.Render("Enter edit mode on the focused slide block")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Enter"), currentTheme.HelpDescStyle.Render("Confirm edit, re-render markdown AST, and auto-save to disk")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Esc"), currentTheme.HelpDescStyle.Render("Cancel edit and revert buffer to original block text")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+n / ctrl+d"), currentTheme.HelpDescStyle.Render("Add new block below / Delete focused block")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+k / ctrl+j"), currentTheme.HelpDescStyle.Render("Move block up / down within slide")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("u / ctrl+r"), currentTheme.HelpDescStyle.Render("Undo / Redo live block edits")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+s"), currentTheme.HelpDescStyle.Render("Save file manually (auto-saves on confirm, align, and quit)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("ctrl+t / f2"), currentTheme.HelpDescStyle.Render("Cycle color theme on the fly while typing inside edit mode")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("q / ctrl+c"), currentTheme.HelpDescStyle.Render("Quit Termdeck (auto-saves any unsaved changes)")))
+
+	case 4:
+		sb.WriteString(currentTheme.HelpHeaderStyle.Render("  MARKDOWN AUTHORING CHEAT SHEET") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("---"), currentTheme.HelpDescStyle.Render("Slide separator — creates a new slide")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("# Title {#slug}"), currentTheme.HelpDescStyle.Render("Slide heading with custom anchor ID for branching")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("::branch [1] L -> id"), currentTheme.HelpDescStyle.Render("Decision branch option linking to target slide slug")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("::loop [r] L -> id"), currentTheme.HelpDescStyle.Render("Bounded cycle: max=3 next=exit_slug for finite iteration")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("::next slug"), currentTheme.HelpDescStyle.Render("Convergence: merges divergent branches back into common slide")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render(":::columns ... :::col"), currentTheme.HelpDescStyle.Render("Side-by-side responsive multi-column comparison grids")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("::tags dev, arch"), currentTheme.HelpDescStyle.Render("Audience tracks tagging (filter with -k, --track <name>)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("routes: in frontmatter"), currentTheme.HelpDescStyle.Render("Named guided talk paths: lightning: s1 -> s2 -> s3")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("```lang ... ```"), currentTheme.HelpDescStyle.Render("Syntax highlighted code block (run live with X)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("> [!TIP] / > [!NOTE]"), currentTheme.HelpDescStyle.Render("Modern callout and admonition card containers")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("::notes Reminders"), currentTheme.HelpDescStyle.Render("Private speaker notes (toggle with 'n', hidden in presentation)")))
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("  Tab / l / → : Next Tab  ·  Shift+Tab / h / ← : Prev Tab  ·  1-5 : Direct Tab  ·  Esc / ? : Close"))
 
 	box := currentTheme.HelpBoxStyle.Width(boxW).Render(sb.String())
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, box)
@@ -2408,6 +2561,11 @@ func View(d Deck, e Editor, width, height int) string {
 	}
 	SetCurrentTheme(themeName)
 
+	if width < 36 || height < 6 {
+		msg := fmt.Sprintf("Terminal too small (%dx%d)\nResize to at least 40x8", width, height)
+		return lipgloss.Place(width, height, lipgloss.Center, lipgloss.Center, dimStyle.Render(msg))
+	}
+
 	if e.ScreenBlank {
 		return renderBlankScreen(width, height)
 	}
@@ -2417,7 +2575,7 @@ func View(d Deck, e Editor, width, height int) string {
 	}
 
 	if e.ShowHelp {
-		return renderHelpModal(width, height)
+		return renderHelpModal(e.HelpPage, width, height)
 	}
 
 	if e.ShowStats {
@@ -2502,9 +2660,33 @@ func View(d Deck, e Editor, width, height int) string {
 		align = d.Slides[e.SlideIdx].Align
 	}
 
+	// Aspect ratio and optimal reading width adaptation
+	hasColumns := false
+	if e.SlideIdx < len(d.Slides) {
+		for _, b := range d.Slides[e.SlideIdx].Blocks {
+			if b.Kind == BlockColumns {
+				hasColumns = true
+				break
+			}
+		}
+	}
+
+	maxCanvasW := 104
+	if hasColumns {
+		maxCanvasW = 124
+	}
+
+	canvasW := width - 4
+	if canvasW > maxCanvasW {
+		canvasW = maxCanvasW
+	}
+	if canvasW < 32 {
+		canvasW = 32
+	}
+
 	content := ""
 	if e.SlideIdx < len(d.Slides) {
-		content = renderSlide(d.Slides[e.SlideIdx], width, bodyHeight, baseDir, e)
+		content = renderSlide(d.Slides[e.SlideIdx], canvasW, bodyHeight, baseDir, e)
 	}
 
 	var hAlign lipgloss.Position
@@ -2514,21 +2696,39 @@ func View(d Deck, e Editor, width, height int) string {
 	switch align {
 	case AlignLeft:
 		hAlign = lipgloss.Left
-		padLeft = 8
+		if canvasW < 70 {
+			padLeft = 2
+		} else {
+			padLeft = 4
+		}
 	case AlignRight:
 		hAlign = lipgloss.Right
-		padRight = 8
+		if canvasW < 70 {
+			padRight = 2
+		} else {
+			padRight = 4
+		}
 	default:
 		hAlign = lipgloss.Center
 	}
 
+	contentHeight := lipgloss.Height(content)
+	var vAlign lipgloss.Position = lipgloss.Center
+	if contentHeight >= bodyHeight {
+		vAlign = lipgloss.Top
+	}
+
 	body := lipgloss.NewStyle().
-		Width(width).
+		Width(canvasW).
 		Height(bodyHeight).
-		Align(hAlign, lipgloss.Center).
+		Align(hAlign, vAlign).
 		PaddingLeft(padLeft).
 		PaddingRight(padRight).
 		Render(content)
+
+	if width > canvasW {
+		body = lipgloss.PlaceHorizontal(width, lipgloss.Center, body)
+	}
 
 	status := ""
 	if !e.ZenMode {

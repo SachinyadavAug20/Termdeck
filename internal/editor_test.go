@@ -2819,3 +2819,104 @@ title: Fallback Loop
 		t.Fatalf("expected fallback loop exit to slide 2, got %d", edFallback.SlideIdx)
 	}
 }
+
+func TestEditorMultiPageHelpHub(t *testing.T) {
+	d := ParseDeck("# Slide 1\nHello\n")
+	ed := NewEditor("test.deck.md")
+
+	// 1. Initial state
+	if ed.ShowHelp {
+		t.Fatalf("expected ShowHelp false initially")
+	}
+
+	// 2. Press '?' opens help modal at page 0
+	sendTestKey(&ed, &d, "?")
+	if !ed.ShowHelp {
+		t.Fatalf("expected ShowHelp true after pressing '?'")
+	}
+	if ed.HelpPage != 0 {
+		t.Fatalf("expected HelpPage 0, got %d", ed.HelpPage)
+	}
+
+	// 3. Tab advances to next help page
+	sendTestKey(&ed, &d, "tab")
+	if ed.HelpPage != 1 {
+		t.Fatalf("expected HelpPage 1 after Tab, got %d", ed.HelpPage)
+	}
+
+	// 4. 'l' and 'right' advance help pages
+	sendTestKey(&ed, &d, "l")
+	if ed.HelpPage != 2 {
+		t.Fatalf("expected HelpPage 2 after 'l', got %d", ed.HelpPage)
+	}
+	sendTestKey(&ed, &d, "right")
+	if ed.HelpPage != 3 {
+		t.Fatalf("expected HelpPage 3 after 'right', got %d", ed.HelpPage)
+	}
+
+	// 5. 'n' advances to page 4
+	sendTestKey(&ed, &d, "n")
+	if ed.HelpPage != 4 {
+		t.Fatalf("expected HelpPage 4 after 'n', got %d", ed.HelpPage)
+	}
+
+	// 6. Wrap around next page
+	sendTestKey(&ed, &d, "tab")
+	if ed.HelpPage != 0 {
+		t.Fatalf("expected HelpPage 0 after wrapping around, got %d", ed.HelpPage)
+	}
+
+	// 7. Shift+Tab and 'h' / 'left' go back
+	sendTestKey(&ed, &d, "shift+tab")
+	if ed.HelpPage != 4 {
+		t.Fatalf("expected HelpPage 4 after shift+tab wrapping back, got %d", ed.HelpPage)
+	}
+	sendTestKey(&ed, &d, "h")
+	if ed.HelpPage != 3 {
+		t.Fatalf("expected HelpPage 3 after 'h', got %d", ed.HelpPage)
+	}
+	sendTestKey(&ed, &d, "left")
+	if ed.HelpPage != 2 {
+		t.Fatalf("expected HelpPage 2 after 'left', got %d", ed.HelpPage)
+	}
+
+	// 8. Direct jump via number keys 1-5
+	sendTestKey(&ed, &d, "1")
+	if ed.HelpPage != 0 {
+		t.Fatalf("expected HelpPage 0 after pressing '1', got %d", ed.HelpPage)
+	}
+	sendTestKey(&ed, &d, "5")
+	if ed.HelpPage != 4 {
+		t.Fatalf("expected HelpPage 4 after pressing '5', got %d", ed.HelpPage)
+	}
+	sendTestKey(&ed, &d, "2")
+	if ed.HelpPage != 1 {
+		t.Fatalf("expected HelpPage 1 after pressing '2', got %d", ed.HelpPage)
+	}
+
+	// 9. Close via Esc
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowHelp {
+		t.Fatalf("expected ShowHelp false after Esc")
+	}
+
+	// 10. Open via f1, close via 'q'
+	sendTestKey(&ed, &d, "f1")
+	if !ed.ShowHelp {
+		t.Fatalf("expected ShowHelp true after f1")
+	}
+	sendTestKey(&ed, &d, "q")
+	if ed.ShowHelp {
+		t.Fatalf("expected ShowHelp false after 'q'")
+	}
+
+	// 11. Open via '?', close via '?'
+	sendTestKey(&ed, &d, "?")
+	if !ed.ShowHelp {
+		t.Fatalf("expected ShowHelp true after '?'")
+	}
+	sendTestKey(&ed, &d, "?")
+	if ed.ShowHelp {
+		t.Fatalf("expected ShowHelp false after second '?' toggle")
+	}
+}
