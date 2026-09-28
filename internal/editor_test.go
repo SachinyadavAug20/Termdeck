@@ -2920,3 +2920,265 @@ func TestEditorMultiPageHelpHub(t *testing.T) {
 		t.Fatalf("expected ShowHelp false after second '?' toggle")
 	}
 }
+
+func TestEditorCommandPalette(t *testing.T) {
+	d := sampleDeck()
+	ed := NewEditor(filepath.Join(t.TempDir(), "test.deck.md"))
+
+	// 1. GetAllPaletteCommands sanity
+	allCmds := GetAllPaletteCommands()
+	if len(allCmds) == 0 {
+		t.Fatalf("expected palette commands, got 0")
+	}
+	for _, c := range allCmds {
+		if c.ID == "" || c.Title == "" || c.Category == "" {
+			t.Errorf("invalid command entry: %+v", c)
+		}
+	}
+
+	// 2. FilterPaletteCommands
+	allFiltered := FilterPaletteCommands("")
+	if len(allFiltered) != len(allCmds) {
+		t.Errorf("expected empty query to return all %d commands, got %d", len(allCmds), len(allFiltered))
+	}
+	helpMatches := FilterPaletteCommands("help")
+	if len(helpMatches) == 0 {
+		t.Errorf("expected matches for 'help', got 0")
+	}
+	routeMatches := FilterPaletteCommands("ROUTE")
+	if len(routeMatches) == 0 {
+		t.Errorf("expected case-insensitive matches for 'ROUTE', got 0")
+	}
+	emptyMatches := FilterPaletteCommands("xyzimpossiblematch999")
+	if len(emptyMatches) != 0 {
+		t.Errorf("expected 0 matches for impossible query, got %d", len(emptyMatches))
+	}
+
+	// 3. TogglePalette
+	ed.ShowHelp = true
+	ed.TogglePalette()
+	if !ed.ShowPalette {
+		t.Fatalf("expected ShowPalette true")
+	}
+	if ed.ShowHelp {
+		t.Fatalf("expected ShowHelp to be closed when palette opens")
+	}
+	if ed.PaletteQuery != "" || ed.PaletteCursor != 0 {
+		t.Fatalf("expected query and cursor reset on palette open")
+	}
+
+	ed.TogglePalette()
+	if ed.ShowPalette {
+		t.Fatalf("expected ShowPalette false after toggle")
+	}
+
+	// 4. Open via ':' key
+	sendTestKey(&ed, &d, ":")
+	if !ed.ShowPalette {
+		t.Fatalf("expected ShowPalette true after ':'")
+	}
+
+	// 5. Type query 'g', 'r', 'i', 'd'
+	sendTestKey(&ed, &d, "g")
+	sendTestKey(&ed, &d, "r")
+	sendTestKey(&ed, &d, "i")
+	sendTestKey(&ed, &d, "d")
+	if ed.PaletteQuery != "grid" {
+		t.Fatalf("expected PaletteQuery 'grid', got %q", ed.PaletteQuery)
+	}
+
+	// 6. Backspace
+	sendTestKey(&ed, &d, "backspace")
+	if ed.PaletteQuery != "gri" {
+		t.Fatalf("expected PaletteQuery 'gri', got %q", ed.PaletteQuery)
+	}
+
+	// 7. Navigation up / down
+	matches := FilterPaletteCommands(ed.PaletteQuery)
+	if len(matches) > 1 {
+		sendTestKey(&ed, &d, "down")
+		if ed.PaletteCursor != 1 {
+			t.Fatalf("expected cursor 1 after down, got %d", ed.PaletteCursor)
+		}
+		sendTestKey(&ed, &d, "up")
+		if ed.PaletteCursor != 0 {
+			t.Fatalf("expected cursor 0 after up, got %d", ed.PaletteCursor)
+		}
+		// Wrap around up
+		sendTestKey(&ed, &d, "up")
+		if ed.PaletteCursor != len(matches)-1 {
+			t.Fatalf("expected cursor wrap to end, got %d", ed.PaletteCursor)
+		}
+		// Wrap around down
+		sendTestKey(&ed, &d, "down")
+		if ed.PaletteCursor != 0 {
+			t.Fatalf("expected cursor wrap to 0, got %d", ed.PaletteCursor)
+		}
+	}
+
+	// 8. Close via esc
+	sendTestKey(&ed, &d, "esc")
+	if ed.ShowPalette {
+		t.Fatalf("expected ShowPalette false after esc")
+	}
+
+	// 9. Open via ctrl+p and execute Help command
+	sendTestKey(&ed, &d, "ctrl+p")
+	if !ed.ShowPalette {
+		t.Fatalf("expected ShowPalette true after ctrl+p")
+	}
+	sendTestKey(&ed, &d, "h")
+	sendTestKey(&ed, &d, "e")
+	sendTestKey(&ed, &d, "l")
+	sendTestKey(&ed, &d, "p")
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowPalette {
+		t.Fatalf("expected ShowPalette closed after enter")
+	}
+	if !ed.ShowHelp {
+		t.Fatalf("expected ShowHelp opened after executing Help command")
+	}
+	ed.ShowHelp = false
+
+	// 10. Execute multiple commands via ExecutePaletteCommand
+	cmdTests := []struct {
+		id    string
+		check func() bool
+	}{
+		{"stats", func() bool { return ed.ShowStats }},
+		{"grid", func() bool { return ed.ShowOverview }},
+		{"focus", func() bool { return ed.FocusMode }},
+		{"timer_toggle", func() bool { return ed.ShowTimer }},
+		{"timer_reset", func() bool { return !ed.TimerStart.IsZero() }},
+		{"autoplay", func() bool { return ed.Autoplay }},
+		{"zen", func() bool { return ed.ZenMode }},
+		{"blank", func() bool { return ed.ScreenBlank }},
+		{"lines", func() bool { return ed.ShowLineNumbers }},
+		{"notes", func() bool { return ed.ShowNotes }},
+		{"map", func() bool { return ed.ShowGraphMap }},
+		{"route", func() bool { return ed.ShowRouteModal }},
+		{"track", func() bool { return ed.ShowTrackModal }},
+		{"history", func() bool { return ed.ShowHistoryModal }},
+		{"fork_hud", func() bool { return ed.ShowBranchHUD }},
+		{"waypoint", func() bool { return ed.ShowWaypointModal }},
+		{"radar", func() bool { return ed.ShowRadarModal }},
+		{"help", func() bool { return ed.ShowHelp }},
+	}
+	for _, tc := range cmdTests {
+		ed.ExecutePaletteCommand(tc.id, &d)
+		if !tc.check() {
+			t.Errorf("expected command %q to update editor state", tc.id)
+		}
+	}
+
+	// 11. Test other palette commands (navigation, tools, editing, system)
+	ed.ExecutePaletteCommand("jump", &d)
+	if ed.Mode != ModePrompt {
+		t.Errorf("expected ModePrompt after jump command")
+	}
+	ed.Mode = ModeNav
+
+	ed.ExecutePaletteCommand("last", &d)
+	if ed.SlideIdx != len(d.Slides)-1 {
+		t.Errorf("expected last slide, got %d", ed.SlideIdx)
+	}
+
+	ed.ExecutePaletteCommand("first", &d)
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected first slide, got %d", ed.SlideIdx)
+	}
+
+	ed.ExecutePaletteCommand("next", &d)
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected slide 1 after next, got %d", ed.SlideIdx)
+	}
+
+	ed.ExecutePaletteCommand("prev", &d)
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected slide 0 after prev, got %d", ed.SlideIdx)
+	}
+
+	ed.ExecutePaletteCommand("fork_return", &d)
+	ed.ExecutePaletteCommand("track_next", &d)
+	ed.ExecutePaletteCommand("track_prev", &d)
+	ed.ExecutePaletteCommand("theme", &d)
+	ed.ExecutePaletteCommand("align", &d)
+	ed.ExecutePaletteCommand("task", &d)
+	ed.ExecutePaletteCommand("export_html", &d)
+	ed.ExecutePaletteCommand("reload", &d)
+
+	// Test code run & yank commands
+	ed.ExecutePaletteCommand("run_code", &d)
+	ed.ShowRunner = true
+	ed.RunnerResult = &ExecResult{Stdout: "test output", ExitCode: 0}
+	ed.ExecutePaletteCommand("yank", &d)
+	ed.ShowRunner = false
+
+	// Test image command
+	ed.BlockIdx = 2 // sample.png
+	ed.ExecutePaletteCommand("open_image", &d)
+	ed.BlockIdx = 0
+	ed.ExecutePaletteCommand("open_image", &d)
+
+	// Test edit commands
+	ed.ExecutePaletteCommand("add_block", &d)
+	ed.ExecutePaletteCommand("del_block", &d)
+	ed.ExecutePaletteCommand("edit", &d)
+	ed.CancelEdit()
+
+	// Test quit command
+	quitCmd := ed.ExecutePaletteCommand("quit", &d)
+	if quitCmd == nil {
+		t.Errorf("expected tea.Quit command from quit")
+	}
+
+	// 12. Test next and prev with active route
+	routeDeck := ParseDeck(`---
+routes:
+  testr: intro -> outro
+---
+# Intro {#intro}
+---
+# Outro {#outro}
+`)
+	ed.SelectRoute("testr", &routeDeck)
+	ed.ExecutePaletteCommand("next", &routeDeck)
+	if ed.SlideIdx != 1 {
+		t.Errorf("expected slide 1 on route next, got %d", ed.SlideIdx)
+	}
+	ed.ExecutePaletteCommand("prev", &routeDeck)
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected slide 0 on route prev, got %d", ed.SlideIdx)
+	}
+	ed.ActiveRoute = ""
+
+	// 13. Test next with NextID and loops
+	loopDeck := ParseDeck(`# Start
+::next: target
+---
+# Middle {#middle}
+::loop target: end passes: 2
+---
+# End {#end}
+`)
+	ed.SlideIdx = 0
+	ed.ExecutePaletteCommand("next", &loopDeck)
+	ed.SlideIdx = 1
+	ed.ExecutePaletteCommand("next", &loopDeck) // advance loop pass
+	ed.ExecutePaletteCommand("next", &loopDeck) // loop completes and advances to exit
+
+	// 14. Test prev with PrevID
+	prevDeck := ParseDeck(`# First {#first}
+---
+# Second
+::prev: first
+`)
+	ed.SlideIdx = 1
+	ed.ExecutePaletteCommand("prev", &prevDeck)
+	if ed.SlideIdx != 0 {
+		t.Errorf("expected slide 0 with prevID, got %d", ed.SlideIdx)
+	}
+
+	// Test invalid command doesn't crash
+	ed.ExecutePaletteCommand("invalid_nonexistent_command", &d)
+}

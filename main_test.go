@@ -391,3 +391,53 @@ func TestPrintHelpRoute(t *testing.T) {
 func TestPrintHelpLint(t *testing.T) {
 	printHelp()
 }
+
+func TestScaffoldStarterDeck(t *testing.T) {
+	tmpDir := t.TempDir()
+	targetPath := tmpDir + "/my_starter.deck.md"
+
+	// 1. Scaffold new starter deck
+	err := scaffoldStarterDeck(targetPath)
+	if err != nil {
+		t.Fatalf("expected successful scaffolding, got: %v", err)
+	}
+
+	// 2. Read and parse content
+	data, err := os.ReadFile(targetPath)
+	if err != nil {
+		t.Fatalf("expected file to be created: %v", err)
+	}
+	content := string(data)
+	if !strings.Contains(content, "Welcome to Termdeck") {
+		t.Fatalf("expected starter deck to contain 'Welcome to Termdeck'")
+	}
+	if !strings.Contains(content, "theme: tokyo-night") {
+		t.Fatalf("expected starter deck to have tokyo-night theme")
+	}
+
+	deck := internal.ParseDeck(content)
+	if len(deck.Slides) != 5 {
+		t.Fatalf("expected starter deck to have 5 slides, got %d", len(deck.Slides))
+	}
+
+	// 3. Verify DAG topology is valid and clean
+	issues := internal.LintGraph(deck)
+	for _, issue := range issues {
+		if issue.Severity == internal.SeverityError {
+			t.Fatalf("expected starter deck to pass DAG linting with 0 fatal errors, got: %s", issue.Message)
+		}
+	}
+
+	// 4. Refuse to overwrite existing file
+	errAgain := scaffoldStarterDeck(targetPath)
+	if errAgain == nil {
+		t.Fatalf("expected error when file already exists, got nil")
+	}
+	if !strings.Contains(errAgain.Error(), "already exists") {
+		t.Fatalf("expected 'already exists' in error, got: %v", errAgain)
+	}
+}
+
+func TestPrintHelpPaletteAndInit(t *testing.T) {
+	printHelp()
+}

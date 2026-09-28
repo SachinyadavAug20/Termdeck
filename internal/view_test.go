@@ -1991,6 +1991,64 @@ func TestResponsiveViewportAndAspectRatios(t *testing.T) {
 	}
 }
 
+func TestRenderPaletteModal(t *testing.T) {
+	d := sampleDeck()
+	ed := NewEditor("test.deck.md")
+	ed.ShowPalette = true
+
+	// 1. Initial palette modal view
+	modal := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(modal, "Command Palette") {
+		t.Fatalf("expected 'Command Palette' title, got:\n%s", modal)
+	}
+	if !strings.Contains(modal, "type a command, shortcut, or category...") {
+		t.Fatalf("expected placeholder in prompt, got:\n%s", modal)
+	}
+	if !strings.Contains(modal, "Slide Overview & Grid Sorter") || !strings.Contains(modal, "Branch Decision Fork HUD") {
+		t.Fatalf("expected commands listed in palette modal, got:\n%s", modal)
+	}
+
+	// 2. Filtered query with matches
+	ed.PaletteQuery = "track"
+	filteredModal := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(filteredModal, "Audience Tracks Filter") {
+		t.Fatalf("expected 'Audience Tracks Filter' command in filtered view, got:\n%s", filteredModal)
+	}
+
+	// 3. Filtered query with no matches
+	ed.PaletteQuery = "nonexistentquery123"
+	noMatchesModal := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(noMatchesModal, "No commands matching \"nonexistentquery123\"") {
+		t.Fatalf("expected no matches message, got:\n%s", noMatchesModal)
+	}
+
+	// 4. Cursor scrolling indicator
+	ed.PaletteQuery = ""
+	ed.PaletteCursor = 9
+	scrollModal := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(scrollModal, "more commands above") {
+		t.Fatalf("expected scroll up indicator when cursor is beyond visible window, got:\n%s", scrollModal)
+	}
+}
+
+func TestRenderOverviewModalTags(t *testing.T) {
+	d := Deck{
+		Slides: []Slide{
+			{
+				Tags:   []string{"intro", "quick"},
+				Blocks: []Block{{Kind: BlockHeading, Level: 1, Text: "Welcome"}},
+			},
+		},
+	}
+	ed := NewEditor("test.deck.md")
+	ed.ShowOverview = true
+
+	overview := stripANSI(View(d, ed, 100, 30))
+	if !strings.Contains(overview, "[intro,quick]") {
+		t.Fatalf("expected slide tags in overview card, got:\n%s", overview)
+	}
+}
+
 func BenchmarkRenderView(b *testing.B) {
 	d := Deck{
 		Slides: []Slide{

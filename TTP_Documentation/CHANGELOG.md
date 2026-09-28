@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.15 — 28 September 2026
+
+### Added
+- **Interactive Fuzzy Command Palette (`:` / `Ctrl+P`)**:
+  - Solves shortcut discoverability for both novice presenters and seasoned power users.
+  - Floating searchable modal indexing 30+ navigation, graph, developer tool, editor, and system commands.
+  - Real-time case-insensitive filtering matching across command titles, hotkey shortcuts, functional categories (`Navigation`, `Graph`, `Tools`, `Help`, `Editor`, `System`), and detailed descriptions.
+  - Ergonomic keyboard navigation: `↑` / `↓` cursor motion with wrap-around, character typing with real-time prompt cursor, `Backspace` correction, `Enter` instant execution, and `Esc` cancellation.
+  - Responsive pagination: 8-item viewport window with dynamic scroll indicators (`▲ more commands above`, `▼ N more commands below`).
+  - Status line integration: added `: menu` hint to global presentation status bar.
+- **Starter Deck Scaffolding (`deck init [filename]`)**:
+  - Seamless zero-friction onboarding: `deck init [filename.deck.md]` bootstraps a fully structured, lint-verified starter presentation template.
+  - Template includes Tokyo Night color theme, multi-format talk routes (`quick`, `full`), audience track tags, decision branching links (`::branch`), and an executable live bash code block.
+  - Compiler-grade safety: guarantees 0 DAG linting diagnostics on new templates, and guards against accidental file overwrites.
+  - User-friendly CLI diagnostics: running `deck` without arguments immediately offers `deck init [filename.deck.md]`.
+- **Audience Track & Tag Awareness in Overview Grid (`o`)**:
+  - Slide overview 2D thumbnail cards now render audience track tags (`[tag1,tag2]`) directly in each card's summary line, giving presenters instant spatial orientation of filtered subgraphs.
+- Expanded automated test suite to **161 unit tests** maintaining **90.5% statement coverage** in `deck/internal` with zero external runtime dependencies and sub-millisecond per-frame rendering (< 0.26ms).
+
 ## v0.14 — 27 September 2026
 
 ### Added

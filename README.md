@@ -26,6 +26,9 @@ go build -o deck .
 ### Usage
 
 ```bash
+# Scaffold a new starter presentation template
+deck init presentation.deck.md
+
 # Launch interactive presentation
 deck demo.deck.md
 
@@ -46,6 +49,8 @@ deck --test-code demo.deck.md
 
 ## Core Highlights
 
+- **Searchable Command Palette (`:` / `Ctrl+P`)**: Fuzzy-searchable action launcher indexing 30+ navigation, graph, tools, and editor commands with live filtering, real-time prompt, and scroll pagination.
+- **Starter Presentation Scaffolding (`deck init`)**: Instant bootstrapping of a clean, syntax-validated starter presentation with Tokyo Night theme, multi-format talk routes, audience track tags, decision branches, and runnable code blocks.
 - **Non-Linear Graph Engine (DAGs)**: Break out of linear slides. Model decision branches (`::branch [key] Label -> target`), numeric jumping (`1`–`9`), and convergence milestones (`::next <slug>`).
 - **Bounded Graph Cycles (`::loop` / `::cycle`)**: Model iterative processes (TDD Red -> Green -> Refactor, exponential retry backoff, Raft consensus rounds, ML epochs) with live pass counters (`pass 1/3`) and auto-exit guarantees.
 - **Responsive Viewport & Screen Adaptation**: Optimal reading width canvas constraints (`104` columns standard, `124` for multi-columns) and horizontal centering across standard 80x24, 16:9, and 21:9 ultrawide terminals. Automatic vertical stacking of multi-column grids on narrow terminals (`< 50` cols), vertical centering overflow protection, and small viewport dimension safeguards.
@@ -59,17 +64,17 @@ deck --test-code demo.deck.md
 - **Traversal History & Reflog (`H`)**: Visual presentation journey stack with instant rewind capabilities (`1`–`9` or `Enter`).
 - **Standalone Offline HTML Export (`E`)**: Single-file distributable HTML presentation with theme styling, embedded assets, and interactive JS graph navigation.
 - **Dynamic Theme Engine**: 9 curated developer color schemes (`tokyo-night`, `dracula`, `nord`, `catppuccin`, `monokai`, etc.) plus custom hex colors.
-- **Performance & Quality**: Sub-millisecond rendering (<0.26ms/op), 90.7% statement coverage across 158 unit tests, and zero runtime dependencies.
+- **Performance & Quality**: Sub-millisecond rendering (<0.26ms/op), 90.5% statement coverage across 161 unit tests, and zero runtime dependencies.
 
 ---
 
 ## Project Status
 
-**Current Release**: `v0.14.0` (27 September 2026) | **Quality**: 158 unit tests | **Statement Coverage**: 90.7% | 0 linter warnings | **Rendering Latency**: 0.256 ms/frame.
+**Current Release**: `v0.15.0` (28 September 2026) | **Quality**: 161 unit tests | **Statement Coverage**: 90.5% | 0 linter warnings | **Rendering Latency**: 0.256 ms/frame.
 
 Termdeck is actively developed with compiler-grade graph validation, verified performance benchmarks, and comprehensive documentation.
 
-For the complete day-by-day development timeline, release notes, and feature additions from v0.1 to v0.14, see [`TTP_Documentation/CHANGELOG.md`](TTP_Documentation/CHANGELOG.md).
+For the complete day-by-day development timeline, release notes, and feature additions from v0.1 to v0.15, see [`TTP_Documentation/CHANGELOG.md`](TTP_Documentation/CHANGELOG.md).
 
 ---
 
@@ -112,6 +117,7 @@ For the complete day-by-day development timeline, release notes, and feature add
 | `Tab` `Ctrl+A` | Cycle alignment (`left` → `center` → `right`) & auto-save |
 | `p` | Open focused image in system viewer |
 | `g` / `G` | First slide (resets loops) / Last slide |
+| `:` `Ctrl+P` | Open **Searchable Command Palette** (filter & execute all 30+ actions) |
 | `?` `F1` | Open **Interactive Learning Hub** (5-tab guide; `Tab`/`1`-`5` switch, `Esc` close) |
 | `q` `Ctrl+C` | Quit (auto-saves any unsaved edits) |
 | `Esc` | Dismiss runner card / exit focus mode / close modals |
@@ -137,6 +143,10 @@ Press `i` to enter in-place edit mode on the selected block. Press `Esc` to exit
 
 ```bash
 deck [options] <file.deck.md>
+deck init [filename.deck.md]
+
+# Commands:
+#   init [name]          Scaffold a new starter presentation template (default: presentation.deck.md)
 
 # Options:
 #   -s, --start-at <N>   Start at slide N

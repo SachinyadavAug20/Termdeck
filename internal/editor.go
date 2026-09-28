@@ -97,6 +97,9 @@ type Editor struct {
 	ShowRadarModal    bool
 	RadarCursor       int
 	LoopCounters      map[int]int
+	ShowPalette       bool
+	PaletteCursor     int
+	PaletteQuery      string
 }
 
 func NewEditor(filePath string) Editor {
@@ -580,6 +583,409 @@ func (e *Editor) JumpToRadarBranch(item BranchCoverageItem, d *Deck) bool {
 	e.ShowRadarModal = false
 	e.Message = fmt.Sprintf("jumped to branch [%s] %s", item.BranchKey, item.TargetTitle)
 	return true
+}
+
+// --- Interactive Command Palette & Quick Actions ---
+
+type PaletteCommand struct {
+	ID          string
+	Title       string
+	Description string
+	Shortcut    string
+	Category    string
+}
+
+func GetAllPaletteCommands() []PaletteCommand {
+	return []PaletteCommand{
+		{ID: "next", Title: "Next Slide / Advance Edge", Description: "Advance to the next slide, graph branch, or loop pass", Shortcut: "Space / Enter", Category: "Navigation"},
+		{ID: "prev", Title: "Previous Slide", Description: "Go back to the previous slide in presentation sequence", Shortcut: "← / h", Category: "Navigation"},
+		{ID: "jump", Title: "Quick Slide Jump & Search", Description: "Jump directly to a slide by number or fuzzy title search", Shortcut: "/", Category: "Navigation"},
+		{ID: "overview", Title: "Slide Overview & Grid Sorter", Description: "Open visual 2D thumbnail card overview of all slides", Shortcut: "o", Category: "Navigation"},
+		{ID: "first", Title: "First Slide", Description: "Jump directly to the title slide (resets all loop passes)", Shortcut: "g", Category: "Navigation"},
+		{ID: "last", Title: "Last Slide", Description: "Jump directly to the final slide in presentation", Shortcut: "G", Category: "Navigation"},
+
+		{ID: "fork_hud", Title: "Branch Decision Fork HUD", Description: "Interactive preview picker for outgoing branches with live slide preview", Shortcut: "J", Category: "Graph"},
+		{ID: "waypoint", Title: "Waypoint Pathfinder (Shortest Path)", Description: "Calculate and follow shortest BFS graph path to any slide", Shortcut: "W", Category: "Graph"},
+		{ID: "radar", Title: "Graph Exploration Radar", Description: "View DAG completion matrix and speaking duration budget", Shortcut: "V", Category: "Graph"},
+		{ID: "fork_return", Title: "Fast-Return to Upstream Fork", Description: "1-key backtrack teleport to nearest upstream decision fork", Shortcut: "U", Category: "Graph"},
+		{ID: "history", Title: "Traversal History & Reflog", Description: "Inspect full presentation journey stack and rewind to any step", Shortcut: "H", Category: "Graph"},
+		{ID: "map", Title: "Presentation Graph Map (ASCII DAG)", Description: "Visual ASCII diagram of slides, branches, and connections", Shortcut: "M", Category: "Graph"},
+		{ID: "route", Title: "Preset Talk Routes Switcher", Description: "Activate pre-planned paths (e.g. lightning vs deep-dive)", Shortcut: "P", Category: "Graph"},
+		{ID: "track", Title: "Audience Tracks Filter", Description: "Filter presentation DAG navigation for targeted audience groups", Shortcut: "K", Category: "Graph"},
+		{ID: "track_next", Title: "Hop Forward along Active Track", Description: "Jump forward to the next slide tagged with the active track", Shortcut: "]", Category: "Graph"},
+		{ID: "track_prev", Title: "Hop Backward along Active Track", Description: "Jump backward to the previous slide tagged with the active track", Shortcut: "[", Category: "Graph"},
+
+		{ID: "run_code", Title: "Execute Focused Code Snippet", Description: "Run code block live in Bash, Go, Python, Node, Ruby with output drawer", Shortcut: "X", Category: "Tools"},
+		{ID: "focus_mode", Title: "Toggle Viewport Focus & Zoom", Description: "Maximize current block to fill entire terminal viewport with j/k scroll", Shortcut: "f", Category: "Tools"},
+		{ID: "timer", Title: "Toggle Presentation Stopwatch", Description: "Start or pause live presentation timer on status line", Shortcut: "c", Category: "Tools"},
+		{ID: "timer_reset", Title: "Reset Presentation Stopwatch", Description: "Reset presentation timer back to 00:00", Shortcut: "C", Category: "Tools"},
+		{ID: "autoplay", Title: "Toggle Hands-Free Auto-Advance", Description: "Rehearse presentation with automated slide advancing pacing", Shortcut: "A", Category: "Tools"},
+		{ID: "blank", Title: "Blackout / Blank Screen", Description: "Blank the screen during Q&A or discussion; any key resumes", Shortcut: "b", Category: "Tools"},
+		{ID: "export_html", Title: "Export Standalone HTML Presentation", Description: "Generate single-file self-contained offline HTML deck", Shortcut: "E", Category: "Tools"},
+		{ID: "stats", Title: "Presentation Metrics & Telemetry", Description: "Inspect word count, ~130 WPM pacing, and block distribution", Shortcut: "S", Category: "Tools"},
+		{ID: "theme", Title: "Cycle Color Theme", Description: "Switch between 9 curated themes (Tokyo Night, Dracula, Nord, etc.)", Shortcut: "t", Category: "Tools"},
+		{ID: "notes", Title: "Toggle Speaker Notes Overlay", Description: "Show private speaker notes at bottom of screen", Shortcut: "n", Category: "Tools"},
+		{ID: "zen", Title: "Toggle Distraction-Free Zen Mode", Description: "Hide all status bars and hints for a clean presentation canvas", Shortcut: "z", Category: "Tools"},
+		{ID: "line_numbers", Title: "Toggle Code Block Line Numbers", Description: "Show line numbers on code blocks and diffs", Shortcut: "L", Category: "Tools"},
+		{ID: "align", Title: "Cycle Slide Alignment", Description: "Switch text alignment between left, center, and right", Shortcut: "Tab", Category: "Tools"},
+		{ID: "task", Title: "Toggle Interactive Checklist Item", Description: "Flip checklist task item state between [ ] and [x]", Shortcut: "x", Category: "Tools"},
+		{ID: "yank", Title: "Copy Block / Output to Clipboard", Description: "Copy focused text or execution output via ANSI OSC 52", Shortcut: "y", Category: "Tools"},
+		{ID: "open_image", Title: "Open Focused Image in System Viewer", Description: "View referenced presentation image in native desktop image viewer", Shortcut: "p", Category: "Tools"},
+		{ID: "reload", Title: "Reload Deck File from Disk", Description: "Manually re-read and parse presentation file from disk", Shortcut: "r", Category: "Tools"},
+
+		{ID: "help", Title: "Interactive 5-Page Learning Hub", Description: "Open comprehensive in-app guide and authoring cheat sheet", Shortcut: "?", Category: "Help"},
+		{ID: "edit", Title: "Enter In-Slide Markdown Editor", Description: "Edit focused slide block directly in-place with instant AST update", Shortcut: "i", Category: "Editor"},
+		{ID: "add_block", Title: "Add New Slide Block Below", Description: "Insert a new block below the current selection", Shortcut: "Ctrl+N", Category: "Editor"},
+		{ID: "del_block", Title: "Delete Focused Slide Block", Description: "Remove the selected slide block", Shortcut: "Ctrl+D", Category: "Editor"},
+		{ID: "quit", Title: "Quit Termdeck", Description: "Exit application (auto-saves any unsaved modifications)", Shortcut: "q", Category: "System"},
+	}
+}
+
+func FilterPaletteCommands(query string) []PaletteCommand {
+	all := GetAllPaletteCommands()
+	q := strings.TrimSpace(strings.ToLower(query))
+	if q == "" {
+		return all
+	}
+	var matches []PaletteCommand
+	for _, cmd := range all {
+		t := strings.ToLower(cmd.Title)
+		s := strings.ToLower(cmd.Shortcut)
+		c := strings.ToLower(cmd.Category)
+		d := strings.ToLower(cmd.Description)
+		if strings.Contains(t, q) || strings.Contains(s, q) || strings.Contains(c, q) || strings.Contains(d, q) {
+			matches = append(matches, cmd)
+		}
+	}
+	return matches
+}
+
+func (e *Editor) TogglePalette() {
+	e.ShowPalette = !e.ShowPalette
+	if e.ShowPalette {
+		e.PaletteCursor = 0
+		e.PaletteQuery = ""
+		e.ShowStats = false
+		e.ShowOverview = false
+		e.ShowGraphMap = false
+		e.ShowTrackModal = false
+		e.ShowRouteModal = false
+		e.ShowHistoryModal = false
+		e.ShowBranchHUD = false
+		e.ShowWaypointModal = false
+		e.ShowRadarModal = false
+		e.ShowHelp = false
+		e.DismissRunner()
+		e.Message = "command palette: type to filter · enter to execute · esc to close"
+	} else {
+		e.Message = "command palette closed"
+	}
+}
+
+func (e *Editor) ExecutePaletteCommand(cmdID string, d *Deck) tea.Cmd {
+	e.ShowPalette = false
+	e.PaletteQuery = ""
+	e.PaletteCursor = 0
+
+	switch cmdID {
+	case "next":
+		if e.ActiveRoute != "" {
+			e.NextRouteSlide(d)
+			return nil
+		}
+		if d != nil && e.SlideIdx >= 0 && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Loop != nil {
+			pass, maxPasses, _ := e.CurrentLoopPass(e.SlideIdx, d)
+			if pass < maxPasses {
+				e.AdvanceLoop(e.SlideIdx, d)
+				return nil
+			}
+			curLoop := d.Slides[e.SlideIdx].Loop
+			exitTarget := curLoop.ExitTarget
+			if exitTarget == "" {
+				exitTarget = d.Slides[e.SlideIdx].NextID
+			}
+			if exitTarget != "" {
+				nextIdx := d.FindSlideByID(exitTarget)
+				if nextIdx >= 0 && nextIdx < len(d.Slides) {
+					e.History = append(e.History, e.SlideIdx)
+					e.SlideIdx = nextIdx
+					e.BlockIdx = 0
+					e.ClampBlockIdx(d)
+					e.Message = fmt.Sprintf("⟳ loop [%s] completed (%d/%d passes) ──► %s", curLoop.Label, maxPasses, maxPasses, exitTarget)
+					return nil
+				}
+			}
+		}
+		if d != nil && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].NextID != "" {
+			nextIdx := d.FindSlideByID(d.Slides[e.SlideIdx].NextID)
+			if nextIdx >= 0 && nextIdx < len(d.Slides) {
+				e.History = append(e.History, e.SlideIdx)
+				e.SlideIdx = nextIdx
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				return nil
+			}
+		}
+		if d != nil && e.SlideIdx < len(d.Slides)-1 {
+			e.History = append(e.History, e.SlideIdx)
+			e.SlideIdx++
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+		}
+		return nil
+
+	case "prev":
+		if e.ActiveRoute != "" {
+			e.PrevRouteSlide(d)
+			return nil
+		}
+		if d != nil && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].PrevID != "" {
+			prevIdx := d.FindSlideByID(d.Slides[e.SlideIdx].PrevID)
+			if prevIdx >= 0 && prevIdx < len(d.Slides) {
+				e.SlideIdx = prevIdx
+				e.BlockIdx = 0
+				e.ClampBlockIdx(d)
+				return nil
+			}
+		}
+		if e.SlideIdx > 0 {
+			e.SlideIdx--
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+		}
+		return nil
+
+	case "jump":
+		e.Mode = ModePrompt
+		e.Draft = ""
+		e.Message = "jump to slide: enter number or search title"
+		return nil
+
+	case "overview", "grid":
+		e.ShowOverview = true
+		e.OverviewCursor = e.SlideIdx
+		if e.OverviewCols <= 0 {
+			e.OverviewCols = 3
+		}
+		e.Message = "slide overview (arrows/hjkl to navigate, enter to jump, esc/o to close)"
+		return nil
+
+	case "first":
+		e.ResetAllLoops()
+		e.SlideIdx = 0
+		e.BlockIdx = 0
+		e.ClampBlockIdx(d)
+		e.Message = fmt.Sprintf("slide %d/%d (loops reset)", e.SlideIdx+1, len(d.Slides))
+		return nil
+
+	case "last":
+		if len(d.Slides) > 0 {
+			e.SlideIdx = len(d.Slides) - 1
+			e.BlockIdx = 0
+			e.ClampBlockIdx(d)
+			e.Message = fmt.Sprintf("slide %d/%d", e.SlideIdx+1, len(d.Slides))
+		}
+		return nil
+
+	case "fork_hud":
+		e.ToggleBranchHUD(d)
+		return nil
+
+	case "waypoint":
+		e.ToggleWaypointModal(d)
+		return nil
+
+	case "radar":
+		e.ToggleRadarModal(d)
+		return nil
+
+	case "fork_return":
+		e.ReturnToUpstreamFork(d)
+		return nil
+
+	case "history":
+		e.ShowHistoryModal = true
+		e.HistoryCursor = len(e.History)
+		return nil
+
+	case "map":
+		e.ShowGraphMap = true
+		e.GraphMapCursor = e.SlideIdx
+		return nil
+
+	case "route":
+		e.ShowRouteModal = true
+		e.RouteCursor = 0
+		return nil
+
+	case "track":
+		e.ShowTrackModal = true
+		e.TrackCursor = 0
+		return nil
+
+	case "track_next":
+		e.NextTrackSlide(d)
+		return nil
+
+	case "track_prev":
+		e.PrevTrackSlide(d)
+		return nil
+
+	case "run_code":
+		return e.RunFocusedCode(d)
+
+	case "focus_mode", "focus":
+		e.ToggleFocusMode(d)
+		return nil
+
+	case "timer", "timer_toggle":
+		e.ShowTimer = !e.ShowTimer
+		if e.ShowTimer {
+			if e.TimerStart.IsZero() {
+				e.TimerStart = time.Now()
+			}
+			e.Message = "timer: on"
+			return TickCmd()
+		}
+		e.Message = "timer: off"
+		return nil
+
+	case "timer_reset":
+		e.TimerStart = time.Now()
+		e.Message = "timer reset to 00:00"
+		return nil
+
+	case "autoplay":
+		return e.ToggleAutoplay()
+
+	case "blank":
+		e.ScreenBlank = !e.ScreenBlank
+		if e.ScreenBlank {
+			e.Message = "screen blanked (press any key to resume)"
+		} else {
+			e.Message = "screen resumed"
+		}
+		return nil
+
+	case "export_html":
+		_, _ = e.ExportHTML(d)
+		return nil
+
+	case "stats":
+		e.ShowStats = !e.ShowStats
+		if e.ShowStats {
+			e.Message = "talk statistics (press 'S', 'q', or 'esc' to close)"
+		} else {
+			e.Message = "statistics closed"
+		}
+		return nil
+
+	case "theme":
+		e.CycleTheme(d)
+		return nil
+
+	case "notes":
+		e.ShowNotes = !e.ShowNotes
+		return nil
+
+	case "zen":
+		e.ZenMode = !e.ZenMode
+		if e.ZenMode {
+			e.Message = "zen mode: on"
+		} else {
+			e.Message = "zen mode: off"
+		}
+		return nil
+
+	case "line_numbers", "lines":
+		e.ShowLineNumbers = !e.ShowLineNumbers
+		if e.ShowLineNumbers {
+			e.Message = "line numbers: on"
+		} else {
+			e.Message = "line numbers: off"
+		}
+		return nil
+
+	case "align":
+		e.ToggleAlign(d)
+		return nil
+
+	case "task":
+		e.ToggleTask(d)
+		return nil
+
+	case "yank":
+		if e.ShowRunner && e.RunnerResult != nil {
+			output := e.RunnerResult.Stdout
+			if e.RunnerResult.Stderr != "" {
+				if output != "" {
+					output += "\n"
+				}
+				output += e.RunnerResult.Stderr
+			}
+			e.Message = fmt.Sprintf("yanked %d chars of execution output to clipboard", len(output))
+			return tea.Printf("%s", OSC52Copy(output))
+		}
+		text, err := e.YankBlock(d)
+		if err != nil {
+			e.Message = "yank: " + err.Error()
+			return nil
+		}
+		blk := e.currentBlock(d)
+		if blk != nil && blk.Kind == BlockCode {
+			e.Message = fmt.Sprintf("yanked %d code lines to clipboard", len(blk.Lines))
+		} else {
+			e.Message = fmt.Sprintf("yanked %d chars to clipboard", len(text))
+		}
+		return tea.Printf("%s", OSC52Copy(text))
+
+	case "open_image":
+		blk := e.currentBlock(d)
+		if blk != nil && blk.Kind == BlockImage {
+			fullPath, found := ResolveImagePath(blk.Src, d.BaseDir)
+			if found {
+				if err := openFile(fullPath); err == nil {
+					e.Message = "opened " + filepath.Base(fullPath)
+				} else {
+					e.Message = fmt.Sprintf("open error: %v", err)
+				}
+			} else {
+				e.Message = "image not found: " + blk.Src
+			}
+		} else {
+			e.Message = "focused block is not an image"
+		}
+		return nil
+
+	case "reload":
+		e.Reload(d)
+		return nil
+
+	case "help":
+		e.ShowHelp = true
+		e.HelpPage = 0
+		e.Message = "help: 1-5 or tab to switch pages · esc to close"
+		return nil
+
+	case "edit":
+		e.EnterEdit(d)
+		return nil
+
+	case "add_block":
+		e.AddBlock(d)
+		return nil
+
+	case "del_block":
+		e.DeleteBlock(d)
+		return nil
+
+	case "quit":
+		if e.Dirty && e.FilePath != "" {
+			e.Save(*d)
+		}
+		return tea.Quit
+	}
+	return nil
 }
 
 func (e Editor) CurrentLoopPass(slideIdx int, d *Deck) (pass int, maxPasses int, hasLoop bool) {
@@ -1420,6 +1826,50 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 	}
 
+	if e.ShowPalette {
+		matches := FilterPaletteCommands(e.PaletteQuery)
+		switch key {
+		case "esc", "ctrl+c":
+			e.ShowPalette = false
+			e.Message = "command palette closed"
+			return nil
+		case "up", "ctrl+p":
+			if len(matches) > 0 {
+				e.PaletteCursor = (e.PaletteCursor - 1 + len(matches)) % len(matches)
+			}
+			return nil
+		case "down", "ctrl+n", "tab":
+			if len(matches) > 0 {
+				e.PaletteCursor = (e.PaletteCursor + 1) % len(matches)
+			}
+			return nil
+		case "shift+tab":
+			if len(matches) > 0 {
+				e.PaletteCursor = (e.PaletteCursor - 1 + len(matches)) % len(matches)
+			}
+			return nil
+		case "enter":
+			if len(matches) > 0 && e.PaletteCursor < len(matches) {
+				cmd := matches[e.PaletteCursor]
+				return e.ExecutePaletteCommand(cmd.ID, d)
+			}
+			e.ShowPalette = false
+			return nil
+		case "backspace":
+			if len(e.PaletteQuery) > 0 {
+				e.PaletteQuery = e.PaletteQuery[:len(e.PaletteQuery)-1]
+				e.PaletteCursor = 0
+			}
+			return nil
+		default:
+			if len(key) == 1 && key[0] >= 32 {
+				e.PaletteQuery += key
+				e.PaletteCursor = 0
+			}
+			return nil
+		}
+	}
+
 	if e.ShowHelp {
 		switch key {
 		case "esc", "q", "?", "f1":
@@ -2114,9 +2564,14 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		e.PrevTrackSlide(d)
 		return nil
 
+	case ":", "ctrl+p":
+		e.TogglePalette()
+		return nil
+
 	case "?", "f1":
 		e.ShowHelp = !e.ShowHelp
 		if e.ShowHelp {
+			e.ShowPalette = false
 			e.ShowStats = false
 			e.ShowOverview = false
 			e.ShowGraphMap = false
@@ -2134,6 +2589,11 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		return nil
 
 	case "esc":
+		if e.ShowPalette {
+			e.ShowPalette = false
+			e.Message = "command palette closed"
+			return nil
+		}
 		if e.ShowRunner {
 			e.ShowRunner = false
 			e.Message = "runner closed"

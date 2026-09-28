@@ -1337,6 +1337,7 @@ func renderHelpModal(args ...int) string {
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("b / B"), currentTheme.HelpDescStyle.Render("Blank screen (presentation blackout to focus on speaker)")))
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("c / C"), currentTheme.HelpDescStyle.Render("Toggle presentation talk timer / Reset timer to 00:00")))
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("z"), currentTheme.HelpDescStyle.Render("Toggle distraction-free zen mode (hides all status bars)")))
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render(": / ctrl+p"), currentTheme.HelpDescStyle.Render("Searchable Command Palette: filter & execute any action")))
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("Tab / ctrl+a"), currentTheme.HelpDescStyle.Render("Cycle text alignment (left → center → right, auto-saves)")))
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("L"), currentTheme.HelpDescStyle.Render("Toggle code block line numbers on / off")))
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("p"), currentTheme.HelpDescStyle.Render("Open focused image presentation card in system viewer")))
@@ -1383,6 +1384,7 @@ func renderHelpModal(args ...int) string {
 
 	case 4:
 		sb.WriteString(currentTheme.HelpHeaderStyle.Render("  MARKDOWN AUTHORING CHEAT SHEET") + "\n")
+		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("deck init [name]"), currentTheme.HelpDescStyle.Render("Scaffold a new presentation starter template on CLI")))
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("---"), currentTheme.HelpDescStyle.Render("Slide separator — creates a new slide")))
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("# Title {#slug}"), currentTheme.HelpDescStyle.Render("Slide heading with custom anchor ID for branching")))
 		sb.WriteString(fmt.Sprintf("  %-22s %s\n", currentTheme.HelpKeyStyle.Render("::branch [1] L -> id"), currentTheme.HelpDescStyle.Render("Decision branch option linking to target slide slug")))
@@ -1433,6 +1435,90 @@ func renderProgressLine(curSlide, totalSlides, width int) string {
 		b.WriteString(currentTheme.ProgressLineDimStyle.Render(strings.Repeat("─", unfilled)))
 	}
 	return b.String()
+}
+
+func renderPaletteModal(e Editor, w, h int) string {
+	boxW := 74
+	if boxW > w-4 {
+		boxW = w - 4
+	}
+	if boxW < 36 {
+		boxW = 36
+	}
+
+	var sb strings.Builder
+	title := currentTheme.HelpTitleStyle.Render("Command Palette")
+	sb.WriteString(title + "\n")
+	sb.WriteString(dimStyle.Render("Type to search actions · ↑/↓ navigate · Enter execute · Esc close") + "\n\n")
+
+	promptPrefix := currentTheme.HelpKeyStyle.Bold(true).Render("> ")
+	queryStr := e.PaletteQuery
+	if queryStr == "" {
+		sb.WriteString(promptPrefix + dimStyle.Render("type a command, shortcut, or category...") + "\n\n")
+	} else {
+		cursorChar := currentTheme.HelpKeyStyle.Render("█")
+		sb.WriteString(promptPrefix + currentTheme.HelpDescStyle.Bold(true).Render(queryStr) + cursorChar + "\n\n")
+	}
+
+	matches := FilterPaletteCommands(e.PaletteQuery)
+	if len(matches) == 0 {
+		sb.WriteString(dimStyle.Render(fmt.Sprintf("  No commands matching %q\n", e.PaletteQuery)))
+	} else {
+		maxVisible := 8
+		startIdx := 0
+		if e.PaletteCursor >= maxVisible {
+			startIdx = e.PaletteCursor - maxVisible + 1
+		}
+		endIdx := startIdx + maxVisible
+		if endIdx > len(matches) {
+			endIdx = len(matches)
+		}
+
+		if startIdx > 0 {
+			sb.WriteString(dimStyle.Render("    ▲ more commands above") + "\n")
+		}
+
+		for i := startIdx; i < endIdx; i++ {
+			cmd := matches[i]
+			isCursor := i == e.PaletteCursor
+
+			prefix := "  "
+			if isCursor {
+				prefix = currentTheme.HelpKeyStyle.Render("▶ ")
+			}
+
+			availTitleW := boxW - 28
+			if availTitleW < 18 {
+				availTitleW = 18
+			}
+			titleText := cmd.Title
+			if len(titleText) > availTitleW {
+				titleText = titleText[:availTitleW-3] + "..."
+			}
+
+			scBadge := currentTheme.HelpKeyStyle.Render(fmt.Sprintf("(%s)", cmd.Shortcut))
+			catBadge := dimStyle.Render("[" + cmd.Category + "]")
+
+			var lineStr string
+			if isCursor {
+				titleStyled := currentTheme.TableCellStyle.Bold(true).Render(titleText)
+				lineStr = fmt.Sprintf("%s%-*s  %-15s %s", prefix, availTitleW, titleStyled, scBadge, catBadge)
+			} else {
+				titleStyled := dimStyle.Render(titleText)
+				lineStr = fmt.Sprintf("%s%-*s  %-15s %s", prefix, availTitleW, titleStyled, scBadge, catBadge)
+			}
+			sb.WriteString(lineStr + "\n")
+		}
+
+		if endIdx < len(matches) {
+			sb.WriteString(dimStyle.Render(fmt.Sprintf("    ▼ %d more commands below", len(matches)-endIdx)) + "\n")
+		}
+	}
+
+	sb.WriteString("\n" + dimStyle.Render("Press Enter to execute  ·  Esc to cancel"))
+
+	card := currentTheme.HelpBoxStyle.Width(boxW).Render(sb.String())
+	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)
 }
 
 func renderJumpModal(d Deck, e Editor, w, h int) string {
@@ -1594,6 +1680,9 @@ func renderOverviewModal(d Deck, e Editor, w, h int) string {
 
 			// Summary line: blks, code, etc.
 			sumText := slide.Summary()
+			if len(slide.Tags) > 0 {
+				sumText = "[" + strings.Join(slide.Tags, ",") + "] " + sumText
+			}
 			maxSumLen := cardW - 4
 			if maxSumLen < 8 {
 				maxSumLen = 8
@@ -2574,6 +2663,10 @@ func View(d Deck, e Editor, width, height int) string {
 		return renderFocusMode(d, e, width, height)
 	}
 
+	if e.ShowPalette {
+		return renderPaletteModal(e, width, height)
+	}
+
 	if e.ShowHelp {
 		return renderHelpModal(e.HelpPage, width, height)
 	}
@@ -2873,7 +2966,7 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.Message != "" {
 		left += "  ·  " + e.Message
 	}
-	right := "? help · / jump · M map · K track · P route · H history · J fork · W waypoint · V radar · U fork · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
+	right := "? help · / jump · M map · K track · P route · H history · : menu · J fork · W waypoint · V radar · U fork · [ / ] hop · o grid · f focus · X run · y yank · E export · S stats · A auto · b blank · c timer · r reload · L lines · z zen · x task · tab align · t theme · n notes · i edit · ^n add · ^d del · ^s save · u undo · q quit"
 	status := left + "  ·  " + right
 	return dimStyle.Width(w).Render(status)
 }

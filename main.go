@@ -120,11 +120,100 @@ func buildModel(filePath string, watchMode ...bool) (model, error) {
 	}, nil
 }
 
+func scaffoldStarterDeck(targetPath string) error {
+	if targetPath == "" {
+		targetPath = "presentation.deck.md"
+	}
+	if _, err := os.Stat(targetPath); err == nil {
+		return fmt.Errorf("file %q already exists; refusing to overwrite", targetPath)
+	}
+
+	content := `---
+title: Welcome to Termdeck
+theme: tokyo-night
+routes:
+  quick: intro -> interactive -> conclusion
+  full: intro -> interactive -> branching -> code -> conclusion
+---
+
+# Welcome to Termdeck {#intro}
+::tags: welcome, overview
+
+### Terminal-native Presentation Engine & DAG Explorer
+Elevate your tech talks directly within your terminal.
+
+- Fast, distraction-free markdown presentations
+- Non-linear branching decision graphs & DAG topology
+- Dynamic shortest-path waypoint pathfinding
+- Built-in sandboxed live code runner
+
+> Press Space or Enter to advance · Press : or Ctrl+P for Command Palette
+
+---
+
+# Presentation Power Tools {#interactive}
+::tags: guide, shortcuts
+
+Everything you need to navigate and present effortlessly:
+
+- Command Palette (: / Ctrl+P): Search and execute any presentation command
+- Help Modal (?): Full interactive cheat sheet & shortcut reference
+- DAG Map (M): Bird's-eye topology view of all interconnected slides
+- Overview Grid (o): 2D thumbnail card sorter of the entire deck
+- Audience Tracks (K): Filter presentation paths for different audiences
+- Live Code Execution (X): Run shell, python, and go snippets on the fly
+
+---
+
+# Non-Linear Branching {#branching}
+::tags: branching, graph
+
+Termdeck presentations aren't just sequential slides — they form a directed acyclic graph (DAG).
+Audiences can choose their own adventure at decision forks!
+
+::branch [1] Deep Dive into Code -> code
+::branch [2] Jump straight to Conclusion -> conclusion
+
+---
+
+# Live Code Execution {#code}
+::tags: code, interactive
+
+Run live demonstrations right inside the terminal presentation without switching windows.
+
+` + "```" + `bash
+echo "Hello from Termdeck!"
+uname -s -m
+date
+` + "```" + `
+
+> Press X or Ctrl+X to execute this block directly in the terminal!
+
+---
+
+# Summary & Next Steps {#conclusion}
+::tags: summary
+
+You are now ready to build stunning terminal presentations.
+
+- Edit this file directly in markdown or press i in Termdeck
+- Export standalone HTML slides using E or deck --export-html
+- Check your presentation graph topology with deck --lint
+
+Happy Presenting!
+`
+	return os.WriteFile(targetPath, []byte(content), 0644)
+}
+
 func printHelp() {
 	fmt.Println(`Termdeck - Terminal presentation tool
 
 Usage:
   deck [options] <file.deck.md>
+  deck init [filename.deck.md]
+
+Commands:
+  init [name]          Scaffold a new starter presentation template (default: presentation.deck.md)
 
 Options:
   -s, --start-at <N>   Start presentation at slide N (1-based)
@@ -150,6 +239,7 @@ Controls:
   Branching:    1-9 (follow branch option), J (fork HUD & preview), Backspace (pop step), U (return to fork)
   Audience:     K (audience tracks & subgraph filter), [ / ] (hop along track)
   Routes:       P (preset graph routes & guided paths), W (waypoint pathfinder), V (radar & coverage)
+  Palette:      : / ctrl+p (fuzzy command palette & action launcher)
   History:      H (traversal history & visual reflog modal)
   Graph Map:    M (presentation graph map & DAG explorer)
   Pointer:      ↓ / j (down), ↑ / k (up)
@@ -297,6 +387,20 @@ func main() {
 			fmt.Printf("  %-14s %-18s (accent: %s)\n", th.ID, th.Name, th.Accent)
 		}
 		fmt.Println("\nTip: Pass '--theme <name>' or set 'theme: <name>' in deck frontmatter.")
+		return
+	}
+
+	if len(fileArgs) > 0 && (fileArgs[0] == "init" || fileArgs[0] == "new") {
+		target := "presentation.deck.md"
+		if len(fileArgs) > 1 {
+			target = fileArgs[1]
+		}
+		if err := scaffoldStarterDeck(target); err != nil {
+			fmt.Fprintf(os.Stderr, "error: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Printf("Created starter presentation at %s\n", target)
+		fmt.Printf("Run 'deck %s' to launch your presentation.\n", target)
 		return
 	}
 
@@ -522,6 +626,7 @@ func main() {
 	if len(fileArgs) < 1 {
 		fmt.Fprintln(os.Stderr, "error: missing deck file")
 		fmt.Fprintln(os.Stderr, "usage: deck [options] <file.deck.md>")
+		fmt.Fprintln(os.Stderr, "       deck init [filename.deck.md]   # create starter presentation")
 		fmt.Fprintln(os.Stderr, "try 'deck --help' for more information")
 		os.Exit(1)
 	}
