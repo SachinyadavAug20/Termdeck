@@ -1860,6 +1860,31 @@ func TestRenderLoopCardAndView(t *testing.T) {
 	if !strings.Contains(statusDone, "[✔ loop: 3/3 done (TDD Loop)]") {
 		t.Fatalf("expected done loop badge in navStatus, got:\n%s", statusDone)
 	}
+
+	// 6. Infinite repeat loop card (maxPasses == 0)
+	infLcfg := &LoopConfig{
+		Key:       "i",
+		Label:     "Infinite Cycle",
+		Target:    "start",
+		MaxPasses: 0,
+	}
+	infCard := stripANSI(renderLoopCard(infLcfg, 4, 0, 80))
+	if !strings.Contains(infCard, "LOOP ITERATION: Infinite Cycle [pass 5 (infinite repeat)]") {
+		t.Fatalf("expected infinite repeat card header, got:\n%s", infCard)
+	}
+	if !strings.Contains(infCard, "Infinite repeat loop (no pass limit)") {
+		t.Fatalf("expected infinite repeat detail line, got:\n%s", infCard)
+	}
+	if !strings.Contains(infCard, "Repeat Loop Pass") {
+		t.Fatalf("expected Repeat Loop Pass hint, got:\n%s", infCard)
+	}
+
+	d.Slides[0].Loop = infLcfg
+	ed.LoopCounters[0] = 2
+	statusInf := stripANSI(navStatus(d, ed, 200))
+	if !strings.Contains(statusInf, "[⟳ loop: pass 3 (infinite repeat ──► start)]") {
+		t.Fatalf("expected infinite repeat status badge, got:\n%s", statusInf)
+	}
 }
 
 func TestRenderMultiPageHelpModal(t *testing.T) {

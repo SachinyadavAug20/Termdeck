@@ -923,8 +923,8 @@ func renderSlide(slide Slide, w, h int, baseDir string, e Editor) string {
 			pass = e.LoopCounters[e.SlideIdx]
 		}
 		maxPasses := slide.Loop.MaxPasses
-		if maxPasses <= 0 {
-			maxPasses = 3
+		if maxPasses < 0 {
+			maxPasses = 0
 		}
 		lines = append(lines, renderLoopCard(slide.Loop, pass, maxPasses, w))
 	}
@@ -953,7 +953,17 @@ func renderLoopCard(lcfg *LoopConfig, pass int, maxPasses int, w int) string {
 	var detailLine string
 	var hintLine string
 
-	if pass < maxPasses {
+	if maxPasses == 0 {
+		borderCol = currentTheme.Accent
+		headerLine = fmt.Sprintf("⟳ LOOP ITERATION: %s [pass %d (infinite repeat)]", label, pass+1)
+		detailLine = fmt.Sprintf("  Loop target: ──► #%s · Infinite repeat loop (no pass limit)", lcfg.Target)
+		hints := "  [Space/Enter: Repeat Loop Pass · J: Branch HUD"
+		if lcfg.Key != "" {
+			hints += fmt.Sprintf(" · %s: Loop Hotkey", lcfg.Key)
+		}
+		hints += "]"
+		hintLine = hints
+	} else if pass < maxPasses {
 		borderCol = currentTheme.Accent
 		headerLine = fmt.Sprintf("⟳ LOOP ITERATION: %s [pass %d/%d]", label, pass+1, maxPasses)
 		detailLine = fmt.Sprintf("  Loop target: ──► #%s · Remaining iterations: %d", lcfg.Target, maxPasses-pass-1)
@@ -2947,7 +2957,9 @@ func navStatus(d Deck, e Editor, w int) string {
 	if e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Loop != nil {
 		lcfg := d.Slides[e.SlideIdx].Loop
 		pass, maxPasses, _ := e.CurrentLoopPass(e.SlideIdx, &d)
-		if pass < maxPasses {
+		if maxPasses == 0 {
+			left += fmt.Sprintf("  ·  [⟳ loop: pass %d (infinite repeat ──► %s)]", pass+1, lcfg.Target)
+		} else if pass < maxPasses {
 			left += fmt.Sprintf("  ·  [⟳ loop: pass %d/%d (%s ──► %s)]", pass+1, maxPasses, lcfg.Label, lcfg.Target)
 		} else {
 			left += fmt.Sprintf("  ·  [✔ loop: %d/%d done (%s)]", maxPasses, maxPasses, lcfg.Label)

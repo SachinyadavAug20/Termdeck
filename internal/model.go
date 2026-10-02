@@ -1186,11 +1186,22 @@ func parseLoopDirective(line string) (*LoopConfig, bool) {
 		lowerTok := strings.ToLower(tok)
 		if strings.HasPrefix(lowerTok, "max=") || strings.HasPrefix(lowerTok, "limit=") || strings.HasPrefix(lowerTok, "passes=") || strings.HasPrefix(lowerTok, "count=") {
 			eqIdx := strings.Index(tok, "=")
-			val := tok[eqIdx+1:]
-			var num int
-			if _, err := fmt.Sscanf(val, "%d", &num); err == nil && num > 0 {
-				lcfg.MaxPasses = num
+			val := strings.TrimSpace(tok[eqIdx+1:])
+			lowerVal := strings.ToLower(val)
+			if lowerVal == "0" || lowerVal == "-1" || lowerVal == "inf" || lowerVal == "infinite" || lowerVal == "repeat" || lowerVal == "repeate" || lowerVal == "unlimited" {
+				lcfg.MaxPasses = 0 // 0 means infinite repeat loop (unbounded passes)
+			} else {
+				var num int
+				if _, err := fmt.Sscanf(val, "%d", &num); err == nil {
+					if num <= 0 {
+						lcfg.MaxPasses = 0
+					} else {
+						lcfg.MaxPasses = num
+					}
+				}
 			}
+		} else if lowerTok == "repeat" || lowerTok == "repeate" || lowerTok == "infinite" || lowerTok == "inf" || lowerTok == "unlimited" {
+			lcfg.MaxPasses = 0 // 0 means infinite repeat loop
 		} else if strings.HasPrefix(lowerTok, "next=") || strings.HasPrefix(lowerTok, "exit=") || strings.HasPrefix(lowerTok, "break=") {
 			eqIdx := strings.Index(tok, "=")
 			lcfg.ExitTarget = strings.TrimSpace(tok[eqIdx+1:])
@@ -1291,17 +1302,23 @@ func SerializeDeck(d Deck) string {
 		}
 		if slide.Loop != nil && slide.Loop.Target != "" {
 			maxPasses := slide.Loop.MaxPasses
-			if maxPasses <= 0 {
-				maxPasses = 3
-			}
 			label := slide.Loop.Label
 			if label == "" {
 				label = "Loop"
 			}
-			if slide.Loop.Key != "" {
-				fmt.Fprintf(&b, "::loop [%s] %s -> %s max=%d", slide.Loop.Key, label, slide.Loop.Target, maxPasses)
+			var maxStr string
+			if maxPasses == 0 {
+				maxStr = "repeat"
 			} else {
-				fmt.Fprintf(&b, "::loop %s -> %s max=%d", label, slide.Loop.Target, maxPasses)
+				if maxPasses < 0 {
+					maxPasses = 3
+				}
+				maxStr = fmt.Sprintf("max=%d", maxPasses)
+			}
+			if slide.Loop.Key != "" {
+				fmt.Fprintf(&b, "::loop [%s] %s -> %s %s", slide.Loop.Key, label, slide.Loop.Target, maxStr)
+			} else {
+				fmt.Fprintf(&b, "::loop %s -> %s %s", label, slide.Loop.Target, maxStr)
 			}
 			if slide.Loop.ExitTarget != "" {
 				fmt.Fprintf(&b, " next=%s", slide.Loop.ExitTarget)

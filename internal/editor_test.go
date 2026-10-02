@@ -2818,6 +2818,39 @@ title: Fallback Loop
 	if edFallback.SlideIdx != 2 {
 		t.Fatalf("expected fallback loop exit to slide 2, got %d", edFallback.SlideIdx)
 	}
+
+	// 11. Test Infinite Repeat Loop (repeat / max=0)
+	srcInf := `---
+title: Infinite Repeat Test
+---
+::id start
+# Beginning
+
+---
+::id loop-node
+# Infinite Cycle
+::loop [r] Endless Loop -> start repeat
+`
+	dInf := ParseDeck(srcInf)
+	edInf := NewEditor("test.deck.md")
+	edInf.SlideIdx = 1
+
+	p, maxP, hasL := edInf.CurrentLoopPass(1, &dInf)
+	if !hasL || maxP != 0 || p != 0 {
+		t.Fatalf("expected infinite loop with maxPasses=0, got p=%d, maxP=%d, hasL=%v", p, maxP, hasL)
+	}
+
+	// Iterate 6 times without exiting
+	for i := 1; i <= 6; i++ {
+		edInf.SlideIdx = 1
+		sendTestKey(&edInf, &dInf, " ")
+		if edInf.SlideIdx != 0 {
+			t.Fatalf("pass %d: expected loop jump to slide 0, got %d", i, edInf.SlideIdx)
+		}
+		if !strings.Contains(edInf.Message, "infinite repeat") {
+			t.Errorf("pass %d: expected message to contain 'infinite repeat', got %q", i, edInf.Message)
+		}
+	}
 }
 
 func TestEditorMultiPageHelpHub(t *testing.T) {

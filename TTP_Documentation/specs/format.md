@@ -260,23 +260,29 @@ Presenters can press `P` to view available routes in the Route Switcher Modal, s
 
 #### `::loop` & `::cycle`
 
-Bounded cycles and presentation iteration loops model computational processes, algorithmic iterations, engineering feedback loops, and state machines:
+Cycles and presentation iteration loops model computational processes, algorithmic iterations, engineering feedback loops, polling cycles, and state machines:
 
 ```markdown
+# Bounded iteration loop (exits to summary after 3 passes):
 ::loop [r] Red-Green-Refactor -> tdd-red max=3 next=summary
+
+# Infinite repeat loop (repeats indefinitely without exiting):
+::loop [p] Polling Cycle -> poll repeat
+::loop Event Loop -> event-node max=0
 ```
 
 **Attributes:**
 - `[key]` (optional): Custom keyboard shortcut (e.g. `[r]`, `[c]`, `[1]`) to trigger a loop pass directly.
-- `Label`: Human-readable description (e.g. `Red-Green-Refactor`, `Retry Backoff Cycle`).
+- `Label`: Human-readable description (e.g. `Red-Green-Refactor`, `Retry Backoff Cycle`, `Event Loop`).
 - `-> target` or `=> target`: Slide ID or slug to loop back to during active iteration passes.
-- `max=N` or `limit=N` or `passes=N` or `count=N`: Maximum number of iterations before automatically breaking out of the loop (default: 3).
-- `next=slug` or `exit=slug` or `break=slug`: Slide ID to transition to once all passes are completed.
+- `max=N` or `limit=N` or `passes=N` or `count=N`: Maximum number of iterations before breaking out (default: 3). Set `max=0`, `max=inf`, or pass `repeat` / `infinite` for an unbounded infinite repeat loop.
+- `repeat` or `infinite`: Flag indicating the loop should repeat indefinitely.
+- `next=slug` or `exit=slug` or `break=slug`: Slide ID to transition to once all passes are completed (for bounded loops).
 
 **Runtime Behavior:**
-- When on a slide with a loop directive, pressing standard advance keys (`Space`, `Enter`, `right`, `l`, `pgdown`) or the shortcut key executes an iteration pass while `pass < max`.
-- Real-time pass status is displayed in an in-slide card (`[pass 1/3] · 2 remaining ──► #target`) and in the navigation status bar.
-- Once `pass >= max`, the loop completes (`✔ LOOP COMPLETED`) and advancing automatically exits to the designated `next=` target (or linear next slide), preventing infinite graph loops.
+- When on a slide with a loop directive, pressing standard advance keys (`Space`, `Enter`, `right`, `l`, `pgdown`) or the shortcut key executes an iteration pass.
+- In bounded loops (`max > 0`), real-time pass status is displayed in an in-slide card (`[pass 1/3] · 2 remaining ──► #target`) and in the navigation status bar. Once `pass >= max`, the loop completes (`✔ LOOP COMPLETED`) and advancing exits to `next=`.
+- In infinite repeat loops (`repeat` or `max=0`), passes continue indefinitely (`[pass N (infinite repeat)] ──► #target`) with seamless repetition.
 - Pressing `g` (presentation restart) automatically resets all loop counters to 0.
 
 #### `::notes`

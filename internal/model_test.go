@@ -1251,6 +1251,50 @@ Write a failing test.
 	if reparsed.Slides[1].Loop == nil || reparsed.Slides[1].Loop.Target != "tdd-red" {
 		t.Errorf("failed round-trip of loop directive: %+v", reparsed.Slides[1].Loop)
 	}
+
+	// 7. Test infinite repeat loop parsing & serialization
+	infDirectives := []string{
+		"::loop [c] Polling -> poll repeat",
+		"::loop [c] Polling -> poll infinite",
+		"::loop [c] Polling -> poll max=0",
+		"::loop [c] Polling -> poll max=inf",
+		"::loop [c] Polling -> poll max=infinite",
+	}
+	for _, idir := range infDirectives {
+		lcfg, ok := parseLoopDirective(idir)
+		if !ok || lcfg == nil {
+			t.Fatalf("expected %q to parse successfully", idir)
+		}
+		if lcfg.MaxPasses != 0 {
+			t.Errorf("expected MaxPasses == 0 for %q, got %d", idir, lcfg.MaxPasses)
+		}
+		if lcfg.Target != "poll" {
+			t.Errorf("expected Target 'poll' for %q, got %s", idir, lcfg.Target)
+		}
+	}
+
+	infDeck := Deck{
+		Slides: []Slide{
+			{ID: "poll", Blocks: []Block{{Kind: BlockParagraph, Text: "Polling..."}}},
+			{
+				ID: "checker",
+				Loop: &LoopConfig{
+					Key:       "p",
+					Label:     "Infinite Poll",
+					Target:    "poll",
+					MaxPasses: 0,
+				},
+			},
+		},
+	}
+	infSerialized := SerializeDeck(infDeck)
+	if !strings.Contains(infSerialized, "::loop [p] Infinite Poll -> poll repeat") {
+		t.Errorf("expected serialized deck to contain 'repeat', got:\n%s", infSerialized)
+	}
+	infReparsed := ParseDeck(infSerialized)
+	if infReparsed.Slides[1].Loop == nil || infReparsed.Slides[1].Loop.MaxPasses != 0 {
+		t.Errorf("expected reparsed loop MaxPasses == 0, got: %+v", infReparsed.Slides[1].Loop)
+	}
 }
 
 func BenchmarkParseDeck(b *testing.B) {

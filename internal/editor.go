@@ -695,7 +695,7 @@ func (e *Editor) ExecutePaletteCommand(cmdID string, d *Deck) tea.Cmd {
 		}
 		if d != nil && e.SlideIdx >= 0 && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Loop != nil {
 			pass, maxPasses, _ := e.CurrentLoopPass(e.SlideIdx, d)
-			if pass < maxPasses {
+			if maxPasses == 0 || pass < maxPasses {
 				e.AdvanceLoop(e.SlideIdx, d)
 				return nil
 			}
@@ -1000,8 +1000,8 @@ func (e Editor) CurrentLoopPass(slideIdx int, d *Deck) (pass int, maxPasses int,
 		pass = e.LoopCounters[slideIdx]
 	}
 	maxPasses = s.Loop.MaxPasses
-	if maxPasses <= 0 {
-		maxPasses = 3
+	if maxPasses < 0 {
+		maxPasses = 0
 	}
 	return pass, maxPasses, true
 }
@@ -1029,11 +1029,11 @@ func (e *Editor) AdvanceLoop(slideIdx int, d *Deck) (tookLoop bool, targetIdx in
 	}
 	pass := e.LoopCounters[slideIdx]
 	maxPasses := s.Loop.MaxPasses
-	if maxPasses <= 0 {
-		maxPasses = 3
+	if maxPasses < 0 {
+		maxPasses = 0
 	}
 
-	if pass < maxPasses {
+	if maxPasses == 0 || pass < maxPasses {
 		e.LoopCounters[slideIdx] = pass + 1
 		tgtIdx := d.FindSlideByID(s.Loop.Target)
 		if tgtIdx >= 0 && tgtIdx < len(d.Slides) {
@@ -1041,7 +1041,11 @@ func (e *Editor) AdvanceLoop(slideIdx int, d *Deck) (tookLoop bool, targetIdx in
 			e.SlideIdx = tgtIdx
 			e.BlockIdx = 0
 			e.ClampBlockIdx(d)
-			e.Message = fmt.Sprintf("⟳ loop [%s]: pass %d/%d ──► %s", s.Loop.Label, pass+1, maxPasses, s.Loop.Target)
+			if maxPasses == 0 {
+				e.Message = fmt.Sprintf("⟳ loop [%s]: pass %d (infinite repeat) ──► %s", s.Loop.Label, pass+1, s.Loop.Target)
+			} else {
+				e.Message = fmt.Sprintf("⟳ loop [%s]: pass %d/%d ──► %s", s.Loop.Label, pass+1, maxPasses, s.Loop.Target)
+			}
 			return true, tgtIdx
 		}
 	}
@@ -2157,7 +2161,7 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		}
 		if d != nil && e.SlideIdx >= 0 && e.SlideIdx < len(d.Slides) && d.Slides[e.SlideIdx].Loop != nil {
 			pass, maxPasses, _ := e.CurrentLoopPass(e.SlideIdx, d)
-			if pass < maxPasses {
+			if maxPasses == 0 || pass < maxPasses {
 				e.AdvanceLoop(e.SlideIdx, d)
 				return nil
 			}
