@@ -318,7 +318,7 @@ Speaker notes are completely omitted from the audience canvas by default. The bl
 | `P` | Open Preset Graph Routes & Guided Paths modal (`0` clears, `1`-`9` activates) |
 | `K` | Open Audience Tracks & Subgraph Filtering modal (`0`-`9` quick select) |
 | `[`, `]` | Hop backward / forward along slides matching active audience track |
-| `M` | Open presentation graph map & DAG explorer modal |
+| `M` | Open presentation graph map & DAG explorer modal (`v`: cycle Tree/List/Topology modes, `/`: live search, `t`: cycle tracks, `y`: copy Mermaid, `d`: copy DOT, `w`: waypoint pathfinder) |
 | `X`, `Ctrl+X` | Run focused code block live in background & show output card |
 | `f`, `F` | Toggle Element Zoom & Focus Mode (full-viewport view with `j`/`k` scroll) |
 | `↓`, `j` | Move block cursor / laser pointer down (or scroll in Focus Mode) |

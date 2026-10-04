@@ -45,6 +45,7 @@ type Block struct {
 	BranchTarget string
 	NoEval       bool
 	Columns      [][]Block
+	Env          []string // environment variables for code execution
 }
 
 // --- Slide & Deck ---
@@ -820,7 +821,7 @@ func parseSlide(lines []string) Slide {
 				continue
 			} else if key == "tags" {
 				for _, t := range strings.Split(val, ",") {
-					if s := strings.TrimSpace(t); s != "" {
+					if s := strings.Trim(strings.TrimSpace(t), "[]"); s != "" {
 						tags = append(tags, s)
 					}
 				}

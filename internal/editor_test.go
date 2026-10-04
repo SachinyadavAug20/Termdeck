@@ -3215,3 +3215,157 @@ routes:
 	// Test invalid command doesn't crash
 	ed.ExecutePaletteCommand("invalid_nonexistent_command", &d)
 }
+
+func TestEditorGraphMapAdvancedFeatures(t *testing.T) {
+	src := `---
+title: Graph Map Test Deck
+---
+
+::id intro
+# Welcome Slide
+::tags [frontend]
+Intro content.
+
+---
+
+::id arch
+# Architecture
+::tags [backend]
+::branch [1] Storage -> storage
+::branch [2] Compute -> compute
+
+---
+
+::id storage
+# Storage Engine
+::tags [backend]
+::next conclusion
+
+---
+
+::id compute
+# Compute Cluster
+::tags [backend]
+::next conclusion
+
+---
+
+::id conclusion
+# Conclusion Slide
+Wrap-up.
+`
+	d := ParseDeck(src)
+	ed := NewEditor("")
+
+	// 1. Open Graph Map
+	sendTestKey(&ed, &d, "M")
+	if !ed.ShowGraphMap {
+		t.Fatalf("expected ShowGraphMap true")
+	}
+	if ed.GraphMapViewMode != 0 {
+		t.Fatalf("expected initial GraphMapViewMode 0 (Tree), got %d", ed.GraphMapViewMode)
+	}
+
+	// 2. Cycle View Modes ('v')
+	sendTestKey(&ed, &d, "v")
+	if ed.GraphMapViewMode != 1 {
+		t.Fatalf("expected GraphMapViewMode 1 (List), got %d", ed.GraphMapViewMode)
+	}
+	sendTestKey(&ed, &d, "v")
+	if ed.GraphMapViewMode != 2 {
+		t.Fatalf("expected GraphMapViewMode 2 (Topology), got %d", ed.GraphMapViewMode)
+	}
+	sendTestKey(&ed, &d, "v")
+	if ed.GraphMapViewMode != 0 {
+		t.Fatalf("expected GraphMapViewMode 0 (Tree) after wrap, got %d", ed.GraphMapViewMode)
+	}
+
+	// 3. Search filter mode ('/')
+	sendTestKey(&ed, &d, "/")
+	if !ed.GraphMapFiltering {
+		t.Fatalf("expected GraphMapFiltering true after '/'")
+	}
+	// Type "stor"
+	sendTestKey(&ed, &d, "s")
+	sendTestKey(&ed, &d, "t")
+	sendTestKey(&ed, &d, "o")
+	sendTestKey(&ed, &d, "r")
+	if ed.GraphMapFilter != "stor" {
+		t.Fatalf("expected GraphMapFilter 'stor', got %q", ed.GraphMapFilter)
+	}
+	// Test backspace
+	sendTestKey(&ed, &d, "backspace")
+	if ed.GraphMapFilter != "sto" {
+		t.Fatalf("expected GraphMapFilter 'sto', got %q", ed.GraphMapFilter)
+	}
+	// Confirm filter with Enter
+	sendTestKey(&ed, &d, "enter")
+	if ed.GraphMapFiltering {
+		t.Fatalf("expected GraphMapFiltering false after enter")
+	}
+	if ed.GraphMapFilter != "sto" {
+		t.Fatalf("expected GraphMapFilter 'sto' preserved, got %q", ed.GraphMapFilter)
+	}
+
+	// Filtered slide list should only have "storage" (slide 2)
+	filtered := ed.filterGraphSlides(&d)
+	if len(filtered) != 1 || filtered[0] != 2 {
+		t.Fatalf("expected filtered slides to be [2], got %v", filtered)
+	}
+
+	// Jump to filtered slide
+	sendTestKey(&ed, &d, "enter")
+	if ed.ShowGraphMap {
+		t.Fatalf("expected ShowGraphMap false after jump")
+	}
+	if ed.SlideIdx != 2 {
+		t.Fatalf("expected jumped to slide 2 (storage), got %d", ed.SlideIdx)
+	}
+
+	// 4. Reopen and clear filter ('c')
+	sendTestKey(&ed, &d, "M")
+	ed.GraphMapFilter = "compute"
+	sendTestKey(&ed, &d, "c")
+	if ed.GraphMapFilter != "" {
+		t.Fatalf("expected filter cleared with 'c', got %q", ed.GraphMapFilter)
+	}
+
+	// 5. Quick track cycling ('t')
+	sendTestKey(&ed, &d, "t")
+	if ed.ActiveTrack == "" {
+		t.Fatalf("expected active track selected after 't'")
+	}
+
+	// 6. Clipboard export shortcuts ('y' and 'd')
+	sendTestKey(&ed, &d, "y")
+	if !strings.Contains(ed.Message, "Mermaid") {
+		t.Fatalf("expected Mermaid copy confirmation message, got: %q", ed.Message)
+	}
+	sendTestKey(&ed, &d, "d")
+	if !strings.Contains(ed.Message, "Graphviz DOT") {
+		t.Fatalf("expected DOT copy confirmation message, got: %q", ed.Message)
+	}
+	sendTestKey(&ed, &d, "esc")
+
+	// 7. Palette commands export_mermaid and export_dot
+	ed.ExecutePaletteCommand("export_mermaid", &d)
+	if !strings.Contains(ed.Message, "Mermaid") {
+		t.Fatalf("expected Mermaid message from palette action, got: %q", ed.Message)
+	}
+	ed.ExecutePaletteCommand("export_dot", &d)
+	if !strings.Contains(ed.Message, "Graphviz DOT") {
+		t.Fatalf("expected DOT message from palette action, got: %q", ed.Message)
+	}
+
+	// 8. Launch Waypoint from Graph Map ('w')
+	sendTestKey(&ed, &d, "M")
+	ed.GraphMapCursor = 4 // Conclusion
+	sendTestKey(&ed, &d, "w")
+	if ed.ShowGraphMap {
+		t.Fatalf("expected ShowGraphMap false after 'w'")
+	}
+	if !ed.ShowWaypointModal {
+		t.Fatalf("expected ShowWaypointModal true after 'w'")
+	}
+}
+

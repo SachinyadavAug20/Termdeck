@@ -1,5 +1,28 @@
 # Changelog
 
+## v0.16 — 04 October 2026
+
+### Added
+- **Universal Graphviz DOT Export (`--dot` / `--graphviz`)**:
+  - Implemented `ToGraphvizDOT()` and `ToGraphvizDOTWithTrack(track)` generating standard Graphviz DOT digraph syntax with rounded box styling, semantic color-coded borders (green for entry roots, red for terminal sinks, cyan for active track slides), dashed loop arrows, and bold exit connectors.
+  - Added CLI flags `--dot` and `--graphviz` for piped diagram generation with Graphviz `dot`, OmniGraffle, PlantUML, and Obsidian pipelines.
+- **Topological Analysis & Metrics Engine (`TopologyMetrics` / `AnalyzeTopology`)**:
+  - Automatically calculates graph diameter and longest acyclic path sequence via Kahn's algorithm and dynamic programming to avoid cyclic traps.
+  - Computes root/entry slides, terminal sinks, decision forks, convergence joins, loop cycles, cyclomatic complexity ($M = E - V + 2P$), and average branching factor.
+  - Displays topology summary in CLI ASCII DAG graphs (`--graph`) and TUI Graph Map modal (`M`).
+- **Interactive TUI Graph Map Modal Overhaul (`M`)**:
+  - **3 View Modes (`v` to cycle)**:
+    - **Mode 0: Tree Flow View**: Visual ASCII connection tree rendering branches, forks, loops (`⟳ [key]`), and exits (`exit ──►`).
+    - **Mode 1: Detailed List View**: In/out degrees, tags, and real-time shortest BFS path preview from current slide (`N hops from current`).
+    - **Mode 2: Topology Metrics Dashboard**: Full-screen telemetry dashboard visualizing nodes, edges, roots, sinks, forks, joins, longest path sequence, cyclomatic complexity rating, and audience tracks breakdown.
+  - **Real-Time Interactive Search Filtering (`/`)**: Type search queries with live character buffering, backspace deletion, and instant list pruning across titles, tags, and slide numbers (`c` to clear).
+  - **Audience Track Quick Cycling (`t` / `Tab`)**: Cycle through all audience tracks directly within the graph modal.
+  - **Instant Clipboard Export Shortcuts**: Press `y` to copy the presentation Mermaid diagram or `d` to copy the Graphviz DOT digraph directly to the system clipboard via ANSI OSC 52 / host clipboard utilities.
+  - **Direct Waypoint Pathfinder Launch (`w`)**: Launch the Waypoint BFS pathfinder for the selected destination slide directly from the Graph Map.
+- **Loop Edge Distinction & Exit Reachability (`EdgeLoop` / `EdgeLoopExit`)**:
+  - Distinguishes loop iteration edges (`EdgeLoop`) and loop exit transitions (`EdgeLoopExit`) in `BuildGraph`, resolving reachability so slides following an iteration loop are properly linked and reachable without false-positive orphan warnings.
+  - Added loop exit target validation and duplicate branch shortcut key detection to DAG linter (`LintGraph`).
+
 ## v0.15 — 28 September 2026
 
 ### Added
@@ -315,3 +338,17 @@
 - Save to `.deck.md`
 - Block reordering (Ctrl+K/J)
 - Slide add/delete
+
+## v0.15.1 — 03 October 2026
+
+### Added
+- **Configuration File Support** (`deck --config`):
+  - Load presentation settings from `~/.termdeck/config.toml` or `./termdeck.toml`/`.yml`.
+  - INI-style `key: value` format supporting theme, autoplay delay, tracks, routes, and more.
+  - Environment variables (`TERMDECK_THEME`, `TERMDECK_AUTOPLAY`, etc.) override config file values.
+  - `--config <path>` CLI flag to specify custom config file location.
+- **Expanded Language Support** in Live Code Runner:
+  - Added 13 new executable languages: rust, java, scala, kotlin, c, c++, csharp, php, perl, r, lua, matlab.
+  - Code blocks can now specify `Env` field for execution environment variables.
+- **Configuration Section in Core Highlights**:
+  - Documentation updated to describe config file usage and environment variable overrides.

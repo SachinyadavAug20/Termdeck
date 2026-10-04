@@ -1807,27 +1807,52 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		return ""
 	}
 
-	modalW := w - 6
-	if modalW > 84 {
-		modalW = 84
+	modalW := w - 4
+	if modalW > 92 {
+		modalW = 92
 	}
-	if modalW < 40 {
-		modalW = 40
+	if modalW < 44 {
+		modalW = 44
 	}
+
+	filtered := e.filterGraphSlides(&d)
+	totalFiltered := len(filtered)
 
 	cursor := e.GraphMapCursor
 	if cursor < 0 {
 		cursor = 0
 	}
-	if cursor >= totalSlides {
-		cursor = totalSlides - 1
+	if totalFiltered > 0 && cursor >= totalFiltered {
+		cursor = totalFiltered - 1
 	}
 
 	g := BuildGraph(d)
 
 	var sb strings.Builder
+
+	// Header: Title & View Mode Tabs
 	title := currentTheme.HelpTitleStyle.Render("🗺  Presentation Topology Map (DAG)")
-	sb.WriteString(title + "\n")
+
+	activeTabStyle := lipgloss.NewStyle().Bold(true).Foreground(lipgloss.Color("#ffffff")).Background(lipgloss.Color(currentTheme.Accent)).Padding(0, 1)
+	tabTree := "[1: Tree Flow]"
+	tabList := "[2: Detailed List]"
+	tabTopo := "[3: Topology Metrics]"
+	switch e.GraphMapViewMode {
+	case 0:
+		tabTree = activeTabStyle.Render(tabTree)
+		tabList = dimStyle.Render(tabList)
+		tabTopo = dimStyle.Render(tabTopo)
+	case 1:
+		tabTree = dimStyle.Render(tabTree)
+		tabList = activeTabStyle.Render(tabList)
+		tabTopo = dimStyle.Render(tabTopo)
+	case 2:
+		tabTree = dimStyle.Render(tabTree)
+		tabList = dimStyle.Render(tabList)
+		tabTopo = activeTabStyle.Render(tabTopo)
+	}
+
+	sb.WriteString(title + "   " + fmt.Sprintf("%s  %s  %s\n", tabTree, tabList, tabTopo))
 
 	// Traversal breadcrumbs
 	if len(e.History) > 0 {
@@ -1838,125 +1863,360 @@ func renderGraphModal(d Deck, e Editor, w, h int) string {
 		pathParts = append(pathParts, fmt.Sprintf("[%02d]", e.SlideIdx+1))
 		pathStr := strings.Join(pathParts, " ──► ")
 		sb.WriteString(dimBoldStyle.Render("Path: ") + currentTheme.TableCellStyle.Render(pathStr) + "\n")
-	} else if e.SlideIdx < totalSlides {
-		sb.WriteString(dimStyle.Render(fmt.Sprintf("%d slides · active: [%02d] %s", totalSlides, e.SlideIdx+1, d.Slides[e.SlideIdx].Title())) + "\n")
 	}
+
+	// Search / Filter Status Line
+	if e.GraphMapFiltering {
+		sb.WriteString(currentTheme.HelpKeyStyle.Render("Search:") + " " + currentTheme.TableCellStyle.Render(e.GraphMapFilter) + currentTheme.LaserPointerStyle.Render("█") + dimStyle.Render(" (press Enter or Esc to confirm)") + "\n")
+	} else if e.GraphMapFilter != "" {
+		sb.WriteString(dimBoldStyle.Render("Filter:") + " " + currentTheme.TableCellStyle.Render(fmt.Sprintf("%q", e.GraphMapFilter)) + " " + dimStyle.Render(fmt.Sprintf("(%d/%d matches · 'c': clear · '/': edit)", totalFiltered, totalSlides)) + "\n")
+	}
+
+	// Context Metadata
 	if e.ActiveTrack != "" {
 		matching := len(d.SlideIndicesForTag(e.ActiveTrack))
-		sb.WriteString(currentTheme.TableHeaderStyle.Render(fmt.Sprintf("★ Track: %s (%d/%d slides tagged)", e.ActiveTrack, matching, totalSlides)) + "\n")
+		sb.WriteString(currentTheme.TableHeaderStyle.Render(fmt.Sprintf("★ Track: %s (%d/%d slides tagged)", e.ActiveTrack, matching, totalSlides)) + "  ")
 	}
 	if e.ActiveRoute != "" {
 		indices := d.RouteSlideIndices(e.ActiveRoute)
-		sb.WriteString(currentTheme.ProgressLineFilledStyle.Render(fmt.Sprintf("⚡ Route: %s (step %d/%d)", e.ActiveRoute, e.RouteStep+1, len(indices))) + "\n")
+		sb.WriteString(currentTheme.ProgressLineFilledStyle.Render(fmt.Sprintf("⚡ Route: %s (step %d/%d)", e.ActiveRoute, e.RouteStep+1, len(indices))))
 	}
-	sb.WriteString("\n")
-
-	// Vertical scrolling calculation
-	maxRows := (h - 10) / 2
-	if maxRows < 3 {
-		maxRows = 3
-	}
-	if maxRows > 12 {
-		maxRows = 12
+	if e.ActiveTrack != "" || e.ActiveRoute != "" {
+		sb.WriteString("\n")
 	}
 
-	start := 0
-	if cursor >= maxRows {
-		start = cursor - maxRows + 1
-	}
-	end := start + maxRows
-	if end > totalSlides {
-		end = totalSlides
-	}
+	if e.GraphMapViewMode == 2 {
+		// MODE 2: TOPOLOGY METRICS DASHBOARD
+		topo := g.AnalyzeTopology()
 
-	if start > 0 {
-		sb.WriteString(dimStyle.Render("  ▲  more slides above") + "\n")
-	}
+		sb.WriteString("\n")
+		sb.WriteString(currentTheme.TableHeaderStyle.Render("📊 Structural Telemetry & Complexity") + "\n")
+		sb.WriteString(dimStyle.Render(strings.Repeat("─", modalW-8)) + "\n")
 
-	for i := start; i < end; i++ {
-		node := g.Nodes[i]
-		isCursor := i == cursor
-		isActive := i == e.SlideIdx
-		isTrackNode := e.ActiveTrack != "" && d.Slides[i].HasTag(e.ActiveTrack)
-		routeStep := -1
-		if e.ActiveRoute != "" {
-			for sIdx, rIdx := range d.RouteSlideIndices(e.ActiveRoute) {
-				if rIdx == i {
-					routeStep = sIdx + 1
-					break
-				}
+		// Overview stats
+		sb.WriteString(fmt.Sprintf("  • Total Slides:       %s   Total Edges: %s\n",
+			currentTheme.HelpKeyStyle.Render(fmt.Sprintf("%d", topo.TotalNodes)),
+			currentTheme.TableCellStyle.Render(fmt.Sprintf("%d (%d linear, %d branch, %d loop, %d exit, %d next)",
+				topo.TotalEdges, topo.LinearEdges, topo.BranchEdges, topo.LoopEdges, topo.LoopExitEdges, topo.NextEdges))))
+
+		// Branching & cyclomatic complexity
+		complexityRating := "Linear (sequential)"
+		if topo.CyclomaticComplexity > 8 {
+			complexityRating = "High non-linearity (rich graph)"
+		} else if topo.CyclomaticComplexity > 4 {
+			complexityRating = "Moderate branching (multi-path)"
+		} else if topo.CyclomaticComplexity > 1 {
+			complexityRating = "Low branching"
+		}
+
+		sb.WriteString(fmt.Sprintf("  • Cyclomatic M:       %s %s\n",
+			currentTheme.HelpKeyStyle.Render(fmt.Sprintf("M=%d", topo.CyclomaticComplexity)),
+			dimStyle.Render("("+complexityRating+")")))
+
+		sb.WriteString(fmt.Sprintf("  • Branching Factor:   %s\n\n",
+			currentTheme.TableCellStyle.Render(fmt.Sprintf("%.2f transitions / slide", topo.BranchingFactor))))
+
+		sb.WriteString(currentTheme.TableHeaderStyle.Render("🌿 Decision Points, Joins & Terminal Sinks") + "\n")
+		sb.WriteString(dimStyle.Render(strings.Repeat("─", modalW-8)) + "\n")
+
+		// Roots & Sinks
+		var rootStr []string
+		for _, r := range topo.RootNodes {
+			if r < totalSlides {
+				rootStr = append(rootStr, fmt.Sprintf("[%02d: %s]", r+1, d.Slides[r].Title()))
 			}
 		}
+		if len(rootStr) == 0 {
+			rootStr = append(rootStr, "[01]")
+		}
+		sb.WriteString(fmt.Sprintf("  • Entry / Roots:      %s\n", currentTheme.TableCellStyle.Render(strings.Join(rootStr, ", "))))
 
-		pointer := "  "
-		if isCursor {
-			pointer = currentTheme.LaserPointerStyle.Render("▶ ")
+		var sinkStr []string
+		for _, s := range topo.SinkNodes {
+			if s < totalSlides {
+				sinkStr = append(sinkStr, fmt.Sprintf("[%02d: %s]", s+1, d.Slides[s].Title()))
+			}
+		}
+		if len(sinkStr) == 0 {
+			sinkStr = append(sinkStr, "none")
+		}
+		sb.WriteString(fmt.Sprintf("  • Sinks / Terminals:  %s\n", currentTheme.TableCellStyle.Render(strings.Join(sinkStr, ", "))))
+
+		// Forks & Joins
+		var forkStr []string
+		for _, f := range topo.ForkNodes {
+			if f < totalSlides {
+				forkStr = append(forkStr, fmt.Sprintf("[%02d]", f+1))
+			}
+		}
+		sb.WriteString(fmt.Sprintf("  • Decision Forks:     %s\n",
+			currentTheme.TableCellStyle.Render(fmt.Sprintf("%d fork%s %s", len(topo.ForkNodes), plural(len(topo.ForkNodes)), strings.Join(forkStr, ", ")))))
+
+		var joinStr []string
+		for _, j := range topo.JoinNodes {
+			if j < totalSlides {
+				joinStr = append(joinStr, fmt.Sprintf("[%02d]", j+1))
+			}
+		}
+		sb.WriteString(fmt.Sprintf("  • Convergence Joins: %s\n\n",
+			currentTheme.TableCellStyle.Render(fmt.Sprintf("%d join%s %s", len(topo.JoinNodes), plural(len(topo.JoinNodes)), strings.Join(joinStr, ", ")))))
+
+		// Longest path
+		sb.WriteString(currentTheme.TableHeaderStyle.Render("📏 Presentation Diameter (Longest Acyclic Path)") + "\n")
+		sb.WriteString(dimStyle.Render(strings.Repeat("─", modalW-8)) + "\n")
+		sb.WriteString(fmt.Sprintf("  • Maximum Depth:      %s\n",
+			currentTheme.HelpKeyStyle.Render(fmt.Sprintf("%d hops (%d slides)", topo.MaxDepth, len(topo.LongestPath)))))
+
+		if len(topo.LongestPath) > 0 {
+			var pathVisual []string
+			for _, pIdx := range topo.LongestPath {
+				if pIdx < totalSlides {
+					slug := d.Slides[pIdx].ID
+					if slug == "" {
+						slug = d.Slides[pIdx].Slug()
+					}
+					if len(slug) > 10 {
+						slug = slug[:10]
+					}
+					pathVisual = append(pathVisual, fmt.Sprintf("[%02d:%s]", pIdx+1, slug))
+				}
+			}
+			maxShow := 6
+			if len(pathVisual) > maxShow {
+				pathVisual = append(pathVisual[:maxShow-1], fmt.Sprintf("... (+%d more)", len(pathVisual)-maxShow+1))
+			}
+			sb.WriteString(fmt.Sprintf("  • Sequence:           %s\n",
+				currentTheme.TableCellStyle.Render(strings.Join(pathVisual, " ──► "))))
+		}
+	} else if e.GraphMapViewMode == 1 {
+		// MODE 1: DETAILED LIST VIEW
+		maxRows := (h - 10) / 2
+		if maxRows < 3 {
+			maxRows = 3
+		}
+		if maxRows > 12 {
+			maxRows = 12
 		}
 
-		numBadge := fmt.Sprintf("[%02d]", i+1)
-		if isActive {
-			numBadge += " " + currentTheme.ProgressLineFilledStyle.Render("●")
+		start := 0
+		if cursor >= maxRows {
+			start = cursor - maxRows + 1
 		}
-		if isTrackNode {
-			numBadge += " " + currentTheme.TableHeaderStyle.Render("★")
-		}
-		if routeStep > 0 {
-			numBadge += " " + currentTheme.ProgressLineFilledStyle.Render(fmt.Sprintf("#%d", routeStep))
+		end := start + maxRows
+		if end > totalFiltered {
+			end = totalFiltered
 		}
 
-		t := node.Title
-		maxTLen := modalW - 24
-		if maxTLen < 12 {
-			maxTLen = 12
-		}
-		if len(t) > maxTLen {
-			t = t[:maxTLen-3] + "..."
-		}
-
-		var line string
-		if isCursor {
-			line = pointer + currentTheme.HelpKeyStyle.Render(numBadge) + " " + currentTheme.H1Style.Render(t)
-		} else if isTrackNode {
-			line = pointer + currentTheme.TableHeaderStyle.Render(numBadge) + " " + currentTheme.TableHeaderStyle.Render(t)
+		if totalFiltered == 0 {
+			sb.WriteString("\n  " + dimStyle.Render("No slides match filter. Press 'c' to clear filter or '/' to search.") + "\n\n")
 		} else {
-			line = pointer + dimBoldStyle.Render(numBadge) + " " + currentTheme.TableCellStyle.Render(t)
+			if start > 0 {
+				sb.WriteString(dimStyle.Render("  ▲  more slides above") + "\n")
+			}
+
+			for fIdx := start; fIdx < end; fIdx++ {
+				i := filtered[fIdx]
+				node := g.Nodes[i]
+				isCursor := fIdx == cursor
+				isActive := i == e.SlideIdx
+				isTrackNode := e.ActiveTrack != "" && d.Slides[i].HasTag(e.ActiveTrack)
+
+				pointer := "  "
+				if isCursor {
+					pointer = currentTheme.LaserPointerStyle.Render("▶ ")
+				}
+
+				numBadge := fmt.Sprintf("[%02d]", i+1)
+				if isActive {
+					numBadge += " " + currentTheme.ProgressLineFilledStyle.Render("●")
+				}
+				if isTrackNode {
+					numBadge += " " + currentTheme.TableHeaderStyle.Render("★")
+				}
+
+				t := node.Title
+				maxTLen := modalW - 32
+				if maxTLen < 12 {
+					maxTLen = 12
+				}
+				if len(t) > maxTLen {
+					t = t[:maxTLen-3] + "..."
+				}
+
+				var line string
+				if isCursor {
+					line = pointer + currentTheme.HelpKeyStyle.Render(numBadge) + " " + currentTheme.H1Style.Render(t)
+				} else if isTrackNode {
+					line = pointer + currentTheme.TableHeaderStyle.Render(numBadge) + " " + currentTheme.TableHeaderStyle.Render(t)
+				} else {
+					line = pointer + dimBoldStyle.Render(numBadge) + " " + currentTheme.TableCellStyle.Render(t)
+				}
+				if node.ID != "" {
+					line += " " + currentTheme.HelpDescStyle.Render("#"+node.ID)
+				}
+				sb.WriteString(line + "\n")
+
+				// Telemetry: in/out edges and distance from active slide
+				var detailParts []string
+				detailParts = append(detailParts, fmt.Sprintf("in: %d · out: %d", len(node.InEdges), len(node.OutEdges)))
+
+				if i == e.SlideIdx {
+					detailParts = append(detailParts, currentTheme.ProgressLineFilledStyle.Render("(current slide)"))
+				} else {
+					path := g.ShortestPath(e.SlideIdx, i)
+					if len(path) > 1 {
+						detailParts = append(detailParts, currentTheme.TableHeaderStyle.Render(fmt.Sprintf("%d hops from current", len(path)-1)))
+					} else {
+						detailParts = append(detailParts, dimStyle.Render("unreachable from current"))
+					}
+				}
+				if len(node.Tags) > 0 {
+					detailParts = append(detailParts, dimStyle.Render("["+strings.Join(node.Tags, ",")+"]"))
+				}
+				sb.WriteString("       " + strings.Join(detailParts, "  ·  ") + "\n")
+			}
+
+			if end < totalFiltered {
+				sb.WriteString(dimStyle.Render("  ▼  more slides below") + "\n")
+			}
+		}
+	} else {
+		// MODE 0: TREE / FLOW VIEW
+		maxRows := (h - 10) / 2
+		if maxRows < 3 {
+			maxRows = 3
+		}
+		if maxRows > 12 {
+			maxRows = 12
 		}
 
-		if node.ID != "" {
-			line += " " + currentTheme.HelpDescStyle.Render("#"+node.ID)
+		start := 0
+		if cursor >= maxRows {
+			start = cursor - maxRows + 1
 		}
-		sb.WriteString(line + "\n")
+		end := start + maxRows
+		if end > totalFiltered {
+			end = totalFiltered
+		}
 
-		// Render edges / branches for this node
-		if len(node.OutEdges) > 0 {
-			var edgeStrs []string
-			for _, edge := range node.OutEdges {
-				switch edge.Kind {
-				case EdgeBranch:
-					targetName := edge.TargetID
-					if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
-						targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+		if totalFiltered == 0 {
+			sb.WriteString("\n  " + dimStyle.Render("No slides match filter. Press 'c' to clear filter or '/' to search.") + "\n\n")
+		} else {
+			if start > 0 {
+				sb.WriteString(dimStyle.Render("  ▲  more slides above") + "\n")
+			}
+
+			for fIdx := start; fIdx < end; fIdx++ {
+				i := filtered[fIdx]
+				node := g.Nodes[i]
+				isCursor := fIdx == cursor
+				isActive := i == e.SlideIdx
+				isTrackNode := e.ActiveTrack != "" && d.Slides[i].HasTag(e.ActiveTrack)
+				routeStep := -1
+				if e.ActiveRoute != "" {
+					for sIdx, rIdx := range d.RouteSlideIndices(e.ActiveRoute) {
+						if rIdx == i {
+							routeStep = sIdx + 1
+							break
+						}
 					}
-					edgeStrs = append(edgeStrs, fmt.Sprintf("[%s] ──► %s", edge.Key, targetName))
-				case EdgeNext:
-					targetName := edge.TargetID
-					if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
-						targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+				}
+
+				pointer := "  "
+				if isCursor {
+					pointer = currentTheme.LaserPointerStyle.Render("▶ ")
+				}
+
+				numBadge := fmt.Sprintf("[%02d]", i+1)
+				if isActive {
+					numBadge += " " + currentTheme.ProgressLineFilledStyle.Render("●")
+				}
+				if isTrackNode {
+					numBadge += " " + currentTheme.TableHeaderStyle.Render("★")
+				}
+				if routeStep > 0 {
+					numBadge += " " + currentTheme.ProgressLineFilledStyle.Render(fmt.Sprintf("#%d", routeStep))
+				}
+
+				t := node.Title
+				maxTLen := modalW - 24
+				if maxTLen < 12 {
+					maxTLen = 12
+				}
+				if len(t) > maxTLen {
+					t = t[:maxTLen-3] + "..."
+				}
+
+				var line string
+				if isCursor {
+					line = pointer + currentTheme.HelpKeyStyle.Render(numBadge) + " " + currentTheme.H1Style.Render(t)
+				} else if isTrackNode {
+					line = pointer + currentTheme.TableHeaderStyle.Render(numBadge) + " " + currentTheme.TableHeaderStyle.Render(t)
+				} else {
+					line = pointer + dimBoldStyle.Render(numBadge) + " " + currentTheme.TableCellStyle.Render(t)
+				}
+
+				if node.ID != "" {
+					line += " " + currentTheme.HelpDescStyle.Render("#"+node.ID)
+				}
+				sb.WriteString(line + "\n")
+
+				// Render edges / branches for this node
+				if len(node.OutEdges) > 0 {
+					var edgeStrs []string
+					for _, edge := range node.OutEdges {
+						switch edge.Kind {
+						case EdgeLinear:
+							targetName := "end"
+							if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+								targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+							}
+							edgeStrs = append(edgeStrs, fmt.Sprintf("──► %s", targetName))
+						case EdgeBranch:
+							targetName := edge.TargetID
+							if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+								targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+							}
+							edgeStrs = append(edgeStrs, fmt.Sprintf("[%s] ──► %s", edge.Key, targetName))
+						case EdgeLoop:
+							targetName := edge.TargetID
+							if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+								targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+							}
+							keyStr := ""
+							if edge.Key != "" {
+								keyStr = fmt.Sprintf("[%s] ", edge.Key)
+							}
+							edgeStrs = append(edgeStrs, fmt.Sprintf("⟳ %s──► %s", keyStr, targetName))
+						case EdgeLoopExit:
+							targetName := edge.TargetID
+							if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+								targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+							}
+							edgeStrs = append(edgeStrs, fmt.Sprintf("exit ──► %s", targetName))
+						case EdgeNext:
+							targetName := edge.TargetID
+							if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+								targetName = fmt.Sprintf("[%02d]", edge.ToIndex+1)
+							}
+							edgeStrs = append(edgeStrs, fmt.Sprintf("next ──► %s", targetName))
+						}
 					}
-					edgeStrs = append(edgeStrs, fmt.Sprintf("next ──► %s", targetName))
+					if len(edgeStrs) > 0 {
+						sb.WriteString("       " + dimStyle.Render(strings.Join(edgeStrs, "  ·  ")) + "\n")
+					}
+				} else if i+1 == totalSlides {
+					sb.WriteString("       " + dimStyle.Render("└──► (terminal slide)") + "\n")
 				}
 			}
-			if len(edgeStrs) > 0 {
-				sb.WriteString("       " + dimStyle.Render(strings.Join(edgeStrs, "  ·  ")) + "\n")
+
+			if end < totalFiltered {
+				sb.WriteString(dimStyle.Render("  ▼  more slides below") + "\n")
 			}
 		}
 	}
 
-	if end < totalSlides {
-		sb.WriteString(dimStyle.Render("  ▼  more slides below") + "\n")
-	}
-
-	sb.WriteString("\n" + dimStyle.Render("▲/▼ or j/k: select  ·  Enter: jump to slide  ·  P: routes  ·  K: track  ·  M or Esc: close"))
+	sb.WriteString("\n" + dimStyle.Render("v: mode  ·  /: search  ·  t: track  ·  y: copy Mermaid  ·  d: copy DOT  ·  w: waypoint  ·  Enter: jump  ·  Esc: close"))
 
 	card := currentTheme.HelpBoxStyle.Width(modalW).Render(sb.String())
 	return lipgloss.Place(w, h, lipgloss.Center, lipgloss.Center, card)

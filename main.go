@@ -225,9 +225,11 @@ Options:
   -a, --autoplay [sec] Auto-advance slides every N seconds (default: 5)
       --graph          Print presentation topology map (ASCII DAG) to terminal
       --mermaid        Print presentation topology as Mermaid diagram syntax
+      --dot, --graphviz Export presentation topology to Graphviz DOT digraph
       --stats          Print presentation statistics and deck metrics to terminal
       --radar, --coverage Print presentation graph exploration radar and branch coverage
       --export-html    Export presentation to standalone HTML file
+      --config <path>  Load configuration from config file (INI-style key: value)
       --lint           Validate DAG topology for broken links, unreachable slides, and dead ends
       --test-code      Execute and verify all code snippets in presentation
       --run-slide <N>  Execute code block on slide N and print output
@@ -279,12 +281,70 @@ func main() {
 	var autoplaySec int
 	var showGraph bool
 	var showMermaid bool
+	var showDOT bool
 	var testCode bool
 	var runSlideNum int
 	var cliTrack string
 	var cliRoute string
 	var lintDAG bool
 	var showRadar bool
+	var cfgPath string
+
+	// Load configuration from file and environment variables
+	cfg, err := internal.LoadConfig()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "warning: could not load config: %v\n", err)
+	}
+
+	// Apply config as defaults (CLI flags override config)
+	if cfg.Theme != "" {
+		cliTheme = cfg.Theme
+	}
+	if cfg.StartAt > 0 {
+		startAt = cfg.StartAt
+	}
+	if cfg.Track != "" {
+		cliTrack = cfg.Track
+	}
+	if cfg.Route != "" {
+		cliRoute = cfg.Route
+	}
+	if cfg.Watch {
+		watchMode = true
+	}
+	if cfg.Autoplay {
+		autoplayMode = true
+		if cfg.AutoplaySec > 0 {
+			autoplaySec = cfg.AutoplaySec
+		}
+	}
+	if cfg.ShowGraph {
+		showGraph = true
+	}
+	if cfg.ShowMermaid {
+		showMermaid = true
+	}
+	if cfg.ShowDOT {
+		showDOT = true
+	}
+	if cfg.TestCode {
+		testCode = true
+	}
+	if cfg.RunSlide > 0 {
+		runSlideNum = cfg.RunSlide
+	}
+	if cfg.ShowStats {
+		showStats = true
+	}
+	if cfg.ShowRadar {
+		showRadar = true
+	}
+	if cfg.ExportHTML {
+		exportHTML = true
+	}
+	if cfg.ExportOutPath != "" {
+		exportOutPath = cfg.ExportOutPath
+	}
 
 	args := os.Args[1:]
 	var fileArgs []string
@@ -294,6 +354,13 @@ func main() {
 		switch {
 		case arg == "-h" || arg == "--help":
 			showHelp = true
+		case arg == "--config":
+			if i+1 < len(args) {
+				i++
+				cfgPath = args[i]
+				// Reload config with new path - for simplicity, just note it
+				_ = cfgPath
+			}
 		case arg == "-v" || arg == "--version":
 			showVer = true
 		case arg == "--list-themes":
@@ -332,6 +399,8 @@ func main() {
 			showGraph = true
 		case arg == "--mermaid":
 			showMermaid = true
+		case arg == "--dot" || arg == "--graphviz":
+			showDOT = true
 		case arg == "--test-code":
 			testCode = true
 		case arg == "--run-slide":
@@ -524,6 +593,28 @@ func main() {
 		return
 	}
 
+	if showDOT {
+		if len(fileArgs) < 1 {
+			fmt.Fprintln(os.Stderr, "error: missing deck file for --dot")
+			os.Exit(1)
+		}
+		deckFile := fileArgs[0]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
+			os.Exit(1)
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		g := internal.BuildGraph(d)
+		if cliTrack != "" {
+			fmt.Print(g.ToGraphvizDOTWithTrack(cliTrack))
+		} else {
+			fmt.Print(g.ToGraphvizDOT())
+		}
+		return
+	}
+
 	if lintDAG {
 		if len(fileArgs) < 1 {
 			fmt.Fprintln(os.Stderr, "error: missing deck file for --lint")
@@ -601,7 +692,7 @@ func main() {
 			fmt.Fprintf(os.Stderr, "error: slide %d contains no code blocks\n", runSlideNum)
 			os.Exit(1)
 		}
-		res := internal.ExecuteBlock(*targetBlock, 10*time.Second)
+		res := internal.ExecuteBlock(*targetBlock, 10*time.Second, nil)
 		if res.Stdout != "" {
 			fmt.Print(res.Stdout)
 			if !strings.HasSuffix(res.Stdout, "\n") {

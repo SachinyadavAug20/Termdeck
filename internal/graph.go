@@ -15,6 +15,8 @@ const (
 	EdgeBranch
 	EdgeNext
 	EdgePrev
+	EdgeLoop
+	EdgeLoopExit
 )
 
 type GraphEdge struct {
@@ -54,7 +56,7 @@ func BuildGraph(d Deck) DeckGraph {
 			Slug:    s.Slug(),
 			Title:   s.Title(),
 			Tags:    s.Tags,
-			HasFork: len(s.Branches()) > 0,
+			HasFork: len(s.Branches()) > 1 || (len(s.Branches()) == 1 && s.Loop == nil),
 		}
 	}
 
@@ -63,10 +65,14 @@ func BuildGraph(d Deck) DeckGraph {
 		if len(branches) > 0 {
 			for _, b := range branches {
 				targetIdx := d.FindSlideByID(b.Target)
+				edgeKind := EdgeBranch
+				if s.Loop != nil && s.Loop.Target == b.Target {
+					edgeKind = EdgeLoop
+				}
 				edge := GraphEdge{
 					FromIndex: i,
 					ToIndex:   targetIdx,
-					Kind:      EdgeBranch,
+					Kind:      edgeKind,
 					Key:       b.Key,
 					Label:     b.Label,
 					TargetID:  b.Target,
@@ -76,6 +82,36 @@ func BuildGraph(d Deck) DeckGraph {
 				if targetIdx >= 0 && targetIdx < len(g.Nodes) {
 					g.Nodes[targetIdx].InEdges = append(g.Nodes[targetIdx].InEdges, edge)
 				}
+			}
+		}
+
+		// Loop exit transition to ensure forward reachability in DAG
+		if s.Loop != nil {
+			exitTargetID := s.Loop.ExitTarget
+			if exitTargetID != "" {
+				targetIdx := d.FindSlideByID(exitTargetID)
+				edge := GraphEdge{
+					FromIndex: i,
+					ToIndex:   targetIdx,
+					Kind:      EdgeLoopExit,
+					Label:     "exit",
+					TargetID:  exitTargetID,
+				}
+				g.Edges = append(g.Edges, edge)
+				g.Nodes[i].OutEdges = append(g.Nodes[i].OutEdges, edge)
+				if targetIdx >= 0 && targetIdx < len(g.Nodes) {
+					g.Nodes[targetIdx].InEdges = append(g.Nodes[targetIdx].InEdges, edge)
+				}
+			} else if s.NextID == "" && i+1 < len(d.Slides) {
+				edge := GraphEdge{
+					FromIndex: i,
+					ToIndex:   i + 1,
+					Kind:      EdgeLoopExit,
+					Label:     "exit",
+				}
+				g.Edges = append(g.Edges, edge)
+				g.Nodes[i].OutEdges = append(g.Nodes[i].OutEdges, edge)
+				g.Nodes[i+1].InEdges = append(g.Nodes[i+1].InEdges, edge)
 			}
 		}
 
@@ -92,7 +128,7 @@ func BuildGraph(d Deck) DeckGraph {
 			if targetIdx >= 0 && targetIdx < len(g.Nodes) {
 				g.Nodes[targetIdx].InEdges = append(g.Nodes[targetIdx].InEdges, edge)
 			}
-		} else if len(branches) == 0 && i+1 < len(d.Slides) {
+		} else if s.Loop == nil && len(branches) == 0 && i+1 < len(d.Slides) {
 			edge := GraphEdge{
 				FromIndex: i,
 				ToIndex:   i + 1,
@@ -184,6 +220,19 @@ func (g DeckGraph) ToMermaidWithTrack(track string) string {
 			}
 			label = strings.ReplaceAll(label, "\"", "'")
 			fmt.Fprintf(&b, "  node%d -- \"%s\" --> node%d\n", e.FromIndex, label, e.ToIndex)
+		case EdgeLoop:
+			label := e.Label
+			if e.Key != "" {
+				label = fmt.Sprintf("[%s] %s", e.Key, label)
+			}
+			label = strings.ReplaceAll(label, "\"", "'")
+			fmt.Fprintf(&b, "  node%d -. \"⟳ %s\" .-> node%d\n", e.FromIndex, label, e.ToIndex)
+		case EdgeLoopExit:
+			label := e.Label
+			if label == "" {
+				label = "exit"
+			}
+			fmt.Fprintf(&b, "  node%d ==> \"%s\" ==> node%d\n", e.FromIndex, label, e.ToIndex)
 		case EdgeNext:
 			fmt.Fprintf(&b, "  node%d -. \"next\" .-> node%d\n", e.FromIndex, e.ToIndex)
 		case EdgePrev:
@@ -242,6 +291,19 @@ func (g DeckGraph) ToMermaidWithRoute(routeName string, d Deck) string {
 			}
 			label = strings.ReplaceAll(label, "\"", "'")
 			fmt.Fprintf(&b, "  node%d -- \"%s\" --> node%d\n", e.FromIndex, label, e.ToIndex)
+		case EdgeLoop:
+			label := e.Label
+			if e.Key != "" {
+				label = fmt.Sprintf("[%s] %s", e.Key, label)
+			}
+			label = strings.ReplaceAll(label, "\"", "'")
+			fmt.Fprintf(&b, "  node%d -. \"⟳ %s\" .-> node%d\n", e.FromIndex, label, e.ToIndex)
+		case EdgeLoopExit:
+			label := e.Label
+			if label == "" {
+				label = "exit"
+			}
+			fmt.Fprintf(&b, "  node%d ==> \"%s\" ==> node%d\n", e.FromIndex, label, e.ToIndex)
 		case EdgeNext:
 			fmt.Fprintf(&b, "  node%d -. \"next\" .-> node%d\n", e.FromIndex, e.ToIndex)
 		case EdgePrev:
@@ -264,6 +326,98 @@ func (g DeckGraph) ToMermaidWithRoute(routeName string, d Deck) string {
 	}
 
 	return b.String()
+}
+
+// ToGraphvizDOTWithTrack generates a standard Graphviz DOT digraph visualization of the presentation topology.
+func (g DeckGraph) ToGraphvizDOTWithTrack(track string) string {
+	var b strings.Builder
+	b.WriteString("digraph Termdeck {\n")
+	b.WriteString("  rankdir=LR;\n")
+	b.WriteString("  node [shape=box, style=\"rounded,filled\", fontname=\"Helvetica,Arial,sans-serif\", fillcolor=\"#1e1e2e\", fontcolor=\"#cdd6f4\", color=\"#89b4fa\", penwidth=1.5];\n")
+	b.WriteString("  edge [fontname=\"Helvetica,Arial,sans-serif\", color=\"#6c7086\", fontcolor=\"#a6adc8\", fontsize=10];\n\n")
+
+	trackLower := strings.ToLower(strings.TrimSpace(track))
+
+	for _, n := range g.Nodes {
+		label := fmt.Sprintf("[%02d] %s", n.Index+1, n.Title)
+		if n.ID != "" {
+			label += fmt.Sprintf("\\n#%s", n.ID)
+		}
+		label = strings.ReplaceAll(label, "\"", "\\\"")
+
+		var nodeAttrs []string
+		nodeAttrs = append(nodeAttrs, fmt.Sprintf("label=\"%s\"", label))
+
+		isTrack := false
+		if trackLower != "" {
+			for _, t := range n.Tags {
+				if strings.ToLower(strings.TrimSpace(t)) == trackLower {
+					isTrack = true
+					break
+				}
+			}
+		}
+
+		if isTrack {
+			nodeAttrs = append(nodeAttrs, "fillcolor=\"#164e63\"", "color=\"#22d3ee\"", "penwidth=2.5", "fontcolor=\"#ecfeff\"")
+		} else if n.Index == 0 {
+			nodeAttrs = append(nodeAttrs, "fillcolor=\"#14532d\"", "color=\"#4ade80\"", "penwidth=2.0")
+		} else if len(n.OutEdges) == 0 {
+			nodeAttrs = append(nodeAttrs, "fillcolor=\"#4c0519\"", "color=\"#fb7185\"", "penwidth=2.0")
+		}
+
+		fmt.Fprintf(&b, "  node%d [%s];\n", n.Index, strings.Join(nodeAttrs, ", "))
+	}
+	b.WriteString("\n")
+
+	for _, e := range g.Edges {
+		if e.ToIndex < 0 || e.ToIndex >= len(g.Nodes) {
+			continue
+		}
+		var edgeAttrs []string
+		switch e.Kind {
+		case EdgeLinear:
+			edgeAttrs = append(edgeAttrs, "color=\"#6c7086\"")
+		case EdgeBranch:
+			lbl := e.Label
+			if e.Key != "" {
+				lbl = fmt.Sprintf("[%s] %s", e.Key, lbl)
+			}
+			lbl = strings.ReplaceAll(lbl, "\"", "\\\"")
+			edgeAttrs = append(edgeAttrs, fmt.Sprintf("label=\"%s\"", lbl), "color=\"#a6e3a1\"", "fontcolor=\"#a6e3a1\"")
+		case EdgeLoop:
+			lbl := e.Label
+			if e.Key != "" {
+				lbl = fmt.Sprintf("[%s] %s", e.Key, lbl)
+			}
+			lbl = strings.ReplaceAll(lbl, "\"", "\\\"")
+			edgeAttrs = append(edgeAttrs, fmt.Sprintf("label=\"⟳ %s\"", lbl), "style=dashed", "color=\"#f38ba8\"", "fontcolor=\"#f38ba8\"")
+		case EdgeLoopExit:
+			lbl := e.Label
+			if lbl == "" {
+				lbl = "exit"
+			}
+			edgeAttrs = append(edgeAttrs, fmt.Sprintf("label=\"%s\"", lbl), "style=bold", "color=\"#fab387\"", "fontcolor=\"#fab387\"")
+		case EdgeNext:
+			edgeAttrs = append(edgeAttrs, "label=\"next\"", "style=dashed", "color=\"#89b4fa\"")
+		case EdgePrev:
+			edgeAttrs = append(edgeAttrs, "label=\"prev\"", "style=dotted", "color=\"#585b70\"")
+		}
+
+		attrsStr := ""
+		if len(edgeAttrs) > 0 {
+			attrsStr = fmt.Sprintf(" [%s]", strings.Join(edgeAttrs, ", "))
+		}
+		fmt.Fprintf(&b, "  node%d -> node%d%s;\n", e.FromIndex, e.ToIndex, attrsStr)
+	}
+
+	b.WriteString("}\n")
+	return b.String()
+}
+
+// ToGraphvizDOT exports the entire presentation graph in Graphviz DOT format.
+func (g DeckGraph) ToGraphvizDOT() string {
+	return g.ToGraphvizDOTWithTrack("")
 }
 
 func (g DeckGraph) ReachableNodes(startIndex int) []int {
@@ -327,6 +481,192 @@ func (g DeckGraph) HasCycles() bool {
 	return false
 }
 
+// TopologyMetrics contains structural topology analysis of the presentation DAG.
+type TopologyMetrics struct {
+	TotalNodes           int
+	TotalEdges           int
+	LinearEdges          int
+	BranchEdges          int
+	LoopEdges            int
+	LoopExitEdges        int
+	NextEdges            int
+	PrevEdges            int
+	RootNodes            []int // Nodes with forward in-degree 0 (entry slides)
+	SinkNodes            []int // Nodes with forward out-degree 0 (terminal slides)
+	ForkNodes            []int // Decision points: nodes with >1 forward out-edges
+	JoinNodes            []int // Convergence points: nodes with >1 forward in-edges
+	LoopNodes            []int // Nodes with an EdgeLoop iteration edge
+	MaxDepth             int   // Longest acyclic path hop count
+	LongestPath          []int // Sequence of slide indices for longest acyclic path
+	CyclomaticComplexity int   // E - V + 2P
+	BranchingFactor      float64
+}
+
+// AnalyzeTopology computes comprehensive graph structural telemetry,
+// including diameter/longest acyclic path, fork/join counts, cyclomatic complexity, and terminal sinks.
+func (g DeckGraph) AnalyzeTopology() TopologyMetrics {
+	m := TopologyMetrics{
+		TotalNodes: len(g.Nodes),
+		TotalEdges: len(g.Edges),
+	}
+	if len(g.Nodes) == 0 {
+		return m
+	}
+
+	forwardInDegree := make([]int, len(g.Nodes))
+	forwardOutDegree := make([]int, len(g.Nodes))
+	hasLoop := make(map[int]bool)
+
+	for _, e := range g.Edges {
+		switch e.Kind {
+		case EdgeLinear:
+			m.LinearEdges++
+		case EdgeBranch:
+			m.BranchEdges++
+		case EdgeLoop:
+			m.LoopEdges++
+			hasLoop[e.FromIndex] = true
+		case EdgeLoopExit:
+			m.LoopExitEdges++
+		case EdgeNext:
+			m.NextEdges++
+		case EdgePrev:
+			m.PrevEdges++
+		}
+
+		if e.Kind != EdgePrev && e.ToIndex >= 0 && e.ToIndex < len(g.Nodes) {
+			forwardOutDegree[e.FromIndex]++
+			if e.Kind != EdgeLoop {
+				forwardInDegree[e.ToIndex]++
+			}
+		}
+	}
+
+	for i := range g.Nodes {
+		if forwardInDegree[i] == 0 {
+			m.RootNodes = append(m.RootNodes, i)
+		}
+		if forwardOutDegree[i] == 0 {
+			m.SinkNodes = append(m.SinkNodes, i)
+		}
+		if forwardOutDegree[i] > 1 {
+			m.ForkNodes = append(m.ForkNodes, i)
+		}
+		if forwardInDegree[i] > 1 {
+			m.JoinNodes = append(m.JoinNodes, i)
+		}
+		if hasLoop[i] {
+			m.LoopNodes = append(m.LoopNodes, i)
+		}
+	}
+
+	if m.TotalNodes > 0 {
+		m.BranchingFactor = float64(m.TotalEdges-m.PrevEdges) / float64(m.TotalNodes)
+	}
+
+	p := len(m.RootNodes)
+	if p < 1 {
+		p = 1
+	}
+	forwardEdges := m.TotalEdges - m.PrevEdges
+	comp := forwardEdges - m.TotalNodes + 2*p
+	if comp < 1 {
+		comp = 1
+	}
+	m.CyclomaticComplexity = comp
+
+	m.LongestPath = g.computeLongestAcyclicPath()
+	if len(m.LongestPath) > 0 {
+		m.MaxDepth = len(m.LongestPath) - 1
+	}
+
+	return m
+}
+
+// computeLongestAcyclicPath calculates the longest simple path in the presentation DAG.
+// It uses Kahn's algorithm and dynamic programming on forward transitions to avoid cyclic traps.
+func (g DeckGraph) computeLongestAcyclicPath() []int {
+	n := len(g.Nodes)
+	if n == 0 {
+		return nil
+	}
+	if n == 1 {
+		return []int{0}
+	}
+
+	adj := make([][]int, n)
+	inDegree := make([]int, n)
+	for _, e := range g.Edges {
+		if e.Kind == EdgeLoop || e.Kind == EdgePrev || e.FromIndex == e.ToIndex {
+			continue
+		}
+		if e.ToIndex < 0 || e.ToIndex >= n {
+			continue
+		}
+		already := false
+		for _, v := range adj[e.FromIndex] {
+			if v == e.ToIndex {
+				already = true
+				break
+			}
+		}
+		if !already {
+			adj[e.FromIndex] = append(adj[e.FromIndex], e.ToIndex)
+			inDegree[e.ToIndex]++
+		}
+	}
+
+	var queue []int
+	for i := 0; i < n; i++ {
+		if inDegree[i] == 0 {
+			queue = append(queue, i)
+		}
+	}
+
+	dist := make([]int, n)
+	pred := make([]int, n)
+	for i := range pred {
+		pred[i] = -1
+	}
+
+	for len(queue) > 0 {
+		u := queue[0]
+		queue = queue[1:]
+
+		for _, v := range adj[u] {
+			if dist[u]+1 > dist[v] {
+				dist[v] = dist[u] + 1
+				pred[v] = u
+			}
+			inDegree[v]--
+			if inDegree[v] == 0 {
+				queue = append(queue, v)
+			}
+		}
+	}
+
+	maxNode := 0
+	maxDist := 0
+	for i, d := range dist {
+		if d > maxDist {
+			maxDist = d
+			maxNode = i
+		}
+	}
+
+	var path []int
+	curr := maxNode
+	for curr != -1 {
+		path = append([]int{curr}, path...)
+		curr = pred[curr]
+	}
+
+	if len(path) == 0 {
+		return []int{0}
+	}
+	return path
+}
+
 func FormatGraphCLIWithTrack(d Deck, theme Theme, track string) string {
 	g := BuildGraph(d)
 	var b strings.Builder
@@ -365,7 +705,18 @@ func FormatGraphCLIWithTrack(d Deck, theme Theme, track string) string {
 	b.WriteString(titleStyle.Render(header))
 	b.WriteString("\n")
 	b.WriteString(arrowStyle.Render(strings.Repeat("─", 50)))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+
+	topo := g.AnalyzeTopology()
+	summaryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Secondary))
+	b.WriteString(summaryStyle.Render(fmt.Sprintf("Topology: %d slides · %d edges · %d fork%s · %d join%s · %d loop%s · M=%d · Max depth: %d hops",
+		topo.TotalNodes, topo.TotalEdges,
+		len(topo.ForkNodes), plural(len(topo.ForkNodes)),
+		len(topo.JoinNodes), plural(len(topo.JoinNodes)),
+		len(topo.LoopNodes), plural(len(topo.LoopNodes)),
+		topo.CyclomaticComplexity,
+		topo.MaxDepth,
+	)) + "\n\n")
 
 	if len(g.Nodes) == 0 {
 		b.WriteString(tagStyle.Render("Empty deck (0 slides)\n"))
@@ -434,6 +785,33 @@ func FormatGraphCLIWithTrack(d Deck, theme Theme, track string) string {
 						arrowStyle.Render(prefix),
 						keyStyle.Render(fmt.Sprintf("[%s]", e.Key)),
 						e.Label,
+						arrowStyle.Render("──►"),
+						targetStyle.Render(targetTitle),
+					))
+				case EdgeLoop:
+					targetTitle := e.TargetID
+					if e.ToIndex >= 0 && e.ToIndex < len(g.Nodes) {
+						targetTitle = fmt.Sprintf("[%02d] %s", e.ToIndex+1, g.Nodes[e.ToIndex].Title)
+					}
+					keyPart := ""
+					if e.Key != "" {
+						keyPart = fmt.Sprintf("[%s] ", e.Key)
+					}
+					b.WriteString(fmt.Sprintf("     %s %s %s %s %s\n",
+						arrowStyle.Render(prefix),
+						keyStyle.Render("⟳ "+keyPart),
+						e.Label,
+						arrowStyle.Render("──►"),
+						targetStyle.Render(targetTitle),
+					))
+				case EdgeLoopExit:
+					targetTitle := e.TargetID
+					if e.ToIndex >= 0 && e.ToIndex < len(g.Nodes) {
+						targetTitle = fmt.Sprintf("[%02d] %s", e.ToIndex+1, g.Nodes[e.ToIndex].Title)
+					}
+					b.WriteString(fmt.Sprintf("     %s %s %s %s\n",
+						arrowStyle.Render(prefix),
+						tagStyle.Render("(loop exit)"),
 						arrowStyle.Render("──►"),
 						targetStyle.Render(targetTitle),
 					))
@@ -518,7 +896,18 @@ func FormatGraphCLIWithRoute(d Deck, theme Theme, routeName string) string {
 	b.WriteString(titleStyle.Render(header))
 	b.WriteString("\n")
 	b.WriteString(arrowStyle.Render(strings.Repeat("─", 50)))
-	b.WriteString("\n\n")
+	b.WriteString("\n")
+
+	topo := g.AnalyzeTopology()
+	summaryStyle := lipgloss.NewStyle().Foreground(lipgloss.Color(theme.Secondary))
+	b.WriteString(summaryStyle.Render(fmt.Sprintf("Topology: %d slides · %d edges · %d fork%s · %d join%s · %d loop%s · M=%d · Max depth: %d hops",
+		topo.TotalNodes, topo.TotalEdges,
+		len(topo.ForkNodes), plural(len(topo.ForkNodes)),
+		len(topo.JoinNodes), plural(len(topo.JoinNodes)),
+		len(topo.LoopNodes), plural(len(topo.LoopNodes)),
+		topo.CyclomaticComplexity,
+		topo.MaxDepth,
+	)) + "\n\n")
 
 	if len(g.Nodes) == 0 {
 		b.WriteString(tagStyle.Render("Empty deck (0 slides)\n"))
@@ -580,6 +969,26 @@ func FormatGraphCLIWithRoute(d Deck, theme Theme, routeName string) string {
 					keyPart = fmt.Sprintf("[%s] ", edge.Key)
 				}
 				b.WriteString(arrowStyle.Render(prefix) + keyStyle.Render(keyPart+edge.Label) + arrowStyle.Render(" ──► ") + targetStyle.Render(targetTitle) + "\n")
+
+			case EdgeLoop:
+				targetTitle := edge.TargetID
+				if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+					targetTitle = fmt.Sprintf("[%02d] %s", edge.ToIndex+1, g.Nodes[edge.ToIndex].Title)
+				}
+				keyPart := ""
+				if edge.Key != "" {
+					keyPart = fmt.Sprintf("[%s] ", edge.Key)
+				}
+				b.WriteString(arrowStyle.Render(prefix) + keyStyle.Render("⟳ "+keyPart+edge.Label) + arrowStyle.Render(" ──► ") + targetStyle.Render(targetTitle) + "\n")
+
+			case EdgeLoopExit:
+				targetTitle := edge.TargetID
+				if edge.ToIndex >= 0 && edge.ToIndex < len(g.Nodes) {
+					targetTitle = fmt.Sprintf("[%02d] %s", edge.ToIndex+1, g.Nodes[edge.ToIndex].Title)
+				} else if edge.ToIndex < len(g.Nodes) {
+					targetTitle = fmt.Sprintf("[%02d] %s", edge.ToIndex+1, g.Nodes[edge.ToIndex].Title)
+				}
+				b.WriteString(arrowStyle.Render(prefix) + tagStyle.Render("(loop exit)") + arrowStyle.Render(" ──► ") + targetStyle.Render(targetTitle) + "\n")
 
 			case EdgeNext:
 				targetTitle := edge.TargetID
@@ -939,6 +1348,53 @@ func LintGraph(d Deck) []LintIssue {
 					Title:    s.Title(),
 					Message:  fmt.Sprintf("::prev points to nonexistent target %q", s.PrevID),
 				})
+			}
+		}
+
+		if s.Loop != nil {
+			if strings.TrimSpace(s.Loop.Target) == "" {
+				issues = append(issues, LintIssue{
+					Severity: SeverityError,
+					SlideIdx: i,
+					Title:    s.Title(),
+					Message:  fmt.Sprintf("loop [%s] has empty target", s.Loop.Key),
+				})
+			} else if d.FindSlideByID(s.Loop.Target) == -1 {
+				issues = append(issues, LintIssue{
+					Severity: SeverityError,
+					SlideIdx: i,
+					Title:    s.Title(),
+					Message:  fmt.Sprintf("loop [%s] points to nonexistent target %q", s.Loop.Key, s.Loop.Target),
+				})
+			}
+
+			if s.Loop.ExitTarget != "" && !strings.EqualFold(s.Loop.ExitTarget, "none") && !strings.EqualFold(s.Loop.ExitTarget, "end") {
+				if d.FindSlideByID(s.Loop.ExitTarget) == -1 {
+					issues = append(issues, LintIssue{
+						Severity: SeverityError,
+						SlideIdx: i,
+						Title:    s.Title(),
+						Message:  fmt.Sprintf("loop exit target points to nonexistent target %q", s.Loop.ExitTarget),
+					})
+				}
+			}
+		}
+
+		// Detect duplicate branch shortcut keys on the same slide
+		seenBranchKeys := make(map[string]bool)
+		for _, b := range s.Branches() {
+			k := strings.ToLower(strings.TrimSpace(b.Key))
+			if k != "" && k != "→" && k != "⟳" {
+				if seenBranchKeys[k] {
+					issues = append(issues, LintIssue{
+						Severity: SeverityWarning,
+						SlideIdx: i,
+						Title:    s.Title(),
+						Message:  fmt.Sprintf("duplicate branch shortcut key %q on slide %d", b.Key, i+1),
+					})
+				} else {
+					seenBranchKeys[k] = true
+				}
 			}
 		}
 	}

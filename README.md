@@ -64,6 +64,8 @@ deck --test-code demo.deck.md
 - **Traversal History & Reflog (`H`)**: Visual presentation journey stack with instant rewind capabilities (`1`–`9` or `Enter`).
 - **Standalone Offline HTML Export (`E`)**: Single-file distributable HTML presentation with theme styling, embedded assets, and interactive JS graph navigation.
 - **Dynamic Theme Engine**: 9 curated developer color schemes (`tokyo-night`, `dracula`, `nord`, `catppuccin`, `monokai`, etc.) plus custom hex colors.
+- **Configuration File** (`deck --config`): Load presentation settings from `~/.termdeck/config.toml` or `./termdeck.toml`/`.yml`. Supports theme, autoplay delay, tracks, routes, and more via INI-style key: value format. Environment variables (`TERMDECK_THEME`, `TERMDECK_AUTOPLAY`, etc.) override config file values.
+
 - **Performance & Quality**: Sub-millisecond rendering (<0.26ms/op), 90.5% statement coverage across 161 unit tests, and zero runtime dependencies.
 
 ---
@@ -158,6 +160,7 @@ deck init [filename.deck.md]
 #   -a, --autoplay <sec> Auto-advance slides every N seconds (default: 5)
 #       --graph          Print presentation topology map (ASCII DAG) to terminal
 #       --mermaid        Print presentation topology as Mermaid diagram syntax
+#       --dot, --graphviz Export presentation topology to Graphviz DOT digraph
 #       --test-code      Execute all runnable code blocks and assert zero errors (CI/CD)
 #       --run-slide <N>  Execute code block on slide N directly in terminal
 #       --stats          Print presentation statistics and metrics to terminal

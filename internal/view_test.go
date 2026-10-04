@@ -1067,6 +1067,35 @@ Done.`
 	if emptyModal != "" {
 		t.Errorf("expected empty string for empty deck, got:\n%s", emptyModal)
 	}
+
+	// Mode 1: Detailed List View
+	ed.GraphMapViewMode = 1
+	modalList := stripANSI(renderGraphModal(d, ed, 80, 24))
+	if !strings.Contains(modalList, "Detailed List") || !strings.Contains(modalList, "in:") || !strings.Contains(modalList, "out:") {
+		t.Fatalf("expected in/out degree in Detailed List view, got:\n%s", modalList)
+	}
+
+	// Mode 2: Topology Metrics Dashboard
+	ed.GraphMapViewMode = 2
+	modalTopo := stripANSI(renderGraphModal(d, ed, 80, 24))
+	if !strings.Contains(modalTopo, "Structural Telemetry") || !strings.Contains(modalTopo, "Total Slides:") || !strings.Contains(modalTopo, "Cyclomatic M:") {
+		t.Fatalf("expected topology dashboard in Mode 2, got:\n%s", modalTopo)
+	}
+
+	// Test Search Filter
+	ed.GraphMapViewMode = 0
+	ed.GraphMapFilter = "storage"
+	modalFiltered := stripANSI(renderGraphModal(d, ed, 80, 24))
+	if !strings.Contains(modalFiltered, "Filter:") || !strings.Contains(modalFiltered, "\"storage\"") || !strings.Contains(modalFiltered, "Storage") {
+		t.Fatalf("expected filtered modal to match 'Storage', got:\n%s", modalFiltered)
+	}
+
+	// Test No Matches Filter
+	ed.GraphMapFilter = "non_existent_slide_xyz"
+	modalNoMatch := stripANSI(renderGraphModal(d, ed, 80, 24))
+	if !strings.Contains(modalNoMatch, "No slides match filter") {
+		t.Fatalf("expected 'No slides match filter' message, got:\n%s", modalNoMatch)
+	}
 }
 
 func TestNavStatusForkAndHistory(t *testing.T) {

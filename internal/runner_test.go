@@ -13,7 +13,7 @@ func TestExecuteBlockSh(t *testing.T) {
 		Text: "echo 'hello from termdeck runner'",
 	}
 
-	res := ExecuteBlock(blk, 2*time.Second)
+	res := ExecuteBlock(blk, 2*time.Second, nil)
 	if res.ExitCode != 0 {
 		t.Fatalf("expected exit code 0, got %d (err: %s)", res.ExitCode, res.Error)
 	}
@@ -32,7 +32,7 @@ func TestExecuteBlockNonZeroExit(t *testing.T) {
 		Text: "exit 42",
 	}
 
-	res := ExecuteBlock(blk, 2*time.Second)
+	res := ExecuteBlock(blk, 2*time.Second, nil)
 	if res.ExitCode != 42 {
 		t.Fatalf("expected exit code 42, got %d", res.ExitCode)
 	}
@@ -45,7 +45,7 @@ func TestExecuteBlockTimeout(t *testing.T) {
 		Text: "sleep 2",
 	}
 
-	res := ExecuteBlock(blk, 100*time.Millisecond)
+	res := ExecuteBlock(blk, 100*time.Millisecond, nil)
 	if res.ExitCode != 124 {
 		t.Fatalf("expected exit code 124 on timeout, got %d (error: %s)", res.ExitCode, res.Error)
 	}
@@ -60,7 +60,7 @@ func TestExecuteBlockNonCode(t *testing.T) {
 		Text: "# Heading",
 	}
 
-	res := ExecuteBlock(blk, 1*time.Second)
+	res := ExecuteBlock(blk, 1*time.Second, nil)
 	if res.ExitCode == 0 || res.Error == "" {
 		t.Fatalf("expected error executing non-code block, got: %+v", res)
 	}
@@ -80,7 +80,7 @@ func TestIsExecutableLanguage(t *testing.T) {
 		Lang: "diff",
 		Text: "--- a\n+++ b",
 	}
-	res := ExecuteBlock(blk, 1*time.Second)
+	res := ExecuteBlock(blk, 1*time.Second, nil)
 	if res.ExitCode == 0 || (!strings.Contains(res.Error, "display-only") && !strings.Contains(res.Error, "not executable")) {
 		t.Fatalf("expected display-only error, got: %+v", res)
 	}
@@ -93,7 +93,7 @@ func TestExecuteBlockEmpty(t *testing.T) {
 		Text: "   \n  \n",
 	}
 
-	res := ExecuteBlock(blk, 1*time.Second)
+	res := ExecuteBlock(blk, 1*time.Second, nil)
 	if res.Error != "code block is empty" {
 		t.Fatalf("expected empty code block error, got: %s", res.Error)
 	}
@@ -106,7 +106,7 @@ func TestExecuteBlockGo(t *testing.T) {
 		Text: `println("termdeck go runner")`,
 	}
 
-	res := ExecuteBlock(blk, 10*time.Second)
+	res := ExecuteBlock(blk, 10*time.Second, nil)
 	// On systems with go installed, this runs and prints to stderr/stdout
 	if res.ExitCode != 0 && res.Error != "" && !strings.Contains(res.Error, "executable file not found") {
 		t.Logf("Go execution result: %+v", res)
@@ -120,7 +120,7 @@ func TestExecuteBlockWithLines(t *testing.T) {
 		Lines: []string{"A=10", "B=20", "echo $((A + B))"},
 	}
 
-	res := ExecuteBlock(blk, 2*time.Second)
+	res := ExecuteBlock(blk, 2*time.Second, nil)
 	if res.ExitCode != 0 {
 		t.Fatalf("expected exit 0, got %d (err: %s)", res.ExitCode, res.Error)
 	}
@@ -156,7 +156,7 @@ func TestExecuteCodeCmd(t *testing.T) {
 		Text: "echo 'async command'",
 	}
 
-	cmd := ExecuteCodeCmd(blk, 2*time.Second, 1, 2)
+	cmd := ExecuteCodeCmd(blk, 2*time.Second, 1, 2, nil)
 	msg := cmd()
 	execMsg, ok := msg.(ExecFinishedMsg)
 	if !ok {

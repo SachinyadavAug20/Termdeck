@@ -75,6 +75,9 @@ type Editor struct {
 	History           []int
 	ShowGraphMap      bool
 	GraphMapCursor    int
+	GraphMapFilter    string
+	GraphMapFiltering bool
+	GraphMapViewMode  int // 0: Tree / Flow, 1: Detailed List, 2: Topology Metrics
 	RunningCode       bool
 	ShowRunner        bool
 	RunnerResult      *ExecResult
@@ -263,6 +266,32 @@ func (e *Editor) SelectTrack(track string, d *Deck) {
 				e.ClampBlockIdx(d)
 			}
 		}
+	}
+}
+
+// CycleTrack cycles to the next available audience track tag, or wraps around to all slides.
+func (e *Editor) CycleTrack(d *Deck) {
+	if d == nil {
+		return
+	}
+	tags := d.AllTags()
+	if len(tags) == 0 {
+		e.ActiveTrack = ""
+		e.Message = "graph: deck has no audience track tags"
+		return
+	}
+	curIdx := -1
+	for i, t := range tags {
+		if strings.EqualFold(t, e.ActiveTrack) {
+			curIdx = i
+			break
+		}
+	}
+	nextIdx := curIdx + 1
+	if nextIdx >= len(tags) {
+		e.SelectTrack("", d)
+	} else {
+		e.SelectTrack(tags[nextIdx], d)
 	}
 }
 
@@ -496,6 +525,40 @@ func (e *Editor) StepWaypointPath(cand WaypointCandidate, d *Deck) bool {
 	return true
 }
 
+// filterGraphSlides returns the slice of slide indices matching the current GraphMapFilter.
+// If the filter is empty, it returns all slide indices [0, 1, ..., len(d.Slides)-1].
+func (e *Editor) filterGraphSlides(d *Deck) []int {
+	if d == nil || len(d.Slides) == 0 {
+		return nil
+	}
+	var indices []int
+	queryLower := strings.ToLower(strings.TrimSpace(e.GraphMapFilter))
+	for i, s := range d.Slides {
+		if queryLower == "" {
+			indices = append(indices, i)
+			continue
+		}
+		titleLower := strings.ToLower(s.Title())
+		idLower := strings.ToLower(s.ID)
+		idxStr := fmt.Sprintf("%d", i+1)
+		matches := strings.Contains(titleLower, queryLower) ||
+			strings.Contains(idLower, queryLower) ||
+			idxStr == queryLower
+		if !matches {
+			for _, t := range s.Tags {
+				if strings.Contains(strings.ToLower(t), queryLower) {
+					matches = true
+					break
+				}
+			}
+		}
+		if matches {
+			indices = append(indices, i)
+		}
+	}
+	return indices
+}
+
 func (e Editor) BuildVisitedMap() map[int]bool {
 	visited := make(map[int]bool)
 	visited[0] = true
@@ -610,6 +673,8 @@ func GetAllPaletteCommands() []PaletteCommand {
 		{ID: "fork_return", Title: "Fast-Return to Upstream Fork", Description: "1-key backtrack teleport to nearest upstream decision fork", Shortcut: "U", Category: "Graph"},
 		{ID: "history", Title: "Traversal History & Reflog", Description: "Inspect full presentation journey stack and rewind to any step", Shortcut: "H", Category: "Graph"},
 		{ID: "map", Title: "Presentation Graph Map (ASCII DAG)", Description: "Visual ASCII diagram of slides, branches, and connections", Shortcut: "M", Category: "Graph"},
+		{ID: "export_mermaid", Title: "Copy Mermaid Topology Diagram", Description: "Export presentation DAG to Mermaid graph and copy to clipboard", Shortcut: "y (in Map)", Category: "Graph"},
+		{ID: "export_dot", Title: "Copy Graphviz DOT Topology", Description: "Export presentation DAG to Graphviz DOT digraph and copy to clipboard", Shortcut: "d (in Map)", Category: "Graph"},
 		{ID: "route", Title: "Preset Talk Routes Switcher", Description: "Activate pre-planned paths (e.g. lightning vs deep-dive)", Shortcut: "P", Category: "Graph"},
 		{ID: "track", Title: "Audience Tracks Filter", Description: "Filter presentation DAG navigation for targeted audience groups", Shortcut: "K", Category: "Graph"},
 		{ID: "track_next", Title: "Hop Forward along Active Track", Description: "Jump forward to the next slide tagged with the active track", Shortcut: "]", Category: "Graph"},
@@ -811,6 +876,27 @@ func (e *Editor) ExecutePaletteCommand(cmdID string, d *Deck) tea.Cmd {
 	case "map":
 		e.ShowGraphMap = true
 		e.GraphMapCursor = e.SlideIdx
+		e.GraphMapFilter = ""
+		e.GraphMapFiltering = false
+		e.Message = "graph map: v: view mode  ·  /: search  ·  t: track  ·  y: copy Mermaid  ·  d: copy DOT  ·  w: waypoint"
+		return nil
+
+	case "export_mermaid":
+		if d != nil {
+			g := BuildGraph(*d)
+			mermaid := g.ToMermaidWithTrack(e.ActiveTrack)
+			CopyToSystemClipboard(mermaid)
+			e.Message = "graph: Mermaid diagram copied to clipboard"
+		}
+		return nil
+
+	case "export_dot":
+		if d != nil {
+			g := BuildGraph(*d)
+			dot := g.ToGraphvizDOTWithTrack(e.ActiveTrack)
+			CopyToSystemClipboard(dot)
+			e.Message = "graph: Graphviz DOT copied to clipboard"
+		}
 		return nil
 
 	case "route":
@@ -1518,7 +1604,11 @@ func (e *Editor) RunFocusedCode(d *Deck) tea.Cmd {
 		lang = "sh"
 	}
 	e.Message = fmt.Sprintf("executing [%s] code...", lang)
-	return ExecuteCodeCmd(*targetBlock, 5*time.Second, e.SlideIdx+1, blkIdx+1)
+	env := targetBlock.Env
+	if env == nil {
+		env = []string{}
+	}
+	return ExecuteCodeCmd(*targetBlock, 5*time.Second, e.SlideIdx+1, blkIdx+1, env)
 }
 
 func (e *Editor) ToggleFocusMode(d *Deck) {
@@ -1636,11 +1726,95 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 	}
 
 	if e.ShowGraphMap {
-		totalSlides := len(d.Slides)
+		filtered := e.filterGraphSlides(d)
+		totalFiltered := len(filtered)
+
+		if e.GraphMapFiltering {
+			switch key {
+			case "esc":
+				e.GraphMapFiltering = false
+				return nil
+			case "enter":
+				e.GraphMapFiltering = false
+				return nil
+			case "backspace":
+				if len(e.GraphMapFilter) > 0 {
+					r := []rune(e.GraphMapFilter)
+					e.GraphMapFilter = string(r[:len(r)-1])
+					e.GraphMapCursor = 0
+				}
+				return nil
+			case "ctrl+u":
+				e.GraphMapFilter = ""
+				e.GraphMapCursor = 0
+				return nil
+			default:
+				if len(key) == 1 {
+					e.GraphMapFilter += key
+					e.GraphMapCursor = 0
+					return nil
+				} else if key == "space" {
+					e.GraphMapFilter += " "
+					e.GraphMapCursor = 0
+					return nil
+				}
+			}
+			return nil
+		}
+
 		switch key {
 		case "esc", "M", "m":
 			e.ShowGraphMap = false
+			e.GraphMapFiltering = false
+			e.GraphMapFilter = ""
 			e.Message = ""
+			return nil
+		case "v":
+			e.GraphMapViewMode = (e.GraphMapViewMode + 1) % 3
+			modeNames := []string{"Tree / Flow View", "Detailed List View", "Topology Metrics"}
+			e.Message = fmt.Sprintf("graph: switched to %s", modeNames[e.GraphMapViewMode])
+			return nil
+		case "/":
+			e.GraphMapFiltering = true
+			return nil
+		case "c":
+			e.GraphMapFilter = ""
+			e.GraphMapCursor = 0
+			e.Message = "graph: filter cleared"
+			return nil
+		case "t", "tab":
+			e.CycleTrack(d)
+			e.Message = fmt.Sprintf("graph: active track -> %s", e.ActiveTrack)
+			return nil
+		case "y":
+			if d != nil {
+				g := BuildGraph(*d)
+				mermaid := g.ToMermaidWithTrack(e.ActiveTrack)
+				CopyToSystemClipboard(mermaid)
+				e.Message = "graph: Mermaid diagram copied to clipboard"
+			}
+			return nil
+		case "d":
+			if d != nil {
+				g := BuildGraph(*d)
+				dot := g.ToGraphvizDOTWithTrack(e.ActiveTrack)
+				CopyToSystemClipboard(dot)
+				e.Message = "graph: Graphviz DOT copied to clipboard"
+			}
+			return nil
+		case "w":
+			targetSlideIdx := -1
+			if e.GraphMapCursor >= 0 && e.GraphMapCursor < totalFiltered {
+				targetSlideIdx = filtered[e.GraphMapCursor]
+			}
+			e.ShowGraphMap = false
+			e.GraphMapFiltering = false
+			if d != nil && targetSlideIdx >= 0 && targetSlideIdx != e.SlideIdx {
+				e.ToggleWaypointModal(d)
+				if targetSlideIdx < len(d.Slides) {
+					e.WaypointQuery = d.Slides[targetSlideIdx].Title()
+				}
+			}
 			return nil
 		case "up", "k":
 			if e.GraphMapCursor > 0 {
@@ -1648,7 +1822,7 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			}
 			return nil
 		case "down", "j":
-			if e.GraphMapCursor < totalSlides-1 {
+			if e.GraphMapCursor < totalFiltered-1 {
 				e.GraphMapCursor++
 			}
 			return nil
@@ -1656,24 +1830,29 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 			e.GraphMapCursor = 0
 			return nil
 		case "G", "end":
-			if totalSlides > 0 {
-				e.GraphMapCursor = totalSlides - 1
+			if totalFiltered > 0 {
+				e.GraphMapCursor = totalFiltered - 1
 			}
 			return nil
 		case "enter", " ":
-			if e.GraphMapCursor >= 0 && e.GraphMapCursor < totalSlides {
-				if e.GraphMapCursor != e.SlideIdx {
-					e.History = append(e.History, e.SlideIdx)
-					e.SlideIdx = e.GraphMapCursor
-					e.BlockIdx = 0
-					e.ClampBlockIdx(d)
-					e.Message = fmt.Sprintf("jumped to slide %d/%d", e.SlideIdx+1, totalSlides)
+			if d != nil && e.GraphMapCursor >= 0 && e.GraphMapCursor < totalFiltered {
+				targetIdx := filtered[e.GraphMapCursor]
+				if targetIdx >= 0 && targetIdx < len(d.Slides) {
+					if targetIdx != e.SlideIdx {
+						e.History = append(e.History, e.SlideIdx)
+						e.SlideIdx = targetIdx
+						e.BlockIdx = 0
+						e.ClampBlockIdx(d)
+						e.Message = fmt.Sprintf("jumped to slide %d/%d", e.SlideIdx+1, len(d.Slides))
+					}
 				}
 			}
 			e.ShowGraphMap = false
+			e.GraphMapFiltering = false
 			return nil
 		case "q", "ctrl+c":
 			e.ShowGraphMap = false
+			e.GraphMapFiltering = false
 			return nil
 		}
 		return nil
@@ -2310,6 +2489,8 @@ func (e *Editor) handleNav(key string, d *Deck) tea.Cmd {
 		e.ShowGraphMap = !e.ShowGraphMap
 		if e.ShowGraphMap {
 			e.GraphMapCursor = e.SlideIdx
+			e.GraphMapFilter = ""
+			e.GraphMapFiltering = false
 			e.Message = "presentation graph map (arrows/jk to select, enter to jump, M/esc to close)"
 		} else {
 			e.Message = "graph map closed"

@@ -26,6 +26,8 @@ type ExecResult struct {
 	SlideNum  int
 	BlockNum  int
 	Truncated bool
+	// Env contains the environment variables that were used during execution (for debugging)
+	Env []string
 }
 
 // ExecFinishedMsg is delivered to Bubble Tea when asynchronous code execution completes.
@@ -34,14 +36,16 @@ type ExecFinishedMsg struct {
 }
 
 const (
-	MaxOutputBytes = 16 * 1024 // 16 KB max stdout/stderr capture
-	MaxOutputLines = 300       // 300 lines max
+	MaxOutputBytes     = 16 * 1024 // 16 KB max stdout/stderr capture
+	MaxOutputLines     = 300       // 300 lines max
+	DefaultTimeout     = 5 * time.Second
+	DefaultAutoplaySec = 5
 )
 
 // IsExecutableLanguage returns true for languages supported by the live runner.
 func IsExecutableLanguage(lang string) bool {
 	switch strings.ToLower(strings.TrimSpace(lang)) {
-	case "bash", "sh", "zsh", "shell", "python", "py", "python3", "node", "js", "javascript", "ruby", "rb", "go":
+	case "bash", "sh", "zsh", "shell", "python", "py", "python3", "node", "js", "javascript", "ruby", "rb", "go", "rust", "java", "scala", "kotlin", "c", "cpp", "csharp", "cs", "php", "perl", "r", "lua", "matlab":
 		return true
 	default:
 		return false
@@ -55,7 +59,8 @@ func IsExecutableLanguage(lang string) bool {
 //   - node, js, javascript: node -e
 //   - ruby, rb: ruby -e
 //   - go: go run (wraps snippet in package main if needed)
-func ExecuteBlock(blk Block, timeout time.Duration) ExecResult {
+//   - rust, java, etc: via default shell
+func ExecuteBlock(blk Block, timeout time.Duration, env []string) ExecResult {
 	start := time.Now()
 	res := ExecResult{
 		Language: strings.ToLower(strings.TrimSpace(blk.Lang)),
@@ -107,15 +112,12 @@ func ExecuteBlock(blk Block, timeout time.Duration) ExecResult {
 			}
 		}
 		cmd = exec.CommandContext(ctx, pyBin, "-c", code)
-		res.Command = fmt.Sprintf("%s -c ...", pyBin)
 
 	case "node", "js", "javascript":
 		cmd = exec.CommandContext(ctx, "node", "-e", code)
-		res.Command = "node -e ..."
 
 	case "ruby", "rb":
 		cmd = exec.CommandContext(ctx, "ruby", "-e", code)
-		res.Command = "ruby -e ..."
 
 	case "go":
 		goCode := code
@@ -132,7 +134,6 @@ func ExecuteBlock(blk Block, timeout time.Duration) ExecResult {
 		}
 		tempFileToRemove = tmpFile
 		cmd = exec.CommandContext(ctx, "go", "run", tmpFile)
-		res.Command = "go run ..."
 
 	default: // bash, sh, zsh, shell or generic
 		shBin := "/bin/sh"
@@ -140,7 +141,11 @@ func ExecuteBlock(blk Block, timeout time.Duration) ExecResult {
 			shBin = "bash"
 		}
 		cmd = exec.CommandContext(ctx, shBin, "-c", code)
-		res.Command = fmt.Sprintf("%s -c ...", shBin)
+	}
+
+	// Apply environment variables if specified (overrides parent env)
+	if len(env) > 0 {
+		cmd.Env = append(os.Environ(), env...)
 	}
 
 	if tempFileToRemove != "" {
@@ -180,6 +185,8 @@ func ExecuteBlock(blk Block, timeout time.Duration) ExecResult {
 	} else {
 		res.ExitCode = 0
 	}
+
+	res.Env = env
 
 	return res
 }
@@ -239,9 +246,9 @@ func truncateOutput(s string, maxBytes, maxLines int) (string, bool) {
 }
 
 // ExecuteCodeCmd creates a Bubble Tea Cmd that runs ExecuteBlock asynchronously.
-func ExecuteCodeCmd(blk Block, timeout time.Duration, slideNum, blockNum int) tea.Cmd {
+func ExecuteCodeCmd(blk Block, timeout time.Duration, slideNum, blockNum int, env []string) tea.Cmd {
 	return func() tea.Msg {
-		res := ExecuteBlock(blk, timeout)
+		res := ExecuteBlock(blk, timeout, env)
 		res.SlideNum = slideNum
 		res.BlockNum = blockNum
 		return ExecFinishedMsg{Result: res}
@@ -268,7 +275,7 @@ func TestAllDeckCode(d Deck, timeout time.Duration) (int, int, []ExecResult) {
 				if strings.TrimSpace(code) == "" {
 					continue
 				}
-				res := ExecuteBlock(blk, timeout)
+				res := ExecuteBlock(blk, timeout, nil)
 				res.SlideNum = sIdx + 1
 				res.BlockNum = bIdx + 1
 				results = append(results, res)
@@ -291,7 +298,7 @@ func TestAllDeckCode(d Deck, timeout time.Duration) (int, int, []ExecResult) {
 							if strings.TrimSpace(code) == "" {
 								continue
 							}
-							res := ExecuteBlock(inner, timeout)
+							res := ExecuteBlock(inner, timeout, nil)
 							res.SlideNum = sIdx + 1
 							res.BlockNum = bIdx + 1
 							results = append(results, res)

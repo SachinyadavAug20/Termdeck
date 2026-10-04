@@ -856,3 +856,288 @@ title: Radar Test Deck
 		t.Fatalf("expected complete and unvisited marks in CLI output, got:\n%s", cliOut)
 	}
 }
+
+func TestGraphLoopEdgesAndExitReachability(t *testing.T) {
+	src := `---
+title: Loop Edge Test Deck
+---
+
+::id intro
+# Intro Slide
+Welcome.
+
+---
+
+::id loop-slide
+# Refactor Step
+::loop [r] Red-Green-Refactor -> intro max=3 next=post-loop
+Testing loop iteration.
+
+---
+
+::id post-loop
+# Post Loop
+Summary after loop completes.
+`
+	d := ParseDeck(src)
+	g := BuildGraph(d)
+
+	if len(g.Nodes) != 3 {
+		t.Fatalf("expected 3 nodes, got %d", len(g.Nodes))
+	}
+
+	// Slide 1 should have EdgeLoop to Slide 0 (intro) and EdgeLoopExit to Slide 2 (post-loop)
+	hasLoop := false
+	hasExit := false
+	for _, e := range g.Nodes[1].OutEdges {
+		if e.Kind == EdgeLoop && e.ToIndex == 0 {
+			hasLoop = true
+			if e.Key != "r" || e.Label != "Red-Green-Refactor" {
+				t.Errorf("unexpected loop edge metadata: %+v", e)
+			}
+		}
+		if e.Kind == EdgeLoopExit && e.ToIndex == 2 {
+			hasExit = true
+			if e.TargetID != "post-loop" {
+				t.Errorf("unexpected loop exit target: %q", e.TargetID)
+			}
+		}
+	}
+
+	if !hasLoop {
+		t.Errorf("expected EdgeLoop on slide 1 targeting slide 0")
+	}
+	if !hasExit {
+		t.Errorf("expected EdgeLoopExit on slide 1 targeting slide 2")
+	}
+
+	// Reachable from 0
+	reachable := g.ReachableNodes(0)
+	if len(reachable) != 3 {
+		t.Fatalf("expected all 3 nodes reachable through loop and exit, got %d reachable: %v", len(reachable), reachable)
+	}
+
+	// Test fallback exit to i+1 when ExitTarget is empty and NextID is empty
+	fallbackSrc := `---
+title: Fallback Exit Deck
+---
+
+# Slide 1
+First
+
+---
+
+::id looper
+# Slide 2
+::loop [l] Loop Back -> looper repeat
+Middle
+
+---
+
+# Slide 3
+Final
+`
+	dFallback := ParseDeck(fallbackSrc)
+	gFallback := BuildGraph(dFallback)
+	hasFallbackExit := false
+	for _, e := range gFallback.Nodes[1].OutEdges {
+		if e.Kind == EdgeLoopExit && e.ToIndex == 2 {
+			hasFallbackExit = true
+		}
+	}
+	if !hasFallbackExit {
+		t.Errorf("expected fallback EdgeLoopExit to i+1 (slide 3)")
+	}
+	reachableFallback := gFallback.ReachableNodes(0)
+	if len(reachableFallback) != 3 {
+		t.Errorf("expected all 3 nodes reachable in fallback deck, got %v", reachableFallback)
+	}
+}
+
+func TestGraphvizDOTExport(t *testing.T) {
+	src := `---
+title: Graphviz DOT Deck
+---
+
+::id intro
+# Intro
+::tags [frontend]
+Start here.
+
+---
+
+::id fork
+# Decision Fork
+::branch [1] Cloud Option -> cloud
+::branch [2] Edge Option -> edge
+
+---
+
+::id cloud
+# Cloud Architecture
+::tags [backend]
+Cloud details.
+::next end
+
+---
+
+::id edge
+# Edge Computing
+::tags [backend]
+Edge details.
+::next end
+
+---
+
+::id end
+# Final Slide
+Conclusion.
+`
+	d := ParseDeck(src)
+	g := BuildGraph(d)
+
+	dot := g.ToGraphvizDOT()
+	if !strings.Contains(dot, "digraph Termdeck {") || !strings.Contains(dot, "rankdir=LR;") {
+		t.Fatalf("expected digraph header in DOT output, got:\n%s", dot)
+	}
+	if !strings.Contains(dot, "node0 [label=\"[01] Intro\\n#intro\"") {
+		t.Fatalf("expected node 0 definition in DOT output, got:\n%s", dot)
+	}
+	if !strings.Contains(dot, "node1 -> node2 [label=\"[1] Cloud Option\"") {
+		t.Fatalf("expected branch edge in DOT output, got:\n%s", dot)
+	}
+
+	// Test with track filtering
+	dotTrack := g.ToGraphvizDOTWithTrack("backend")
+	if !strings.Contains(dotTrack, "fillcolor=\"#164e63\"") {
+		t.Fatalf("expected highlighted track fillcolor in track DOT output, got:\n%s", dotTrack)
+	}
+}
+
+func TestTopologyMetricsAndAnalysis(t *testing.T) {
+	src := `---
+title: Topology Metrics Deck
+---
+
+::id s1
+# Slide 1 (Root)
+::branch [1] Option A -> s2
+::branch [2] Option B -> s3
+
+---
+
+::id s2
+# Slide 2 (Branch A)
+::next s4
+
+---
+
+::id s3
+# Slide 3 (Branch B)
+::loop [r] Loop to S1 -> s1 max=2 next=s4
+
+---
+
+::id s4
+# Slide 4 (Join & Sink)
+Final slide.
+`
+	d := ParseDeck(src)
+	g := BuildGraph(d)
+	m := g.AnalyzeTopology()
+
+	if m.TotalNodes != 4 {
+		t.Fatalf("expected 4 total nodes, got %d", m.TotalNodes)
+	}
+	if len(m.RootNodes) != 1 || m.RootNodes[0] != 0 {
+		t.Fatalf("expected root node [0], got %v", m.RootNodes)
+	}
+	if len(m.SinkNodes) != 1 || m.SinkNodes[0] != 3 {
+		t.Fatalf("expected sink node [3], got %v", m.SinkNodes)
+	}
+	if len(m.ForkNodes) != 2 || m.ForkNodes[0] != 0 || m.ForkNodes[1] != 2 {
+		t.Fatalf("expected forks at nodes [0 2], got %v", m.ForkNodes)
+	}
+	if len(m.JoinNodes) != 1 || m.JoinNodes[0] != 3 {
+		t.Fatalf("expected join at node 3, got %v", m.JoinNodes)
+	}
+	if len(m.LoopNodes) != 1 || m.LoopNodes[0] != 2 {
+		t.Fatalf("expected loop at node 2, got %v", m.LoopNodes)
+	}
+	if m.CyclomaticComplexity < 2 {
+		t.Fatalf("expected cyclomatic complexity >= 2, got %d", m.CyclomaticComplexity)
+	}
+	if m.MaxDepth < 2 || len(m.LongestPath) < 3 {
+		t.Fatalf("expected max depth >= 2, got depth=%d path=%v", m.MaxDepth, m.LongestPath)
+	}
+}
+
+func TestLintGraphLoopExitAndDuplicateBranchKeys(t *testing.T) {
+	src := `---
+title: Diagnostics Deck
+---
+
+::id s1
+# Slide 1
+::branch [1] Branch Alpha -> s2
+::branch [1] Branch Beta Duplicate -> s3
+::loop [r] Broken Loop -> non-existent next=ghost-exit
+
+---
+
+::id s2
+# Slide 2
+End A
+
+---
+
+::id s3
+# Slide 3
+End B
+`
+	d := ParseDeck(src)
+	issues := LintGraph(d)
+
+	hasDuplicateKey := false
+	hasBrokenExit := false
+	for _, issue := range issues {
+		if strings.Contains(issue.Message, "duplicate branch shortcut key \"1\"") {
+			hasDuplicateKey = true
+		}
+		if strings.Contains(issue.Message, "loop exit target points to nonexistent target \"ghost-exit\"") {
+			hasBrokenExit = true
+		}
+	}
+
+	if !hasDuplicateKey {
+		t.Errorf("expected warning on duplicate branch key '1', got issues: %+v", issues)
+	}
+	if !hasBrokenExit {
+		t.Errorf("expected error on nonexistent loop exit target 'ghost-exit', got issues: %+v", issues)
+	}
+}
+
+func TestFormatGraphCLIWithTopologySummary(t *testing.T) {
+	theme := ResolveTheme("tokyo-night")
+	src := `---
+title: CLI Topology Test
+---
+
+::id a
+# Slide A
+::branch [1] Go To B -> b
+
+---
+
+::id b
+# Slide B
+End
+`
+	d := ParseDeck(src)
+	out := FormatGraphCLI(d, theme)
+
+	if !strings.Contains(out, "Topology:") || !strings.Contains(out, "2 slides") || !strings.Contains(out, "M=") {
+		t.Fatalf("expected topology summary in FormatGraphCLI output, got:\n%s", out)
+	}
+}
+
