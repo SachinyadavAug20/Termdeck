@@ -2,6 +2,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -205,15 +206,23 @@ Happy Presenting!
 	return os.WriteFile(targetPath, []byte(content), 0644)
 }
 
-func printHelp() {
-	fmt.Println(`Termdeck - Terminal presentation tool
+func printHelp(w ...io.Writer) {
+	out := io.Writer(os.Stdout)
+	if len(w) > 0 && w[0] != nil {
+		out = w[0]
+	}
+	fmt.Fprintln(out, `Termdeck - Terminal presentation tool
 
 Usage:
   deck [options] <file.deck.md>
   deck init [filename.deck.md]
+  deck fmt [--check] <file.deck.md>
+  deck doctor <file.deck.md>
 
 Commands:
   init [name]          Scaffold a new starter presentation template (default: presentation.deck.md)
+  fmt [--check] <file> Canonicalize markdown formatting, directives, and slide whitespace
+  doctor <file>        Run comprehensive presentation integrity, asset, and runtime diagnostics
 
 Options:
   -s, --start-at <N>   Start presentation at slide N (1-based)
@@ -268,6 +277,10 @@ Controls:
 }
 
 func main() {
+	os.Exit(runCLI(os.Args[1:], os.Stdout, os.Stderr))
+}
+
+func runCLI(args []string, stdout, stderr io.Writer) int {
 	var startAt int
 	var showHelp bool
 	var showVer bool
@@ -290,10 +303,29 @@ func main() {
 	var showRadar bool
 	var cfgPath string
 
-	// Load configuration from file and environment variables
-	cfg, err := internal.LoadConfig()
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "warning: could not load config: %v\n", err)
+	// Pre-scan for --config to load settings before flag overrides
+	for i := 0; i < len(args); i++ {
+		if args[i] == "--config" && i+1 < len(args) {
+			cfgPath = args[i+1]
+			break
+		} else if strings.HasPrefix(args[i], "--config=") {
+			cfgPath = strings.TrimPrefix(args[i], "--config=")
+			break
+		}
+	}
+
+	var cfg internal.Config
+	var err error
+	if cfgPath != "" {
+		cfg, err = internal.LoadConfigFromPath(cfgPath)
+		if err != nil {
+			fmt.Fprintf(stderr, "warning: could not load config from %s: %v\n", cfgPath, err)
+		}
+	} else {
+		cfg, err = internal.LoadConfig()
+		if err != nil {
+			fmt.Fprintf(stderr, "warning: could not load config: %v\n", err)
+		}
 	}
 
 	// Apply config as defaults (CLI flags override config)
@@ -346,7 +378,6 @@ func main() {
 		exportOutPath = cfg.ExportOutPath
 	}
 
-	args := os.Args[1:]
 	var fileArgs []string
 
 	for i := 0; i < len(args); i++ {
@@ -356,11 +387,10 @@ func main() {
 			showHelp = true
 		case arg == "--config":
 			if i+1 < len(args) {
-				i++
-				cfgPath = args[i]
-				// Reload config with new path - for simplicity, just note it
-				_ = cfgPath
+				i++ // already handled in pre-scan
 			}
+		case strings.HasPrefix(arg, "--config="):
+			// already handled in pre-scan
 		case arg == "-v" || arg == "--version":
 			showVer = true
 		case arg == "--list-themes":
@@ -443,20 +473,20 @@ func main() {
 	}
 
 	if showHelp {
-		printHelp()
-		return
+		printHelp(stdout)
+		return 0
 	}
 	if showVer {
-		fmt.Printf("Termdeck v%s\n", version)
-		return
+		fmt.Fprintf(stdout, "Termdeck v%s\n", version)
+		return 0
 	}
 	if listThemes {
-		fmt.Println("Available Termdeck Color Themes:")
+		fmt.Fprintln(stdout, "Available Termdeck Color Themes:")
 		for _, th := range internal.AvailableThemes() {
-			fmt.Printf("  %-14s %-18s (accent: %s)\n", th.ID, th.Name, th.Accent)
+			fmt.Fprintf(stdout, "  %-14s %-18s (accent: %s)\n", th.ID, th.Name, th.Accent)
 		}
-		fmt.Println("\nTip: Pass '--theme <name>' or set 'theme: <name>' in deck frontmatter.")
-		return
+		fmt.Fprintln(stdout, "\nTip: Pass '--theme <name>' or set 'theme: <name>' in deck frontmatter.")
+		return 0
 	}
 
 	if len(fileArgs) > 0 && (fileArgs[0] == "init" || fileArgs[0] == "new") {
@@ -465,24 +495,93 @@ func main() {
 			target = fileArgs[1]
 		}
 		if err := scaffoldStarterDeck(target); err != nil {
-			fmt.Fprintf(os.Stderr, "error: %v\n", err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error: %v\n", err)
+			return 1
 		}
-		fmt.Printf("Created starter presentation at %s\n", target)
-		fmt.Printf("Run 'deck %s' to launch your presentation.\n", target)
-		return
+		fmt.Fprintf(stdout, "Created starter presentation at %s\n", target)
+		fmt.Fprintf(stdout, "Run 'deck %s' to launch your presentation.\n", target)
+		return 0
+	}
+
+	if len(fileArgs) > 0 && (fileArgs[0] == "fmt" || fileArgs[0] == "format") {
+		isCheck := false
+		var targetFiles []string
+		for _, a := range fileArgs[1:] {
+			if a == "--check" {
+				isCheck = true
+			} else if !strings.HasPrefix(a, "-") {
+				targetFiles = append(targetFiles, a)
+			}
+		}
+		if len(targetFiles) == 0 {
+			fmt.Fprintln(stderr, "error: missing deck file for fmt")
+			fmt.Fprintln(stderr, "usage: deck fmt [--check] <file.deck.md>")
+			return 1
+		}
+		hasUnformatted := false
+		for _, f := range targetFiles {
+			isFmt, _, err := internal.FormatDeckFile(f, isCheck)
+			if err != nil {
+				fmt.Fprintf(stderr, "error formatting %s: %v\n", f, err)
+				return 1
+			}
+			if isCheck {
+				if !isFmt {
+					fmt.Fprintf(stdout, "✕ %s needs formatting\n", f)
+					hasUnformatted = true
+				} else {
+					fmt.Fprintf(stdout, "✓ %s is formatted\n", f)
+				}
+			} else {
+				if !isFmt {
+					fmt.Fprintf(stdout, "Formatted %s\n", f)
+				} else {
+					fmt.Fprintf(stdout, "%s already formatted\n", f)
+				}
+			}
+		}
+		if hasUnformatted {
+			return 1
+		}
+		return 0
+	}
+
+	if len(fileArgs) > 0 && (fileArgs[0] == "doctor" || fileArgs[0] == "check") {
+		if len(fileArgs) < 2 {
+			fmt.Fprintln(stderr, "error: missing deck file for doctor")
+			fmt.Fprintln(stderr, "usage: deck doctor <file.deck.md>")
+			return 1
+		}
+		deckFile := fileArgs[1]
+		src, err := os.ReadFile(deckFile)
+		if err != nil {
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
+		}
+		d := internal.ParseDeck(string(src))
+		d.BaseDir = filepath.Dir(deckFile)
+		if cliTheme != "" {
+			d.Theme = cliTheme
+		}
+		report := internal.RunDeckDoctor(d, deckFile)
+		theme := internal.ResolveTheme(d.Theme)
+		fmt.Fprint(stdout, internal.FormatDoctorCLI(report, theme))
+		if report.Errors > 0 {
+			return 1
+		}
+		return 0
 	}
 
 	if exportHTML {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --export-html")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --export-html")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
@@ -495,41 +594,41 @@ func main() {
 			outPath = strings.TrimSuffix(deckFile, ext) + ".html"
 		}
 		if err := internal.ExportHTMLFile(d, outPath); err != nil {
-			fmt.Fprintf(os.Stderr, "export error: %v\n", err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "export error: %v\n", err)
+			return 1
 		}
-		fmt.Printf("Exported presentation to %s\n", outPath)
-		return
+		fmt.Fprintf(stdout, "Exported presentation to %s\n", outPath)
+		return 0
 	}
 
 	if showRadar {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --radar")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --radar")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
 		visited := map[int]bool{0: true}
-		fmt.Print(internal.FormatRadarCLI(d, visited, 0))
-		return
+		fmt.Fprint(stdout, internal.FormatRadarCLI(d, visited, 0))
+		return 0
 	}
 
 	if showStats {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --stats")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --stats")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
@@ -538,20 +637,20 @@ func main() {
 		}
 		theme := internal.ResolveTheme(d.Theme)
 		stats := internal.CalculateStats(&d, 0)
-		fmt.Print(internal.FormatStatsCLI(stats, theme))
-		return
+		fmt.Fprint(stdout, internal.FormatStatsCLI(stats, theme))
+		return 0
 	}
 
 	if showGraph {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --graph")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --graph")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
@@ -560,71 +659,71 @@ func main() {
 		}
 		theme := internal.ResolveTheme(d.Theme)
 		if cliRoute != "" {
-			fmt.Print(internal.FormatGraphCLIWithRoute(d, theme, cliRoute))
+			fmt.Fprint(stdout, internal.FormatGraphCLIWithRoute(d, theme, cliRoute))
 		} else if cliTrack != "" {
-			fmt.Print(internal.FormatGraphCLIWithTrack(d, theme, cliTrack))
+			fmt.Fprint(stdout, internal.FormatGraphCLIWithTrack(d, theme, cliTrack))
 		} else {
-			fmt.Print(internal.FormatGraphCLI(d, theme))
+			fmt.Fprint(stdout, internal.FormatGraphCLI(d, theme))
 		}
-		return
+		return 0
 	}
 
 	if showMermaid {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --mermaid")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --mermaid")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
 		g := internal.BuildGraph(d)
 		if cliRoute != "" {
-			fmt.Print(g.ToMermaidWithRoute(cliRoute, d))
+			fmt.Fprint(stdout, g.ToMermaidWithRoute(cliRoute, d))
 		} else if cliTrack != "" {
-			fmt.Print(g.ToMermaidWithTrack(cliTrack))
+			fmt.Fprint(stdout, g.ToMermaidWithTrack(cliTrack))
 		} else {
-			fmt.Print(g.ToMermaid())
+			fmt.Fprint(stdout, g.ToMermaid())
 		}
-		return
+		return 0
 	}
 
 	if showDOT {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --dot")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --dot")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
 		g := internal.BuildGraph(d)
 		if cliTrack != "" {
-			fmt.Print(g.ToGraphvizDOTWithTrack(cliTrack))
+			fmt.Fprint(stdout, g.ToGraphvizDOTWithTrack(cliTrack))
 		} else {
-			fmt.Print(g.ToGraphvizDOT())
+			fmt.Fprint(stdout, g.ToGraphvizDOT())
 		}
-		return
+		return 0
 	}
 
 	if lintDAG {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --lint")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --lint")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
@@ -634,51 +733,51 @@ func main() {
 			theme = internal.ResolveTheme(cliTheme)
 		}
 		out, errCount := internal.FormatLintCLI(issues, theme, deckFile)
-		fmt.Print(out)
+		fmt.Fprint(stdout, out)
 		if errCount > 0 {
-			os.Exit(1)
+			return 1
 		}
-		return
+		return 0
 	}
 
 	if testCode {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --test-code")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --test-code")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
 		start := time.Now()
 		passed, failed, results := internal.TestAllDeckCode(d, 5*time.Second)
-		fmt.Print(internal.FormatTestCodeCLI(deckFile, passed, failed, results, time.Since(start)))
+		fmt.Fprint(stdout, internal.FormatTestCodeCLI(deckFile, passed, failed, results, time.Since(start)))
 		if failed > 0 {
-			os.Exit(1)
+			return 1
 		}
-		return
+		return 0
 	}
 
 	if runSlideNum > 0 {
 		if len(fileArgs) < 1 {
-			fmt.Fprintln(os.Stderr, "error: missing deck file for --run-slide")
-			os.Exit(1)
+			fmt.Fprintln(stderr, "error: missing deck file for --run-slide")
+			return 1
 		}
 		deckFile := fileArgs[0]
 		src, err := os.ReadFile(deckFile)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "error reading %s: %v\n", deckFile, err)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error reading %s: %v\n", deckFile, err)
+			return 1
 		}
 		d := internal.ParseDeck(string(src))
 		d.BaseDir = filepath.Dir(deckFile)
 		if runSlideNum > len(d.Slides) {
-			fmt.Fprintf(os.Stderr, "error: slide %d exceeds total slide count (%d)\n", runSlideNum, len(d.Slides))
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error: slide %d exceeds total slide count (%d)\n", runSlideNum, len(d.Slides))
+			return 1
 		}
 		slide := d.Slides[runSlideNum-1]
 		var targetBlock *internal.Block
@@ -689,43 +788,45 @@ func main() {
 			}
 		}
 		if targetBlock == nil {
-			fmt.Fprintf(os.Stderr, "error: slide %d contains no code blocks\n", runSlideNum)
-			os.Exit(1)
+			fmt.Fprintf(stderr, "error: slide %d contains no code blocks\n", runSlideNum)
+			return 1
 		}
 		res := internal.ExecuteBlock(*targetBlock, 10*time.Second, nil)
 		if res.Stdout != "" {
-			fmt.Print(res.Stdout)
+			fmt.Fprint(stdout, res.Stdout)
 			if !strings.HasSuffix(res.Stdout, "\n") {
-				fmt.Println()
+				fmt.Fprintln(stdout)
 			}
 		}
 		if res.Stderr != "" {
-			fmt.Fprint(os.Stderr, res.Stderr)
+			fmt.Fprint(stderr, res.Stderr)
 			if !strings.HasSuffix(res.Stderr, "\n") {
-				fmt.Fprintln(os.Stderr)
+				fmt.Fprintln(stderr)
 			}
 		}
 		if res.Error != "" && !strings.Contains(res.Stderr, res.Error) {
-			fmt.Fprintf(os.Stderr, "error: %s\n", res.Error)
+			fmt.Fprintf(stderr, "error: %s\n", res.Error)
 		}
 		if res.ExitCode != 0 {
-			os.Exit(res.ExitCode)
+			return res.ExitCode
 		}
-		return
+		return 0
 	}
 
 	if len(fileArgs) < 1 {
-		fmt.Fprintln(os.Stderr, "error: missing deck file")
-		fmt.Fprintln(os.Stderr, "usage: deck [options] <file.deck.md>")
-		fmt.Fprintln(os.Stderr, "       deck init [filename.deck.md]   # create starter presentation")
-		fmt.Fprintln(os.Stderr, "try 'deck --help' for more information")
-		os.Exit(1)
+		fmt.Fprintln(stderr, "error: missing deck file")
+		fmt.Fprintln(stderr, "usage: deck [options] <file.deck.md>")
+		fmt.Fprintln(stderr, "       deck init [filename.deck.md]   # create starter presentation")
+		fmt.Fprintln(stderr, "       deck fmt [--check] <file.deck.md>")
+		fmt.Fprintln(stderr, "       deck doctor <file.deck.md>")
+		fmt.Fprintln(stderr, "try 'deck --help' for more information")
+		return 1
 	}
 
 	m, err := buildModel(fileArgs[0], watchMode)
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		fmt.Fprintln(stderr, err)
+		return 1
 	}
 
 	if cliTheme != "" {
@@ -759,14 +860,19 @@ func main() {
 		m.editor.AutoplayCountdown = autoplaySec
 	}
 
+	if os.Getenv("TERMDECK_NO_RUN") == "1" {
+		return 0
+	}
+
 	p := tea.NewProgram(m, tea.WithAltScreen())
 	finalModel, err := p.Run()
 	if err != nil {
-		fmt.Fprintln(os.Stderr, err)
-		os.Exit(1)
+		fmt.Fprintln(stderr, err)
+		return 1
 	}
 
 	if fm, ok := finalModel.(model); ok && fm.editor.Dirty && fm.editor.FilePath != "" {
 		fm.editor.Save(fm.deck)
 	}
+	return 0
 }

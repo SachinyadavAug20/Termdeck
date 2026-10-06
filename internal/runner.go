@@ -42,24 +42,339 @@ const (
 	DefaultAutoplaySec = 5
 )
 
-// IsExecutableLanguage returns true for languages supported by the live runner.
-func IsExecutableLanguage(lang string) bool {
-	switch strings.ToLower(strings.TrimSpace(lang)) {
-	case "bash", "sh", "zsh", "shell", "python", "py", "python3", "node", "js", "javascript", "ruby", "rb", "go", "rust", "java", "scala", "kotlin", "c", "cpp", "csharp", "cs", "php", "perl", "r", "lua", "matlab":
+// LanguageRunner abstracts execution and compilation for a specific language (SRP & ISP).
+type LanguageRunner interface {
+	Supports(lang string) bool
+	BuildCommand(ctx context.Context, code string) (cmd *exec.Cmd, cleanupFiles []string, compileStderr string, err error)
+}
+
+// RunnerRegistry manages language runners, enabling the Open-Closed Principle (OCP).
+type RunnerRegistry struct {
+	runners []LanguageRunner
+}
+
+// NewRunnerRegistry constructs a registry with default supported language runners.
+func NewRunnerRegistry() *RunnerRegistry {
+	r := &RunnerRegistry{}
+	r.Register(&ShellRunner{})
+	r.Register(&PythonRunner{})
+	r.Register(&NodeRunner{})
+	r.Register(&TypeScriptRunner{})
+	r.Register(&RubyRunner{})
+	r.Register(&GoRunner{})
+	r.Register(&RustRunner{})
+	r.Register(&CRunner{})
+	r.Register(&CppRunner{})
+	r.Register(&LuaRunner{})
+	r.Register(&PerlRunner{})
+	r.Register(&PhpRunner{})
+	return r
+}
+
+// Register registers a new language runner without modifying existing runner logic (OCP).
+func (r *RunnerRegistry) Register(runner LanguageRunner) {
+	r.runners = append(r.runners, runner)
+}
+
+// Find retrieves the language runner responsible for the specified language.
+func (r *RunnerRegistry) Find(lang string) (LanguageRunner, bool) {
+	lang = strings.ToLower(strings.TrimSpace(lang))
+	for _, runner := range r.runners {
+		if runner.Supports(lang) {
+			return runner, true
+		}
+	}
+	return nil, false
+}
+
+// DefaultRegistry is the global language runner registry (DIP).
+var DefaultRegistry = NewRunnerRegistry()
+
+// RegisterRunner adds a new language runner to the global registry.
+func RegisterRunner(runner LanguageRunner) {
+	DefaultRegistry.Register(runner)
+}
+
+// ShellRunner handles bash, sh, zsh, and shell scripts.
+type ShellRunner struct{}
+
+func (r *ShellRunner) Supports(lang string) bool {
+	switch lang {
+	case "bash", "sh", "zsh", "shell", "":
 		return true
 	default:
 		return false
 	}
 }
 
-// ExecuteBlock executes the code within a Block using host interpreters.
-// Supported languages:
-//   - bash, sh, zsh, shell (or empty): /bin/sh -c
-//   - python, py, python3: python3 -c
-//   - node, js, javascript: node -e
-//   - ruby, rb: ruby -e
-//   - go: go run (wraps snippet in package main if needed)
-//   - rust, java, etc: via default shell
+func (r *ShellRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	shBin := "/bin/sh"
+	if _, err := exec.LookPath("bash"); err == nil {
+		shBin = "bash"
+	}
+	return exec.CommandContext(ctx, shBin, "-c", code), nil, "", nil
+}
+
+// PythonRunner handles python, py, and python3 scripts.
+type PythonRunner struct{}
+
+func (r *PythonRunner) Supports(lang string) bool {
+	switch lang {
+	case "python", "py", "python3":
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *PythonRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	pyBin := "python3"
+	if _, err := exec.LookPath("python3"); err != nil {
+		if _, err2 := exec.LookPath("python"); err2 == nil {
+			pyBin = "python"
+		}
+	}
+	return exec.CommandContext(ctx, pyBin, "-c", code), nil, "", nil
+}
+
+// NodeRunner handles JavaScript via Node.js (with bun/deno fallback).
+type NodeRunner struct{}
+
+func (r *NodeRunner) Supports(lang string) bool {
+	switch lang {
+	case "node", "js", "javascript":
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *NodeRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	if nodeBin, err := exec.LookPath("node"); err == nil {
+		return exec.CommandContext(ctx, nodeBin, "-e", code), nil, "", nil
+	}
+	if bunBin, err := exec.LookPath("bun"); err == nil {
+		return exec.CommandContext(ctx, bunBin, "run", "-e", code), nil, "", nil
+	}
+	if denoBin, err := exec.LookPath("deno"); err == nil {
+		return exec.CommandContext(ctx, denoBin, "eval", code), nil, "", nil
+	}
+	return exec.CommandContext(ctx, "node", "-e", code), nil, "", nil
+}
+
+// TypeScriptRunner handles TypeScript via Deno, Bun, tsx, or ts-node.
+type TypeScriptRunner struct{}
+
+func (r *TypeScriptRunner) Supports(lang string) bool {
+	switch lang {
+	case "ts", "typescript":
+		return true
+	default:
+		return false
+	}
+}
+
+func (r *TypeScriptRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	if denoBin, err := exec.LookPath("deno"); err == nil {
+		return exec.CommandContext(ctx, denoBin, "eval", "--ext=ts", code), nil, "", nil
+	}
+	if bunBin, err := exec.LookPath("bun"); err == nil {
+		return exec.CommandContext(ctx, bunBin, "run", "-e", code), nil, "", nil
+	}
+	if tsxBin, err := exec.LookPath("tsx"); err == nil {
+		return exec.CommandContext(ctx, tsxBin, "-e", code), nil, "", nil
+	}
+	if tsNodeBin, err := exec.LookPath("ts-node"); err == nil {
+		return exec.CommandContext(ctx, tsNodeBin, "-e", code), nil, "", nil
+	}
+	return nil, nil, "", fmt.Errorf("no TypeScript runtime found (install deno, bun, tsx, or ts-node)")
+}
+
+// RubyRunner handles Ruby scripts.
+type RubyRunner struct{}
+
+func (r *RubyRunner) Supports(lang string) bool {
+	return lang == "ruby" || lang == "rb"
+}
+
+func (r *RubyRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	return exec.CommandContext(ctx, "ruby", "-e", code), nil, "", nil
+}
+
+// GoRunner compiles and runs Go snippets.
+type GoRunner struct{}
+
+func (r *GoRunner) Supports(lang string) bool {
+	return lang == "go" || lang == "golang"
+}
+
+func (r *GoRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	goCode := code
+	if !strings.Contains(code, "package ") {
+		goCode = fmt.Sprintf("package main\n\nimport \"fmt\"\n\nfunc main() {\n\t%s\n}\n", strings.ReplaceAll(code, "\n", "\n\t"))
+	}
+	tmpDir := os.TempDir()
+	tmpFile := filepath.Join(tmpDir, fmt.Sprintf("termdeck_run_%d.go", time.Now().UnixNano()))
+	if err := os.WriteFile(tmpFile, []byte(goCode), 0600); err != nil {
+		return nil, nil, "", fmt.Errorf("failed to create temp file: %v", err)
+	}
+	return exec.CommandContext(ctx, "go", "run", tmpFile), []string{tmpFile}, "", nil
+}
+
+// RustRunner compiles and executes Rust snippets.
+type RustRunner struct{}
+
+func (r *RustRunner) Supports(lang string) bool {
+	return lang == "rust" || lang == "rs"
+}
+
+func (r *RustRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	rustcBin, err := exec.LookPath("rustc")
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("rust compiler not found (install rustc)")
+	}
+	rustCode := code
+	if !strings.Contains(code, "fn main") {
+		rustCode = fmt.Sprintf("fn main() {\n    %s\n}\n", strings.ReplaceAll(code, "\n", "\n    "))
+	}
+	tmpDir := os.TempDir()
+	nano := time.Now().UnixNano()
+	srcFile := filepath.Join(tmpDir, fmt.Sprintf("termdeck_run_%d.rs", nano))
+	binFile := filepath.Join(tmpDir, fmt.Sprintf("termdeck_run_%d.bin", nano))
+	if err := os.WriteFile(srcFile, []byte(rustCode), 0600); err != nil {
+		return nil, nil, "", fmt.Errorf("failed to create temp file: %v", err)
+	}
+	cleanup := []string{srcFile, binFile}
+
+	var compileStderr bytes.Buffer
+	compileCmd := exec.CommandContext(ctx, rustcBin, srcFile, "-o", binFile)
+	compileCmd.Stderr = &compileStderr
+	if err := compileCmd.Run(); err != nil {
+		return nil, cleanup, compileStderr.String(), fmt.Errorf("compilation failed")
+	}
+	return exec.CommandContext(ctx, binFile), cleanup, "", nil
+}
+
+// CRunner compiles and executes C snippets.
+type CRunner struct{}
+
+func (r *CRunner) Supports(lang string) bool {
+	return lang == "c"
+}
+
+func (r *CRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	ccBin, err := exec.LookPath("gcc")
+	if err != nil {
+		ccBin, err = exec.LookPath("clang")
+	}
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("C compiler not found (install gcc or clang)")
+	}
+	cCode := code
+	if !strings.Contains(code, "main(") && !strings.Contains(code, "main (") {
+		cCode = fmt.Sprintf("#include <stdio.h>\n#include <stdlib.h>\n\nint main(void) {\n    %s\n    return 0;\n}\n", strings.ReplaceAll(code, "\n", "\n    "))
+	}
+	tmpDir := os.TempDir()
+	nano := time.Now().UnixNano()
+	srcFile := filepath.Join(tmpDir, fmt.Sprintf("termdeck_run_%d.c", nano))
+	binFile := filepath.Join(tmpDir, fmt.Sprintf("termdeck_run_%d.bin", nano))
+	if err := os.WriteFile(srcFile, []byte(cCode), 0600); err != nil {
+		return nil, nil, "", fmt.Errorf("failed to create temp file: %v", err)
+	}
+	cleanup := []string{srcFile, binFile}
+
+	var compileStderr bytes.Buffer
+	compileCmd := exec.CommandContext(ctx, ccBin, srcFile, "-o", binFile, "-lm")
+	compileCmd.Stderr = &compileStderr
+	if err := compileCmd.Run(); err != nil {
+		return nil, cleanup, compileStderr.String(), fmt.Errorf("compilation failed")
+	}
+	return exec.CommandContext(ctx, binFile), cleanup, "", nil
+}
+
+// CppRunner compiles and executes C++ snippets.
+type CppRunner struct{}
+
+func (r *CppRunner) Supports(lang string) bool {
+	return lang == "cpp" || lang == "c++" || lang == "cc"
+}
+
+func (r *CppRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	cxxBin, err := exec.LookPath("g++")
+	if err != nil {
+		cxxBin, err = exec.LookPath("clang++")
+	}
+	if err != nil {
+		return nil, nil, "", fmt.Errorf("C++ compiler not found (install g++ or clang++)")
+	}
+	cppCode := code
+	if !strings.Contains(code, "main(") && !strings.Contains(code, "main (") {
+		cppCode = fmt.Sprintf("#include <iostream>\n\nint main() {\n    %s\n    return 0;\n}\n", strings.ReplaceAll(code, "\n", "\n    "))
+	}
+	tmpDir := os.TempDir()
+	nano := time.Now().UnixNano()
+	srcFile := filepath.Join(tmpDir, fmt.Sprintf("termdeck_run_%d.cpp", nano))
+	binFile := filepath.Join(tmpDir, fmt.Sprintf("termdeck_run_%d.bin", nano))
+	if err := os.WriteFile(srcFile, []byte(cppCode), 0600); err != nil {
+		return nil, nil, "", fmt.Errorf("failed to create temp file: %v", err)
+	}
+	cleanup := []string{srcFile, binFile}
+
+	var compileStderr bytes.Buffer
+	compileCmd := exec.CommandContext(ctx, cxxBin, srcFile, "-o", binFile)
+	compileCmd.Stderr = &compileStderr
+	if err := compileCmd.Run(); err != nil {
+		return nil, cleanup, compileStderr.String(), fmt.Errorf("compilation failed")
+	}
+	return exec.CommandContext(ctx, binFile), cleanup, "", nil
+}
+
+// LuaRunner handles Lua scripts.
+type LuaRunner struct{}
+
+func (r *LuaRunner) Supports(lang string) bool {
+	return lang == "lua" || lang == "luajit"
+}
+
+func (r *LuaRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	luaBin := "lua"
+	if _, err := exec.LookPath("lua"); err != nil {
+		if _, err2 := exec.LookPath("luajit"); err2 == nil {
+			luaBin = "luajit"
+		}
+	}
+	return exec.CommandContext(ctx, luaBin, "-e", code), nil, "", nil
+}
+
+// PerlRunner handles Perl scripts.
+type PerlRunner struct{}
+
+func (r *PerlRunner) Supports(lang string) bool {
+	return lang == "perl" || lang == "pl"
+}
+
+func (r *PerlRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	return exec.CommandContext(ctx, "perl", "-e", code), nil, "", nil
+}
+
+// PhpRunner handles PHP scripts.
+type PhpRunner struct{}
+
+func (r *PhpRunner) Supports(lang string) bool {
+	return lang == "php"
+}
+
+func (r *PhpRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	return exec.CommandContext(ctx, "php", "-r", code), nil, "", nil
+}
+
+// IsExecutableLanguage returns true for languages supported by the live runner.
+func IsExecutableLanguage(lang string) bool {
+	_, found := DefaultRegistry.Find(lang)
+	return found
+}
+
+// ExecuteBlock executes the code within a Block using host interpreters and compilers.
 func ExecuteBlock(blk Block, timeout time.Duration, env []string) ExecResult {
 	start := time.Now()
 	res := ExecResult{
@@ -74,11 +389,15 @@ func ExecuteBlock(blk Block, timeout time.Duration, env []string) ExecResult {
 	}
 
 	lang := res.Language
-	if !IsExecutableLanguage(lang) && lang != "" {
-		res.Error = fmt.Sprintf("language %q is not executable (supported: bash, sh, python, go, node, ruby)", lang)
+	runner, found := DefaultRegistry.Find(lang)
+	if !found && lang != "" {
+		res.Error = fmt.Sprintf("language %q is not executable (supported: bash, sh, python, go, rust, c, cpp, ts, node, ruby, lua, perl, php)", lang)
 		res.ExitCode = 1
 		res.Duration = time.Since(start)
 		return res
+	}
+	if !found {
+		runner, _ = DefaultRegistry.Find("sh")
 	}
 
 	code := blk.Text
@@ -100,56 +419,24 @@ func ExecuteBlock(blk Block, timeout time.Duration, env []string) ExecResult {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	var cmd *exec.Cmd
-	var tempFileToRemove string
-
-	switch lang {
-	case "python", "py", "python3":
-		pyBin := "python3"
-		if _, err := exec.LookPath("python3"); err != nil {
-			if _, err2 := exec.LookPath("python"); err2 == nil {
-				pyBin = "python"
-			}
+	cmd, filesToRemove, compileStderr, prepErr := runner.BuildCommand(ctx, code)
+	defer func() {
+		for _, f := range filesToRemove {
+			_ = os.Remove(f)
 		}
-		cmd = exec.CommandContext(ctx, pyBin, "-c", code)
+	}()
 
-	case "node", "js", "javascript":
-		cmd = exec.CommandContext(ctx, "node", "-e", code)
-
-	case "ruby", "rb":
-		cmd = exec.CommandContext(ctx, "ruby", "-e", code)
-
-	case "go":
-		goCode := code
-		if !strings.Contains(code, "package ") {
-			goCode = fmt.Sprintf("package main\n\nimport \"fmt\"\n\nfunc main() {\n\t%s\n}\n", strings.ReplaceAll(code, "\n", "\n\t"))
-		}
-		tmpDir := os.TempDir()
-		tmpFile := filepath.Join(tmpDir, fmt.Sprintf("termdeck_run_%d.go", time.Now().UnixNano()))
-		if err := os.WriteFile(tmpFile, []byte(goCode), 0600); err != nil {
-			res.Error = fmt.Sprintf("failed to create temp file: %v", err)
-			res.ExitCode = 1
-			res.Duration = time.Since(start)
-			return res
-		}
-		tempFileToRemove = tmpFile
-		cmd = exec.CommandContext(ctx, "go", "run", tmpFile)
-
-	default: // bash, sh, zsh, shell or generic
-		shBin := "/bin/sh"
-		if _, err := exec.LookPath("bash"); err == nil {
-			shBin = "bash"
-		}
-		cmd = exec.CommandContext(ctx, shBin, "-c", code)
+	if prepErr != nil {
+		res.Duration = time.Since(start)
+		res.Stderr = compileStderr
+		res.Error = prepErr.Error()
+		res.ExitCode = 1
+		return res
 	}
 
 	// Apply environment variables if specified (overrides parent env)
 	if len(env) > 0 {
 		cmd.Env = append(os.Environ(), env...)
-	}
-
-	if tempFileToRemove != "" {
-		defer os.Remove(tempFileToRemove)
 	}
 
 	var stdoutBuf, stderrBuf bytes.Buffer

@@ -58,7 +58,9 @@ deck --test-code demo.deck.md
 - **Decision Fork HUD (`J`)**: Floating modal at branching forks displaying destination choices and real-time syntax-highlighted code and text previews before committing to a branch.
 - **Waypoint Pathfinder (`W`)**: Real-time BFS shortest-path graph solver between any two slides with edge hop visualizer and speaking duration estimates (~130 WPM).
 - **Exploration Radar (`V`) & Fast Fork Return (`U`)**: Sub-DAG completion matrix with unique reachability partitioning, plus one-key instant backtrack teleport to parent decision hubs.
-- **Live Terminal Code Runner (`X`)**: Run Bash, Go, Python, Node.js, and Ruby blocks directly inside slides with output cards and exit codes.
+- **Live Terminal Code Runner (`X`)**: Native compilation & execution for Bash, Go, Python, Node.js, TypeScript, Rust, C, C++, Lua, Perl, and PHP blocks directly inside slides with live stdout/stderr cards and exit codes.
+- **Presentation Health Doctor (`deck doctor`)**: Comprehensive pre-flight presentation diagnostics verifying DAG integrity, local image assets, required host compiler toolchains, and slide viewport overflows.
+- **Presentation Code Formatter (`deck fmt`)**: Automated canonical layout, directive spacing, and markdown slide formatter with `--check` mode for CI/CD workflows.
 - **Element Zoom & Focus Mode (`f` / `F`)**: Maximize complex architecture diagrams, tables, and code snippets to full viewport with vertical scrolling (`j`/`k`).
 - **Preset Routes (`P`) & Audience Tracks (`K`)**: Filter presentation paths for different talk formats (lightning vs deep-dive) or audiences (executive vs engineering).
 - **Traversal History & Reflog (`H`)**: Visual presentation journey stack with instant rewind capabilities (`1`–`9` or `Enter`).
@@ -66,17 +68,17 @@ deck --test-code demo.deck.md
 - **Dynamic Theme Engine**: 9 curated developer color schemes (`tokyo-night`, `dracula`, `nord`, `catppuccin`, `monokai`, etc.) plus custom hex colors.
 - **Configuration File** (`deck --config`): Load presentation settings from `~/.termdeck/config.toml` or `./termdeck.toml`/`.yml`. Supports theme, autoplay delay, tracks, routes, and more via INI-style key: value format. Environment variables (`TERMDECK_THEME`, `TERMDECK_AUTOPLAY`, etc.) override config file values.
 
-- **Performance & Quality**: Sub-millisecond rendering (<0.26ms/op), 90.5% statement coverage across 161 unit tests, and zero runtime dependencies.
+- **Performance & Quality**: Sub-millisecond rendering (<0.26ms/op), 89.2% statement coverage across 175+ unit tests, and zero runtime dependencies.
 
 ---
 
 ## Project Status
 
-**Current Release**: `v0.15.0` (28 September 2026) | **Quality**: 161 unit tests | **Statement Coverage**: 90.5% | 0 linter warnings | **Rendering Latency**: 0.256 ms/frame.
+**Current Release**: `v0.17.0` (06 October 2026) | **Quality**: 175+ unit tests | **Statement Coverage**: ~90% | 0 linter warnings | **Rendering Latency**: 0.256 ms/frame.
 
 Termdeck is actively developed with compiler-grade graph validation, verified performance benchmarks, and comprehensive documentation.
 
-For the complete day-by-day development timeline, release notes, and feature additions from v0.1 to v0.15, see [`TTP_Documentation/CHANGELOG.md`](TTP_Documentation/CHANGELOG.md).
+For the complete day-by-day development timeline, release notes, and feature additions from v0.1 to v0.17, see [`TTP_Documentation/CHANGELOG.md`](TTP_Documentation/CHANGELOG.md).
 
 ---
 
@@ -146,9 +148,13 @@ Press `i` to enter in-place edit mode on the selected block. Press `Esc` to exit
 ```bash
 deck [options] <file.deck.md>
 deck init [filename.deck.md]
+deck fmt [--check] <file.deck.md>
+deck doctor <file.deck.md>
 
 # Commands:
 #   init [name]          Scaffold a new starter presentation template (default: presentation.deck.md)
+#   fmt [--check] <file> Canonicalize markdown formatting, directives, and slide whitespace
+#   doctor <file>        Run comprehensive presentation integrity, asset, and runtime diagnostics
 
 # Options:
 #   -s, --start-at <N>   Start at slide N
@@ -165,6 +171,7 @@ deck init [filename.deck.md]
 #       --run-slide <N>  Execute code block on slide N directly in terminal
 #       --stats          Print presentation statistics and metrics to terminal
 #       --export-html    Export presentation to standalone HTML file
+#       --config <path>  Load configuration from file (defaults: ~/.termdeck/config.toml, ./termdeck.toml)
 #       --lint           Validate DAG topology for broken links, unreachable slides, and dead ends
 #   -h, --help           Show help
 #   -v, --version        Show version
@@ -177,8 +184,8 @@ deck init [filename.deck.md]
 Detailed technical documentation and developer guides are maintained in [`TTP_Documentation/`](TTP_Documentation/):
 
 - **[Technical Architecture Deep-Dive](TTP_Documentation/development/architecture.md)**: Comprehensive architectural breakdown of the Elm Architecture loop, AST tokenization, Lipgloss styling pipeline, Sub-DAG reachability partitioning, state machines, and bounded cycle execution.
-- **[Developer Testing & QA Guide](TTP_Documentation/development/testing.md)**: Testing philosophy, test inventory (155 tests), statement coverage breakdown (90.7%), benchmarks, and contributing guidelines.
-- **[Full Changelog & Timeline](TTP_Documentation/CHANGELOG.md)**: Complete chronological changelog detailing every feature, release, and engineering enhancement from v0.1 to v0.13.
+- **[Developer Testing & QA Guide](TTP_Documentation/development/testing.md)**: Testing philosophy, test inventory (175+ tests), statement coverage breakdown (~90%), benchmarks, and contributing guidelines.
+- **[Full Changelog & Timeline](TTP_Documentation/CHANGELOG.md)**: Complete chronological changelog detailing every feature, release, and engineering enhancement from v0.1 to v0.17.
 - **[Deck Format Specification](TTP_Documentation/specs/format.md)**: Syntax reference for slides, directives (`::branch`, `::loop`, `::next`, `::tags`, `::columns`), callout cards, and code blocks.
 
 ---
@@ -187,7 +194,7 @@ Detailed technical documentation and developer guides are maintained in [`TTP_Do
 
 ```
 tpp/
-├── main.go              # Entry point, CLI flags, tea.Model lifecycle
+├── main.go              # Entry point, CLI flags, runCLI runner, tea.Model lifecycle
 ├── main_test.go         # Model lifecycle & CLI bootstrap unit tests
 ├── internal/
 │   ├── model.go         # Block types, Deck/Slide parsing, serialization
@@ -196,12 +203,18 @@ tpp/
 │   ├── view_test.go     # Highlighting lexer, styling, view benchmarks
 │   ├── editor.go        # Edit mode, block operations, undo/redo, navigation
 │   ├── editor_test.go   # Navigation, keyboard dispatch, edit mode tests
+│   ├── format.go        # Deck formatter, directive canonicalization, whitespace cleaner
+│   ├── format_test.go   # Format validation, directive tests, file round-trips
+│   ├── doctor.go        # Health doctor, DAG/asset/toolchain/viewport diagnostics
+│   ├── doctor_test.go   # Pre-flight check tests, category assertions, CLI formatting
+│   ├── config.go        # Config loading, TOML/YAML parser, env overrides, save
+│   ├── config_test.go   # Config precedence, key parsing, env variables, round-trips
 │   ├── export.go        # Standalone HTML export, CSS/JS bundling
 │   ├── export_test.go   # HTML export tests, formatting, file output verification
-│   ├── graph.go         # DAG topology, BFS routing, loops, radar, ASCII map, Mermaid
-│   ├── graph_test.go    # Graph builder, shortest path, loops, linter tests
-│   ├── runner.go        # Subprocess live code executor (bash, python, go, etc.)
-│   ├── runner_test.go   # Subprocess timeouts, dedent, CI code test assertions
+│   ├── graph.go         # DAG topology, BFS routing, loops, radar, ASCII map, Mermaid, DOT
+│   ├── graph_test.go    # Graph builder, shortest path, loops, linter, DOT tests
+│   ├── runner.go        # Live code executor (bash, python, go, rust, c, cpp, ts, lua, etc.)
+│   ├── runner_test.go   # Subprocess timeouts, dedent, multi-language execution tests
 │   ├── image.go         # Terminal image renderer (ANSI half-blocks)
 │   ├── image_test.go    # Path resolution, format probing, card tests
 │   ├── stats.go         # Talk statistics, density metrics, duration estimation

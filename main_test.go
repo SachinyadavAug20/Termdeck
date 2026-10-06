@@ -441,3 +441,197 @@ func TestScaffoldStarterDeck(t *testing.T) {
 func TestPrintHelpPaletteAndInit(t *testing.T) {
 	printHelp()
 }
+
+func TestRunCLI_CommandsAndFlags(t *testing.T) {
+	tmpDir := t.TempDir()
+	starterPath := tmpDir + "/test_deck.deck.md"
+
+	var out, errOut strings.Builder
+
+	// 1. --help
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--help"}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --help, got %d", code)
+	}
+	if !strings.Contains(out.String(), "Termdeck - Terminal presentation tool") {
+		t.Errorf("expected help output, got: %s", out.String())
+	}
+
+	// 2. --version
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--version"}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --version, got %d", code)
+	}
+	if !strings.Contains(out.String(), "Termdeck v") {
+		t.Errorf("expected version output, got: %s", out.String())
+	}
+
+	// 3. --list-themes
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--list-themes"}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --list-themes, got %d", code)
+	}
+	if !strings.Contains(out.String(), "tokyo-night") {
+		t.Errorf("expected themes list, got: %s", out.String())
+	}
+
+	// 4. init
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"init", starterPath}, &out, &errOut); code != 0 {
+		t.Fatalf("expected 0 from init, got %d (err: %s)", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "Created starter presentation") {
+		t.Errorf("expected init success message, got: %s", out.String())
+	}
+
+	// 4b. init existing (fails)
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"init", starterPath}, &out, &errOut); code != 1 {
+		t.Errorf("expected 1 from init when file exists, got %d", code)
+	}
+
+	// 5. fmt and fmt --check
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"fmt", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from fmt, got %d", code)
+	}
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"fmt", "--check", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from fmt --check on formatted deck, got %d", code)
+	}
+
+	// 5b. fmt missing file
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"fmt"}, &out, &errOut); code != 1 {
+		t.Errorf("expected 1 from fmt without file, got %d", code)
+	}
+
+	// 6. doctor
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"doctor", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from doctor on starter deck, got %d (err: %s)", code, errOut.String())
+	}
+	if !strings.Contains(out.String(), "Termdeck Doctor") {
+		t.Errorf("expected doctor report in output, got: %s", out.String())
+	}
+
+	// 6b. doctor missing file
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"doctor"}, &out, &errOut); code != 1 {
+		t.Errorf("expected 1 from doctor without file, got %d", code)
+	}
+
+	// 7. --config flag with custom config file
+	cfgPath := tmpDir + "/custom.toml"
+	_ = os.WriteFile(cfgPath, []byte("theme: \"nord\"\n"), 0644)
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--config", cfgPath, "--stats", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --config with --stats, got %d", code)
+	}
+
+	// 8. --graph, --mermaid, --dot
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--graph", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --graph, got %d", code)
+	}
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--mermaid", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --mermaid, got %d", code)
+	}
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--dot", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --dot, got %d", code)
+	}
+
+	// 9. --radar and --lint
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--radar", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --radar, got %d", code)
+	}
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--lint", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --lint, got %d", code)
+	}
+
+	// 10. --test-code and --run-slide
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--test-code", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --test-code, got %d", code)
+	}
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--run-slide", "4", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --run-slide 4, got %d", code)
+	}
+
+	// 11. --export-html
+	out.Reset(); errOut.Reset()
+	htmlPath := tmpDir + "/exported.html"
+	if code := runCLI([]string{"--export-html=" + htmlPath, starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 from --export-html, got %d", code)
+	}
+	if _, err := os.Stat(htmlPath); err != nil {
+		t.Errorf("expected html file to exist: %v", err)
+	}
+
+	// 12. Interactive mode model builder with TERMDECK_NO_RUN=1
+	t.Setenv("TERMDECK_NO_RUN", "1")
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--track", "quick", "--route", "quick", "-s", "2", "-a", "3", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 launching interactive mode with TERMDECK_NO_RUN=1, got %d", code)
+	}
+
+	// 12b. Inline flags with '=' syntax
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--track=quick", "--route=quick", "--start-at=2", "--autoplay=3", "--theme=nord", starterPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 launching with '=' flag syntax, got %d", code)
+	}
+
+	// 13. Missing file error
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{}, &out, &errOut); code != 1 {
+		t.Errorf("expected 1 when no args provided, got %d", code)
+	}
+
+	// 14. Missing file error on specific subcommands
+	for _, flag := range []string{"--stats", "--radar", "--graph", "--mermaid", "--dot", "--lint", "--test-code", "--run-slide", "--export-html"} {
+		out.Reset(); errOut.Reset()
+		if code := runCLI([]string{flag}, &out, &errOut); code != 1 {
+			t.Errorf("expected 1 from %s without file, got %d", flag, code)
+		}
+	}
+
+	// 15. Graph and Mermaid with track and route
+	out.Reset(); errOut.Reset()
+	_ = runCLI([]string{"--graph", "--track", "quick", starterPath}, &out, &errOut)
+	out.Reset(); errOut.Reset()
+	_ = runCLI([]string{"--graph", "--route", "quick", starterPath}, &out, &errOut)
+	out.Reset(); errOut.Reset()
+	_ = runCLI([]string{"--mermaid", "--track", "quick", starterPath}, &out, &errOut)
+	out.Reset(); errOut.Reset()
+	_ = runCLI([]string{"--mermaid", "--route", "quick", starterPath}, &out, &errOut)
+	out.Reset(); errOut.Reset()
+	_ = runCLI([]string{"--dot", "--track", "quick", starterPath}, &out, &errOut)
+
+	// 16. Run slide exceeding count or without code
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--run-slide", "999", starterPath}, &out, &errOut); code != 1 {
+		t.Errorf("expected 1 for out-of-range slide")
+	}
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"--run-slide", "1", starterPath}, &out, &errOut); code != 1 {
+		t.Errorf("expected 1 for slide without code")
+	}
+
+	// 17. Fmt unformatted file
+	unfmtPath := tmpDir + "/unfmt.deck.md"
+	_ = os.WriteFile(unfmtPath, []byte("# Hello   \n\n\n\nWorld\n"), 0644)
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"fmt", "--check", unfmtPath}, &out, &errOut); code != 1 {
+		t.Errorf("expected 1 from fmt --check on unformatted file, got %d", code)
+	}
+	out.Reset(); errOut.Reset()
+	if code := runCLI([]string{"fmt", unfmtPath}, &out, &errOut); code != 0 {
+		t.Errorf("expected 0 formatting unformatted file, got %d", code)
+	}
+}
+

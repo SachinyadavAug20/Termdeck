@@ -1,5 +1,39 @@
 # Changelog
 
+## v0.17 — 06 October 2026
+
+### Added
+- **Presentation Health Doctor (`deck doctor <file>` / `internal/doctor.go`)**:
+  - Holistic pre-flight presentation diagnostics verifying everything prior to taking the stage.
+  - **Graph DAG Integrity Prober**: Validates decision forks, loops, broken branch targets, and unreachable orphan slides via `LintGraph`.
+  - **Asset & Image Prober**: Verifies all referenced local image assets (`![alt](path)` and column images) exist on disk relative to deck base directories and asset subfolders.
+  - **Runtime Toolchain Validator**: Inspects code blocks throughout the deck and verifies that the required compilers/interpreters (`python3`, `go`, `rustc`, `gcc`/`clang`, `g++`, `deno`, `node`, `lua`, `perl`, `php`) exist in `$PATH`.
+  - **Slide Viewport Fit & Readability**: Alerts on vertical overflows (>32 lines) or line lengths exceeding 100 columns that might clip or wrap awkwardly on standard terminal projectors.
+  - Beautiful color-coded terminal report with severity badges (`[ERROR]`, `[WARN]`, `[INFO]`, `[PASS]`) and actionable remediation tips. Exits with code 1 on fatal errors for CI automation.
+- **Canonical Presentation Markdown Formatter (`deck fmt` / `internal/format.go`)**:
+  - Automated presentation code and layout formatter (`deck fmt [--check] <file>`).
+  - Canonicalizes presentation directive syntax: `::tags: ...`, `::branch [key] label -> target`, `::track: ...`, `::route: ...`, `::loop: ...`, `::bg: ...`, `::align: ...`, `::note: ...`.
+  - Standardizes slide separators (`---`) and collapses excessive consecutive blank lines.
+  - Trims trailing whitespace on all lines while strictly preserving code fences, indentation, and code block internals.
+  - Supports `--check` mode to verify formatting in CI/CD pre-commit workflows without modifying files.
+- **Native Multi-Language Code Runner Expansion (`internal/runner.go`)**:
+  - Expanded live code runner to natively compile and execute:
+    - **Rust (`rust`, `rs`)**: Auto-wraps in `fn main()` if omitted, compiles with `rustc`, executes binary, captures stdout/stderr, and cleanly purges temp artifacts.
+    - **C (`c`)**: Auto-wraps in `#include <stdio.h>\nint main(void)` if omitted, compiles with `gcc`/`clang`, executes binary, and cleans up.
+    - **C++ (`cpp`, `c++`, `cc`)**: Auto-wraps in `#include <iostream>\nint main()`, compiles with `g++`/`clang++`, executes binary, and cleans up.
+    - **TypeScript (`ts`, `typescript`)**: Auto-dispatches to `deno eval`, `bun run -e`, `tsx -e`, or `ts-node -e`.
+    - **Lua (`lua`, `luajit`)**: Native execution via `lua -e` / `luajit -e`.
+    - **Perl (`perl`, `pl`)**: Native execution via `perl -e`.
+    - **PHP (`php`)**: Native execution via `php -r`.
+- **Configuration Subsystem Overhaul & Bug Fixes (`internal/config.go`)**:
+  - Fixed pointer receiver bug in `loadConfigFile` where configuration values parsed from TOML/YAML files were mutated on a value copy and discarded.
+  - Added exported `LoadConfigFromPath(path)` and pre-parsed `--config <path>` support in `runCLI` so configuration files take precedence over default settings.
+  - Added serialization of `show-dot` in `SaveConfig`.
+  - Added full test suite in `internal/config_test.go` achieving 100% test coverage for default config, file parsing, environment variable overrides, and save round-trips.
+- **Testable CLI Architecture & Expanded Test Suite**:
+  - Refactored `main()` into `runCLI(args []string, stdout, stderr io.Writer) int`, allowing end-to-end testing of all CLI commands and flag combinations.
+  - Boosted statement coverage of package `deck` from 13.6% to **84.5%**, `deck/internal` to **89.5%**, and overall repository test coverage to **89.2%**.
+
 ## v0.16 — 04 October 2026
 
 ### Added

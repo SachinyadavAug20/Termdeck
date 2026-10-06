@@ -38,7 +38,7 @@ func DefaultConfig() Config {
 	}
 }
 
-// LoadConfig loads configuration from a config file and environment variables.
+// LoadConfig loads configuration from standard config file locations and environment variables.
 // Config file locations (in order of precedence):
 //  1. $HOME/.termdeck/config.toml
 //  2. ./termdeck.toml
@@ -54,7 +54,10 @@ func LoadConfig() (Config, error) {
 	}
 
 	for _, path := range configPaths {
-		if err := loadConfigFile(path, cfg); err == nil {
+		if path == "" {
+			continue
+		}
+		if err := loadConfigFile(path, &cfg); err == nil {
 			// Found a config file, no need to try others
 			break
 		}
@@ -63,6 +66,16 @@ func LoadConfig() (Config, error) {
 	// Apply environment variable overrides (env vars take precedence)
 	cfg.applyEnvOverrides()
 
+	return cfg, nil
+}
+
+// LoadConfigFromPath loads configuration from an explicit file path and applies environment variables.
+func LoadConfigFromPath(path string) (Config, error) {
+	cfg := DefaultConfig()
+	if err := loadConfigFile(path, &cfg); err != nil {
+		return cfg, err
+	}
+	cfg.applyEnvOverrides()
 	return cfg, nil
 }
 
@@ -75,7 +88,7 @@ func homeDir(path string) string {
 }
 
 // loadConfigFile attempts to parse a TOML or YAML config file.
-func loadConfigFile(path string, cfg Config) error {
+func loadConfigFile(path string, cfg *Config) error {
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return err
@@ -216,6 +229,9 @@ func SaveConfig(cfg Config, path string) error {
 	}
 	if cfg.ShowMermaid {
 		fmt.Fprintf(&b, "show-mermaid: true\n")
+	}
+	if cfg.ShowDOT {
+		fmt.Fprintf(&b, "show-dot: true\n")
 	}
 	if cfg.TestCode {
 		fmt.Fprintf(&b, "test-code: true\n")

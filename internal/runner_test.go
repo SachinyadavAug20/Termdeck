@@ -1,6 +1,8 @@
 package internal
 
 import (
+	"context"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -110,6 +112,51 @@ func TestExecuteBlockGo(t *testing.T) {
 	// On systems with go installed, this runs and prints to stderr/stdout
 	if res.ExitCode != 0 && res.Error != "" && !strings.Contains(res.Error, "executable file not found") {
 		t.Logf("Go execution result: %+v", res)
+	}
+}
+
+func TestExecuteBlockPython(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "python",
+		Text: `print(f"python result: {20 + 22}")`,
+	}
+	res := ExecuteBlock(blk, 5*time.Second, nil)
+	if res.ExitCode != 0 {
+		t.Fatalf("expected python exit 0, got %d (err: %s)", res.ExitCode, res.Error)
+	}
+	if !strings.Contains(res.Stdout, "python result: 42") {
+		t.Fatalf("expected python output 'python result: 42', got: %q", res.Stdout)
+	}
+}
+
+func TestExecuteBlockNode(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "javascript",
+		Text: `console.log("node result: " + (30 + 12));`,
+	}
+	res := ExecuteBlock(blk, 5*time.Second, nil)
+	if res.ExitCode != 0 {
+		t.Fatalf("expected node exit 0, got %d (err: %s)", res.ExitCode, res.Error)
+	}
+	if !strings.Contains(res.Stdout, "node result: 42") {
+		t.Fatalf("expected node output 'node result: 42', got: %q", res.Stdout)
+	}
+}
+
+func TestExecuteBlockEnv(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "bash",
+		Text: `echo "CUSTOM_VAR=$MY_CUSTOM_TEST_VAR"`,
+	}
+	res := ExecuteBlock(blk, 2*time.Second, []string{"MY_CUSTOM_TEST_VAR=termdeck_rocks"})
+	if res.ExitCode != 0 {
+		t.Fatalf("expected exit 0, got %d", res.ExitCode)
+	}
+	if !strings.Contains(res.Stdout, "CUSTOM_VAR=termdeck_rocks") {
+		t.Fatalf("expected env variable in output, got: %q", res.Stdout)
 	}
 }
 
@@ -253,3 +300,135 @@ func TestTestAllDeckCodeWithColumnsAndDedent(t *testing.T) {
 		t.Errorf("expected empty string from dedent('')")
 	}
 }
+
+func TestExecuteBlockRust(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "rust",
+		Text: `println!("termdeck rust runner: {}", 1 + 2);`,
+	}
+	res := ExecuteBlock(blk, 10*time.Second, nil)
+	if res.ExitCode != 0 {
+		t.Fatalf("expected rust exit 0, got %d (err: %s, stderr: %s)", res.ExitCode, res.Error, res.Stderr)
+	}
+	if !strings.Contains(res.Stdout, "termdeck rust runner: 3") {
+		t.Fatalf("expected stdout to contain computed value, got: %q", res.Stdout)
+	}
+}
+
+func TestExecuteBlockRust_CompileError(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "rust",
+		Text: `this is not valid rust code syntax!`,
+	}
+	res := ExecuteBlock(blk, 10*time.Second, nil)
+	if res.ExitCode == 0 {
+		t.Fatalf("expected compile error exit code != 0, got %d", res.ExitCode)
+	}
+	if res.Error != "compilation failed" {
+		t.Fatalf("expected 'compilation failed' error, got: %s", res.Error)
+	}
+}
+
+func TestExecuteBlockC(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "c",
+		Text: `printf("termdeck c runner: %d\n", 40 + 2);`,
+	}
+	res := ExecuteBlock(blk, 10*time.Second, nil)
+	if res.ExitCode != 0 {
+		t.Fatalf("expected C exit 0, got %d (err: %s, stderr: %s)", res.ExitCode, res.Error, res.Stderr)
+	}
+	if !strings.Contains(res.Stdout, "termdeck c runner: 42") {
+		t.Fatalf("expected stdout to contain computed value, got: %q", res.Stdout)
+	}
+}
+
+func TestExecuteBlockCpp(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "cpp",
+		Text: `std::cout << "termdeck cpp runner: " << (5 * 5) << std::endl;`,
+	}
+	res := ExecuteBlock(blk, 10*time.Second, nil)
+	if res.ExitCode != 0 {
+		t.Fatalf("expected C++ exit 0, got %d (err: %s, stderr: %s)", res.ExitCode, res.Error, res.Stderr)
+	}
+	if !strings.Contains(res.Stdout, "termdeck cpp runner: 25") {
+		t.Fatalf("expected stdout to contain computed value, got: %q", res.Stdout)
+	}
+}
+
+func TestExecuteBlockLua(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "lua",
+		Text: `print("termdeck lua: " .. (10 + 5))`,
+	}
+	res := ExecuteBlock(blk, 5*time.Second, nil)
+	if res.ExitCode != 0 {
+		t.Fatalf("expected lua exit 0, got %d (err: %s, stderr: %s)", res.ExitCode, res.Error, res.Stderr)
+	}
+	if !strings.Contains(res.Stdout, "termdeck lua: 15") {
+		t.Fatalf("expected stdout to contain 'termdeck lua: 15', got: %q", res.Stdout)
+	}
+}
+
+func TestExecuteBlockPerl(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "perl",
+		Text: `print "termdeck perl: " . (8 * 2) . "\n";`,
+	}
+	res := ExecuteBlock(blk, 5*time.Second, nil)
+	if res.ExitCode != 0 {
+		t.Fatalf("expected perl exit 0, got %d (err: %s, stderr: %s)", res.ExitCode, res.Error, res.Stderr)
+	}
+	if !strings.Contains(res.Stdout, "termdeck perl: 16") {
+		t.Fatalf("expected stdout to contain 'termdeck perl: 16', got: %q", res.Stdout)
+	}
+}
+
+func TestExecuteBlockTypeScript(t *testing.T) {
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "ts",
+		Text: `const score: number = 100; console.log("ts score:", score);`,
+	}
+	res := ExecuteBlock(blk, 5*time.Second, nil)
+	if res.ExitCode != 0 {
+		t.Logf("TypeScript runtime result: %+v", res)
+	} else if !strings.Contains(res.Stdout, "ts score: 100") {
+		t.Fatalf("expected stdout 'ts score: 100', got: %q", res.Stdout)
+	}
+}
+
+type MockZigRunner struct{}
+
+func (m *MockZigRunner) Supports(lang string) bool {
+	return lang == "zig"
+}
+
+func (m *MockZigRunner) BuildCommand(ctx context.Context, code string) (*exec.Cmd, []string, string, error) {
+	return exec.CommandContext(ctx, "echo", "zig runner: "+code), nil, "", nil
+}
+
+func TestCustomLanguageRunner_OCP(t *testing.T) {
+	RegisterRunner(&MockZigRunner{})
+	if !IsExecutableLanguage("zig") {
+		t.Fatalf("expected zig to be recognized as executable language after registration")
+	}
+	blk := Block{
+		Kind: BlockCode,
+		Lang: "zig",
+		Text: "const x = 5;",
+	}
+	res := ExecuteBlock(blk, 2*time.Second, nil)
+	if res.ExitCode != 0 || !strings.Contains(res.Stdout, "zig runner: const x = 5;") {
+		t.Fatalf("expected mock zig runner output, got: %+v", res)
+	}
+}
+
+

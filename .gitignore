@@ -19,3 +19,7 @@ Thumbs.db
 # Media recordings
 *.mkv
 *.mp4
+
+# User configuration
+.termdeck/
+
